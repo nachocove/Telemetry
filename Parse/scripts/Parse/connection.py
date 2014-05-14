@@ -31,7 +31,6 @@ class Connection:
     def request(self, method, path, data, header):
         self.connection.request(method, self.abspath(path), data, header)
         html_result = self.connection.getresponse().read()
-        print html_result
         result = json.loads(html_result)
         if 'error' in result:
             raise ParseException(result['code'], result['error'])
