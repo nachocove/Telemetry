@@ -118,6 +118,8 @@
         obj[@"list"] = @[self.textListItem1.text, self.textListItem2.text];
     }
     
+    obj[@"timestamp"] = [NSDate date];
+    
     // Make it only readable by Ops role
     PFACL *acl = [PFACL ACL];
     [acl setWriteAccess:YES forRoleWithName:@"Ops"];
