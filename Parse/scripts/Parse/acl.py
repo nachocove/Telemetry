@@ -14,6 +14,14 @@ class Ace:
             data['write'] = self.write
         return data
 
+    def __eq__(self, other):
+        if not isinstance(other, Ace):
+            return False
+        return (self.name == other.name) and (self.read == other.read) and (self.write == other.write)
+
+    def __ne__(self, other):
+        return not (self == other)
+
 
 class Acl:
     def __init__(self, ace=None):
@@ -30,3 +38,23 @@ class Acl:
         for ace in self.ace_list:
             data[ace.name] = ace.data()
         return data
+
+    def parse(self, data):
+        self.ace_list = []
+        for (name, ace) in data.items():
+            read = ace.get('read', False)
+            write = ace.get('write', False)
+            self.ace_list.append(Ace(name=name, read=read, write=write))
+
+    def __eq__(self, other):
+        if not isinstance(other, Acl):
+            return False
+        if len(self.ace_list) != len(other.ace_list):
+            return False
+        for n in range(len(self.ace_list)):
+            if self.ace_list[n] != other.ace_list[n]:
+                return False
+        return True
+
+    def __ne__(self, other):
+        return not (self == other)

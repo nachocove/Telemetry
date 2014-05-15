@@ -25,7 +25,7 @@ class Relation:
         for obj in self.obj_list:
             if obj.updated:
                 continue
-            if self.addition == addition:
+            if obj.addition == addition:
                 obj_list.append(obj)
         return obj_list
 

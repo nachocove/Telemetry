@@ -8,9 +8,10 @@ class Connection:
     SERVER = 'api.parse.com'
     PORT = 443
 
-    def __init__(self, app_id, api_key):
+    def __init__(self, app_id, api_key, session_token=None):
         self.app_id = app_id
         self.api_key = api_key
+        self.session_token = session_token
         self.connection = httplib.HTTPSConnection(Connection.SERVER, Connection.PORT)
         self.connection.connect()
 
@@ -18,6 +19,8 @@ class Connection:
         hdr = dict()
         hdr['X-Parse-Application-Id'] = self.app_id
         hdr['X-Parse-REST-API-KEY'] = self.api_key
+        if self.session_token is not None:
+            hdr['X-Parse-Session-Token'] = self.session_token
         return hdr
 
     def post_header(self):
@@ -31,7 +34,21 @@ class Connection:
     def request(self, method, path, data, header):
         self.connection.request(method, self.abspath(path), data, header)
         html_result = self.connection.getresponse().read()
-        result = json.loads(html_result)
+
+        def convert_to_str(value):
+            if isinstance(value, unicode):
+                return str(value)
+            if isinstance(value, dict):
+                for key in value.keys():
+                    if isinstance(value[key], unicode):
+                        value[key] = str(value[key])
+                    if isinstance(key, unicode):
+                        tmp_value = value[key]
+                        del value[key]
+                        value[str(key)] = tmp_value
+            return value
+
+        result = json.loads(html_result, object_hook=convert_to_str)
         if 'error' in result:
             raise ParseException(result['code'], result['error'])
         return result
@@ -41,3 +58,9 @@ class Connection:
 
     def get(self, path):
         return self.request('GET', path, '', self.header())
+
+    def put(self, path, data):
+        return self.request('PUT', path, json.dumps(data), self.post_header())
+
+    def delete(self, path):
+        return self.request('DELETE', path, '', self.header())

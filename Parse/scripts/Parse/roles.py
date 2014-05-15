@@ -1,10 +1,9 @@
-from base import ObjectBase
-from acl import Acl
+from objects import Object
 from users import User
 from relation import Relation
 
 
-class Role(ObjectBase):
+class Role(Object):
     PATH = 'roles'
 
     @staticmethod
@@ -27,19 +26,18 @@ class Role(ObjectBase):
             roles.parse(result)
         return roles
 
-    def __init__(self, name=None, id=None, conn=None):
-        ObjectBase.__init__(self, conn)
-        self.name = name
-        self.acl = None
+    def __init__(self, name=None, conn=None):
+        Object.__init__(self, conn)
+        self['name'] = name
         self.roles = Relation(Role)
         self.users = Relation(User)
         self.path = Role.PATH
 
+    def path(self):
+        return Role.PATH
+
     def data(self, create=True, addition=True):
-        data = dict()
-        data['name'] = self.name
-        if self.acl is not None:
-            data['ACL'] = self.acl.data()
+        data = self.data()
         roles_data = self.roles.data(create, addition)
         if len(roles_data) > 0:
             data['roles'] = roles_data
@@ -49,11 +47,7 @@ class Role(ObjectBase):
         return data
 
     def parse(self, data):
-        if 'name' in data:
-            self.name = data['name']
-        if 'ACL' in data:
-            self.acl = Acl()
-            self.acl.parse(data['ACL'])
+        Object.parse(self, data)
 
     def create(self, conn=None):
         conn = self._check_conn(conn)
