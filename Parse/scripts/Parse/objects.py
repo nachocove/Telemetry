@@ -71,3 +71,37 @@ class Object(dict):
             raise ParseException('No valid ID to delete')
         conn = self._check_conn(conn)
         conn.delete(self.path() + '/' + self.id)
+
+    @staticmethod
+    def _query(cls, path, conn, obj_id=None):
+        if obj_id is not None:
+            path += '/' + obj_id
+        result = conn.get(path)
+
+        # Generate output objects
+        if obj_id is None:
+            # If no object id is given, a list is returned
+            obj = []
+            assert 'results' in result
+            for data in result['results']:
+                new_obj = cls()
+                new_obj.parse(data)
+                obj.append(new_obj)
+        else:
+            obj = cls()
+            obj.parse(result)
+        return obj
+
+    @staticmethod
+    def query(class_name, conn, obj_id=None):
+        if obj_id is None:
+            path = 'classes/' + class_name
+        else:
+            path = 'classes/' + class_name + '/' + obj_id
+        objs = Object._query(Object, path, conn, obj_id)
+        if obj_id is None:
+            for obj in objs:
+                obj.class_name = class_name
+        else:
+            objs.class_name = class_name
+        return objs

@@ -1,4 +1,5 @@
 from objects import Object
+import urllib
 
 
 class User(Object):
@@ -22,3 +23,15 @@ class User(Object):
     def parse(self, data):
         Object.parse(self, data)
         self.session_token = self.pop('sessionToken', None)
+
+    @staticmethod
+    def login(username, password, conn):
+        params = urllib.urlencode({'username': username, 'password': password})
+        result = conn.get('login?%s' % params)
+        user = User()
+        user.parse(result)
+        return user
+
+    @staticmethod
+    def query(conn, obj_id=None):
+        return Object._query(User, User.PATH, conn, obj_id)

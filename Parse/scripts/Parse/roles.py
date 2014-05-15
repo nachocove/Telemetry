@@ -6,26 +6,6 @@ from relation import Relation
 class Role(Object):
     PATH = 'roles'
 
-    @staticmethod
-    def query(conn, obj_id=None):
-        path = Role.PATH
-        if obj_id is not None:
-            path += '/' + obj_id
-        result = conn.get(path)
-
-        # Create Role objects
-        if obj_id is None:
-            roles = []
-            assert 'results' in result
-            for role in result['results']:
-                new_obj = Role()
-                new_obj.parse(role)
-                roles.append(new_obj)
-        else:
-            roles = Role()
-            roles.parse(result)
-        return roles
-
     def __init__(self, name=None, conn=None):
         Object.__init__(self, conn)
         self['name'] = name
@@ -53,3 +33,8 @@ class Role(Object):
         conn = self._check_conn(conn)
         result = conn.post(self.path, self.data(create=True, addition=True))
         self.parse(result)
+
+    @staticmethod
+    def query(cls, conn, obj_id=None):
+        return Object._query(Role, Role.PATH, conn, obj_id)
+

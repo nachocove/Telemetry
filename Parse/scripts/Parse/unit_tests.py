@@ -5,9 +5,9 @@ from acl import Acl
 from objects import Object
 from users import User
 
+# For PythonUnitTest app
 APP_ID = 'D4Wb9PGYb9gSXNa6Te4Oy31QF7ANnE4uAA9S9F4G'
 REST_API_KEY = '0xH5KQTdOGnzB8sXcfwAmIrSNJYnsuYrO8ZPuzbt'
-MASTER_KEY = 'hWT3j1hahnRpkqCBSnyDnHxDPafbClXOJ23MXUqU'
 
 
 class TestAcl(unittest.TestCase):
@@ -78,6 +78,15 @@ class TestObject(unittest.TestCase):
 
         self.compare_objects(obj, obj2)
 
+        # Query all
+        obj2 = Object.query('Objects', conn=self.conn)
+        self.assertEqual(len(obj2), 1)
+        self.compare_objects(obj, obj2[0])
+
+        # Query by object id
+        obj2 = Object.query('Objects', conn=self.conn, obj_id=obj.id)
+        self.compare_objects(obj, obj2)
+
         # Update it
         obj['integer'] = 321
         obj['boolean'] = True
@@ -121,6 +130,8 @@ class TestObject(unittest.TestCase):
 class TestUser(unittest.TestCase):
     def setUp(self):
         self.conn = Connection(app_id=APP_ID, api_key=REST_API_KEY)
+        self.username = 'bip cotton'
+        self.password = '123$<>!'
 
     def compare_users(self, user1, user2):
         # User comparison is weird because REST API will never return the password on read
@@ -132,7 +143,7 @@ class TestUser(unittest.TestCase):
 
     def test_user(self):
         # Create a user
-        user = User(conn=self.conn, username='bip_cotton', password='123456', email='nobody@company.com')
+        user = User(conn=self.conn, username=self.username, password=self.password, email='nobody@company.com')
         user.create()
         self.assertIsNotNone(user.id)
         self.assertIsNotNone(user.session_token)
@@ -142,6 +153,11 @@ class TestUser(unittest.TestCase):
         user2 = User(conn=conn2)
         user2.id = user.id
         user2.read()
+
+        self.compare_users(user, user2)
+
+        # Login
+        user2 = User.login(username=self.username, password=self.password, conn=self.conn)
 
         self.compare_users(user, user2)
 
