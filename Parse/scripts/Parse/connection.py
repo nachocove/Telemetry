@@ -50,7 +50,8 @@ class Connection:
 
         result = json.loads(html_result, object_hook=convert_to_str)
         if 'error' in result:
-            raise ParseException(result['code'], result['error'])
+            code = result.get('code', None)
+            raise ParseException(code, result['error'])
         return result
 
     def post(self, path, data):

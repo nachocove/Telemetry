@@ -13,9 +13,13 @@ class User(Object):
         self.session_token = None
 
     def __str__(self):
-        data = self.data()
+        return str(self.desc())
+
+    def desc(self):
+        data = {}
+        data.update(self.data())
         data['sessionToken'] = self.session_token
-        return str(data)
+        return data
 
     def path(self):
         return User.PATH

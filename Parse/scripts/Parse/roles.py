@@ -17,7 +17,7 @@ class Role(Object):
         return Role.PATH
 
     def data(self, create=True, addition=True):
-        data = self.data()
+        data = Object.data(self)
         roles_data = self.roles.data(create, addition)
         if len(roles_data) > 0:
             data['roles'] = roles_data
