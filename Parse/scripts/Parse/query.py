@@ -69,6 +69,7 @@ class Query:
         self.keys = []
         self.count = None
         self.limit = None
+        self.skip = None
 
     def add(self, field, selector):
         assert issubclass(selector.__class__, Selector)
@@ -104,6 +105,9 @@ class Query:
         if query.limit is not None:
             assert isinstance(query.limit, int)
             data['limit'] = query.limit
+        if query.skip is not None:
+            assert isinstance(query.skip, int)
+            data['skip'] = query.skip
 
         result = conn.get('classes/' + cls + '?' + urllib.urlencode(data))
         obj_list = []

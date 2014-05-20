@@ -7,7 +7,17 @@ def query_log(log_type, conn):
     query = Parse.query.Query()
     query.add('event_type', Parse.query.SelectorEqual(log_type))
     query.limit = 1000
-    return Parse.query.Query.objects('Events', query, conn)[0]
+    query.skip = 0
+    obj_list = []
+
+    # Keep querying until the list is less than 1000
+    results = Parse.query.Query.objects('Events', query, conn)[0]
+    obj_list.extend(results)
+    while len(results) == query.limit:
+        query.skip += query.limit
+        results = Parse.query.Query.objects('Events', query, conn)[0]
+        obj_list.extend(results)
+    return obj_list
 
 
 def classify_log(logs):
