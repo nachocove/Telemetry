@@ -6,8 +6,8 @@ import pprint
 def query_log(log_type, conn):
     query = Parse.query.Query()
     query.add('event_type', Parse.query.SelectorEqual(log_type))
-    results = Parse.query.Query.objects('Events', query, conn)
-    return results
+    query.limit = 1000
+    return Parse.query.Query.objects('Events', query, conn)[0]
 
 
 def classify_log(logs):

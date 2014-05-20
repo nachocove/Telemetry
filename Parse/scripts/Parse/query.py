@@ -88,7 +88,6 @@ class Query:
                     # the dictionary with a value and terminate the walk
                     data[field] = sel.data()
                 else:
-                    print sel
                     for (op, value) in sel.data().items():
                         data[field][op] = value
         return data
@@ -108,10 +107,13 @@ class Query:
 
         result = conn.get('classes/' + cls + '?' + urllib.urlencode(data))
         obj_list = []
+        count = None
         if 'results' not in result:
-            return obj_list
+            return obj_list, count
+        if 'count' in result:
+            count = result['count']
         for data in result['results']:
             obj = Object(class_name=cls)
             obj.parse(data)
             obj_list.append(obj)
-        return obj_list
+        return obj_list, count
