@@ -2,7 +2,7 @@ import argparse
 import Parse
 import getpass
 import pprint
-
+import config
 
 def abort(mesg):
     print 'ERROR: ' + mesg
@@ -96,25 +96,27 @@ class SelectorAction(argparse.Action):
             elif value == 'False':
                 sel = Parse.query.SelectorExists(False)
             else:
-                assert False
+                raise ValueError('invalid boolean value %s' % value)
         else:
-            assert False
+            raise ValueError('unknown option %s' % option_string)
         getattr(namespace, self.dest).append(sel)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--app-id', help='application ID',
-                        required=True)
-    rest_api_key_group = parser.add_mutually_exclusive_group(required=True)
+
+    # Access credential
+    parser.add_argument('--app-id', help='application ID', default=None)
+    rest_api_key_group = parser.add_mutually_exclusive_group()
     rest_api_key_group.add_argument('--api-key', help='REST API key')
     rest_api_key_group.add_argument('--master-key', help='Master key')
+    parser.add_argument('--session-token', help='session token', default=None)
+    parser.add_argument('--config', help='configuration file', default='parse.cfg')
 
     # Login options
     parser.add_argument('--username', help='username', default=None)
     parser.add_argument('--password', help='password. If none is given and it is needed, it will prompt for one',
                         default=None)
-    parser.add_argument('--session-token', help='session token', default=None)
 
     # Query options
     parser.add_argument('--field', help='a field for query', action='append', default=[])
@@ -129,6 +131,20 @@ def main():
 
     options = parser.parse_args()
 
+    def has_credential(opt):
+        if opt.app_id is None:
+            return False
+        if (opt.api_key is None) and (opt.master_key is None):
+            return False
+        return True
+
+    # Sanity check parameters
+    if not has_credential(options):
+        config.read_config(options)
+    else:
+        # Write the credential
+        config.write_config(options)
+
     if options.command == 'login':
         login(options)
     elif options.command == 'delete':
@@ -136,7 +152,7 @@ def main():
     elif options.command == 'count':
         count(options)
     else:
-        assert False
+        raise ValueError('unknown command %s' % options.command)
 
 
 if __name__ == '__main__':

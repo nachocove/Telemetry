@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 import Parse
 import pprint
-
+import config
 
 def query_log(log_type, conn):
     query = Parse.query.Query()
@@ -59,13 +59,17 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('--api-key',
                         help='REST API key [default: NachoMail API key]',
-                        required=True)
+                        default=None)
     parser.add_argument('--app-id',
                         help='application ID',
-                        required=True)
+                        default=None)
     parser.add_argument('--session-token',
                         help='session token',
                         default=None)
+
+    parser.add_argument('--config',
+                        help='configuration file',
+                        default='monitor.cfg')
 
     parser.add_argument('--errors',
                         help='process error logs',
@@ -77,6 +81,11 @@ def main():
                         default=False)
 
     options = parser.parse_args()
+
+    if not options.api_key or not options.app_id or not options.session_token:
+        config.read_config(options)
+    else:
+        config.write_config(options)
 
     # Create a connection
     conn = Parse.connection.Connection(app_id=options.app_id,
