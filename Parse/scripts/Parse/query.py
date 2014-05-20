@@ -60,7 +60,7 @@ class SelectorExists(Selector):
     def __init__(self, value):
         assert isinstance(value, bool)
         Selector.__init__(self, value)
-        self.op = '$exist'
+        self.op = '$exists'
 
 
 class Query:
@@ -111,7 +111,7 @@ class Query:
         if 'results' not in result:
             return obj_list
         for data in result['results']:
-            obj = Object()
+            obj = Object(class_name=cls)
             obj.parse(data)
             obj_list.append(obj)
         return obj_list

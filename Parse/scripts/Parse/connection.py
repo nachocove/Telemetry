@@ -8,17 +8,22 @@ class Connection:
     SERVER = 'api.parse.com'
     PORT = 443
 
-    def __init__(self, app_id, api_key, session_token=None):
+    def __init__(self, app_id, api_key, session_token=None, master_key=None):
         self.app_id = app_id
         self.api_key = api_key
         self.session_token = session_token
+        self.master_key = master_key
         self.connection = httplib.HTTPSConnection(Connection.SERVER, Connection.PORT)
         self.connection.connect()
 
     def header(self):
         hdr = dict()
         hdr['X-Parse-Application-Id'] = self.app_id
-        hdr['X-Parse-REST-API-KEY'] = self.api_key
+        if self.master_key is None:
+            hdr['X-Parse-REST-API-KEY'] = self.api_key
+        else:
+            # If master key is provided, use that instead
+            hdr['X-Parse-Master-Key'] = self.master_key
         if self.session_token is not None:
             hdr['X-Parse-Session-Token'] = self.session_token
         return hdr
@@ -37,11 +42,17 @@ class Connection:
 
         def convert_to_str(value):
             if isinstance(value, unicode):
-                return str(value)
+                try:
+                    return str(value)
+                except UnicodeEncodeError:
+                    return value
             if isinstance(value, dict):
                 for key in value.keys():
                     if isinstance(value[key], unicode):
-                        value[key] = str(value[key])
+                        try:
+                            value[key] = str(value[key])
+                        except UnicodeEncodeError:
+                            pass
                     if isinstance(key, unicode):
                         tmp_value = value[key]
                         del value[key]
