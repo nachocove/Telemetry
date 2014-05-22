@@ -4,6 +4,10 @@
 #
 # Note that master key is never cached into the configuration file for
 # security reason.
+#
+# This module is called config.py but it is really a misnomer as the file
+# really contains persistent states instead of configuration. But since
+# we are using Python's ConfigParser, we call this "config".
 import ConfigParser
 import os.path
 

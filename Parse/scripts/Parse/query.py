@@ -1,6 +1,7 @@
 import json
 import urllib
 from objects import Object
+from utc_datetime import UtcDateTime
 
 
 class Selector:
@@ -12,47 +13,52 @@ class Selector:
         return {self.op: self.value}
 
 
-class SelectorEqual(Selector):
+class SelectorCompare(Selector):
     def __init__(self, value):
-        Selector.__init__(self, value)
+        if isinstance(value, int) or isinstance(value, str):
+            Selector.__init__(self, value)
+        elif isinstance(value, UtcDateTime):
+            Selector.__init__(self, {'__type': 'Date', 'iso': str(value)})
+        else:
+            raise TypeError('unsupported type %s' % value.__class__.__name__)
+
+
+class SelectorEqual(SelectorCompare):
+    def __init__(self, value):
+        SelectorCompare.__init__(self, value)
         self.op = '$eq'
 
     def data(self):
         return self.value
 
 
-class SelectorNotEqual(Selector):
+class SelectorNotEqual(SelectorCompare):
     def __init__(self, value):
-        assert isinstance(value, int)
-        Selector.__init__(self, value)
+        SelectorCompare.__init__(self, value)
         self.op = '$ne'
 
 
-class SelectorLessThan(Selector):
+class SelectorLessThan(SelectorCompare):
     def __init__(self, value):
-        assert isinstance(value, int)
-        Selector.__init__(self, value)
+        SelectorCompare.__init__(self, value)
         self.op = '$lt'
 
 
-class SelectorLessThanEqual(Selector):
+class SelectorLessThanEqual(SelectorCompare):
     def __init__(self, value):
-        assert isinstance(value, int)
-        Selector.__init__(self, value)
+        SelectorCompare.__init__(self, value)
         self.op = '$lte'
 
 
-class SelectorGreaterThan(Selector):
+class SelectorGreaterThan(SelectorCompare):
     def __init__(self, value):
-        assert isinstance(value, int)
-        Selector.__init__(self, value)
+        SelectorCompare.__init__(self, value)
         self.op = '$gt'
 
 
-class SelectorGreaterThanEqual(Selector):
+class SelectorGreaterThanEqual(SelectorCompare):
     def __init__(self, value):
-        assert isinstance(value, int)
-        Selector.__init__(self, value)
+        SelectorCompare.__init__(self, value)
         self.op = '$gte'
 
 
