@@ -85,6 +85,9 @@ class TestTable(unittest.TestCase):
                                        '<tr><td>a</td><td><b>xyz</b></td></tr>'
                                        '<tr><td>abc</td><td><i>0123456789</i></td></tr>'
                                        '</table>')
+        self.assertEqual(table.plain_text(), 'First column  2nd col.    \n'
+                                             'a             xyz         \n'
+                                             'abc           0123456789  \n')
 
 
 if __name__ == '__main__':
