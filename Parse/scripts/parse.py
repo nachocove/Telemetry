@@ -4,6 +4,7 @@ import getpass
 import pprint
 import config
 
+
 def abort(mesg):
     print 'ERROR: ' + mesg
     exit(1)

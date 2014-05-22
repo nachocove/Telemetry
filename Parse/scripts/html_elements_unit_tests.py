@@ -45,7 +45,7 @@ class TestList(unittest.TestCase):
 
     def test_unordered_list(self):
         contents = ['List item #1', 'List item #2', 'List item #3']
-        list_items = []
+        list_items = list()
         list_items.append(ListItem(Text(contents[0])))
         list_items.append(ListItem(Bold(contents[1])))
         list_items.append(ListItem(Color(contents[2], 'red')))
@@ -56,7 +56,7 @@ class TestList(unittest.TestCase):
 
     def test_ordered_list(self):
         contents = ['List item #1', 'List item #2', 'List item #3']
-        list_items = []
+        list_items = list()
         list_items.append(ListItem(Text(contents[0])))
         list_items.append(ListItem(Bold(contents[1])))
         list_items.append(ListItem(Color(contents[2], 'red')))
@@ -80,7 +80,11 @@ class TestTable(unittest.TestCase):
         table = Table([headers, row1, row2])
         print table.html()
         print table.plain_text()
-        self.assertEqual(table.html(), '<table cellpadding="2" style="border-collapse: collapse" border="1"><tr><th><b>First column</b></th><th><b>2nd col.</b></th></tr><tr><td>a</td><td><b>xyz</b></td></tr><tr><td>abc</td><td><i>0123456789</i></td></tr></table>')
+        self.assertEqual(table.html(), '<table cellpadding="2" style="border-collapse: collapse" border="1">'
+                                       '<tr><th><b>First column</b></th><th><b>2nd col.</b></th></tr>'
+                                       '<tr><td>a</td><td><b>xyz</b></td></tr>'
+                                       '<tr><td>abc</td><td><i>0123456789</i></td></tr>'
+                                       '</table>')
 
 
 if __name__ == '__main__':

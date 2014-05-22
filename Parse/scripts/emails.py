@@ -1,6 +1,5 @@
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import email.mime
 
 
 class EmailServer:
@@ -12,7 +11,7 @@ class EmailServer:
         self.start_tls = start_tls
         self.tls = tls
 
-    def send(self, from_address, to_addresses, email):
+    def send(self, from_address, to_addresses, email_):
         if self.tls:
             smtp_svr = smtplib.SMTP_SSL()
         else:
@@ -21,7 +20,7 @@ class EmailServer:
         if self.start_tls:
             smtp_svr.starttls()
         smtp_svr.login(self.username, self.password)
-        smtp_svr.sendmail(from_address, to_addresses, email)
+        smtp_svr.sendmail(from_address, to_addresses, email_)
 
 
 class Email:
@@ -36,15 +35,15 @@ class Email:
 
     def send(self, server):
         if isinstance(self.content, str):
-            email = MIMEText(self.content)
+            email_ = email.mime.text.MIMEText(self.content)
         else:
-            email = MIMEMultipart('alternative')
-            plain_email = MIMEText(self.content.plain_text(), 'plain')
-            html_email = MIMEText(self.content.html(), 'html')
-            email.attach(plain_email)
-            email.attach(html_email)
-        email['From'] = self.from_address
-        email['To'] = self.to_addresses_str()
-        email['Subject'] = self.subject
+            email_ = email.mime.multipart.MIMEMultipart('alternative')
+            plain_email = email.mime.text.MIMEText(self.content.plain_text(), 'plain')
+            html_email = email.mime.text.MIMEText(self.content.html(), 'html')
+            email_.attach(plain_email)
+            email_.attach(html_email)
+        email_['From'] = self.from_address
+        email_['To'] = self.to_addresses_str()
+        email_['Subject'] = self.subject
 
-        server.send(self.from_address, self.to_addresses_str(), email.as_string())
+        server.send(self.from_address, self.to_addresses_str(), email_.as_string())
