@@ -252,13 +252,13 @@ class DateTimeAction(argparse.Action):
 
 def main():
     parser = argparse.ArgumentParser(add_help=False)
-    config_group = parser.add_argument_group('Configuration Options',
-                                             'These options specify the Parse credential and various '
-                                             'configurations. You need app id, REST API key, and session '
-                                             'token for user "monitor". To get the session token, use '
-                                             'parse.py login command. A configuration file is created to '
-                                             'store these parameters for you. So, you can omit these parameters '
-                                             'after running with them once.')
+    config_group = parser.add_argument_group(title='Configuration Options',
+                                             description='These options specify the Parse credential and various '
+                                                         'configurations. You need app id, REST API key, and session '
+                                                         'token for user "monitor". To get the session token, use '
+                                                         'parse.py login command. A configuration file is created to '
+                                                         'store these parameters for you. So, you can omit these '
+                                                         'parameters after running with them once.')
     config_group.add_argument('--api-key',
                               help='REST API key [default: NachoMail API key]',
                               default=None)
@@ -276,8 +276,9 @@ def main():
                               action='store_true',
                               default=False)
 
-    filter_group = parser.add_argument_group('Filtering Options',
-                                             'These options specify a time window where reports are applied.')
+    filter_group = parser.add_argument_group(title='Filtering Options',
+                                             description='These options specify a time '
+                                                         'window where reports are applied.')
     filter_group.add_argument('--after',
                               help='Time window starting time in ISO-8601 UTC or "last" for the last saved time',
                               action=DateTimeAction,
@@ -289,7 +290,7 @@ def main():
                               dest='end',
                               default=None)
 
-    misc_group = parser.add_argument_group('Miscellaneous Option')
+    misc_group = parser.add_argument_group(title='Miscellaneous Option')
     misc_group.add_argument('-h', '--help', help='Print this help message', action='store_true', dest='help')
 
     report_group = parser.add_argument_group('Monitors', 'These options select which report to run.')
