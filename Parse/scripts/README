@@ -1,0 +1,123 @@
+1. INTRODUCTION
+---------------
+This document describes various scripts for the Parse-based telemetry system.
+
+
+2. NEW USERS
+------------
+Anyone who wants to access the telemetry system should go to http://parse.com
+to sign up using your Nacho Cove email. Once signed up, please let me know
+so I can add you to the NachoMail project.
+
+
+3. APPLICATION KEYS
+-------------------
+In order to interact with Parse, various application keys are required. To
+see them, go to: "Welcome [your name]" -> NachoMail -> Settings -> Application
+keys.
+
+For running Python scripts, you need: Application ID, REST API key, master 
+key and a session token not listed here. Typically, you do not need the master
+key. It is only used for initial set up and for deleting objects.
+
+NOTE: master key is equivalent to the admin account. It can override all
+access control. So, be careful of where you store this key. Telemetry script
+will persist other keys in configuration file but not master key for security
+reason.
+
+Session token is given after a user logs in. It determines what operations on 
+which objects is allowed for each particular users.
+
+
+4. ACCESS CONTROL
+-----------------
+In our system, there are three classes of users:
+
+1. Client anonymous users - These accounts are created automatically by 
+   Nacho Mail client. They can only create objects. They cannot read or
+   update any events (even the ones they create).
+
+2. Monitor (username 'monitor') - This account is used for querying telemetry
+   events and sends our reports and alerts. Monitor can read any events but
+   cannot modify any existing eventss.
+
+3. Admin - Any operation done using the master key (or in Parse web portal) 
+   overrides all access control. This is the only user that can modify / 
+   delete events.
+
+Application ID is embedded into Nacho Client. It has not security value.
+
+REST API key should be kept private. If it is compromised, the hacker 
+still can query but will have no result since only 'ops' role can read
+them. However, he will be able to create events.
+
+Session token should be kept private. If it is compromised, the hacker 
+will be able to read all events.
+
+
+5. setup.py
+-----------
+This script creates a user name 'monitor' and a role named 'ops' and add 
+'monitor' to this role. It only needs to run once.
+
+For example,
+
+python setup.py --app-id $APP_ID --api-key $API_KEY --username monitor
+ --email henryk@nachocove.com
+
+
+6. parse.py
+-----------
+This script can perform various operations; mostly for query purpose.
+It can also get the session token.
+
+python parse.py --app-id $APP_ID --api-key $API_KEY --username monitor login
+
+You will be prompted for the password. The monitor password is the 
+"well-known" password. (Ask Chris, Jeff, or Steve.) You should see something
+like:
+
+{'email': None,
+ 'password': None,
+ 'sessionToken': 'session token here!!!',
+ 'username': 'monitor'}
+
+[More features to be added and to be documented]
+
+
+7. monitor.py
+-------------
+This script run a set of monitors. Each monitor is a query that produces a 
+report.
+
+You want to run it once with all keys:
+
+python monitor.py --app-id $APP_ID --api-key $API_KEY --session-token 
+ $SESSION_TOKEN --before now users events errors warnings
+
+This command runs 4 monitors - users, events, errors and warnings; applying
+a time window of up to current time. It will report to the stdout. A 
+monitor.cfg should be created with the keys you entered. After this, you
+do not need to provide those parameters on command line anymore.
+
+To get it to send email, you need to configure the email section:
+
+[email]
+smtp_server = smtp.office365.com
+port = 587
+start_tls = True
+username = henryk@nachocove.com
+recipient = nerds@nachocove.com
+password = xxxxxxxxxxx
+
+if password is not provided, you will be prompted to enter the password.
+
+Afterward, a typical usage is:
+
+python monitor.py --after last --before now --email users events errors warnings
+
+"--email" instructs monitor.py to send an email out.
+
+"--after last" reads a timestamp in monitor.cfg.
+
+You can specify a config file different the default monitor.cfg using --config.
