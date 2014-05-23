@@ -168,9 +168,8 @@ class MonitorCount(Monitor):
         print '%s: %s' % (self.rate_desc, rate)
         summary.add_entry(self.desc, str(self.count))
 
-        if self.rate_desc and self.end is not None and self.start is not None:
-            rate = float(self.count) / (self.end - self.start) * 60
-            summary.add_entry(self.rate_desc, str(rate) + '/ min')
+        if self.rate_desc and rate is not None:
+            summary.add_entry(self.rate_desc, rate)
         return None  # does not have its own report
 
 
