@@ -1,5 +1,6 @@
 import smtplib
-import email.mime
+import email.mime.text
+import email.mime.multipart
 
 
 class EmailServer:

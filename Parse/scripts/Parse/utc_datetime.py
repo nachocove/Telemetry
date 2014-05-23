@@ -13,6 +13,13 @@ class UtcDateTime:
             return s + 'Z'
         return s + '.%dZ' % int(self.datetime.microsecond/1000.)
 
+    def __sub__(self, other):
+        """
+        Return the elapsed time in seconds (with millisecond resolution).
+        """
+        delta = self.datetime - other.datetime
+        return (float(delta.days) * 86400.0) + float(delta.seconds) + (float(delta.microseconds) / 1.e6)
+
     @staticmethod
     def now():
         dt = datetime.datetime.utcnow()

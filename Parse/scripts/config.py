@@ -1,48 +1,52 @@
-# This module provides Parse application keys management using python
-# configuration file. 'options' is a argparse parse output. It ia assumed
-# to have 4 attributes - app_id, api_key, sessions_token, config
+# This module provides a base class for configuration file management
+# It provides Parse application keys management using Python configuration
+# file. 'options' is a argparse parse output. It ia assumed to have
+# to have 3 attributes - app_id, api_key, sessions_token.
 #
 # Note that master key is never cached into the configuration file for
 # security reason.
 #
-# This module is called config.py but it is really a misnomer as the file
-# really contains persistent states instead of configuration. But since
-# we are using Python's ConfigParser, we call this "config".
+# Note that each script can extend this to hold additional configuration
+# (and maybe even states) on the configuration file.
+
 import ConfigParser
 import os.path
 
 
-def read_config(options):
-    """
-    Read the configuration file and set the keys back into the options object.
-    """
-    config = ConfigParser.RawConfigParser()
-    if not os.path.exists(options.config):
-        return
-    config.read(options.config)
-    if config.has_section('keys'):
-        if config.has_option('keys', 'app_id'):
-            options.app_id = config.get('keys', 'app_id')
-        if config.has_option('keys', 'api_key'):
-            options.api_key = config.get('keys', 'api_key')
-        if config.has_option('keys', 'session_token'):
-            options.session_token = config.get('keys', 'session_token')
+class Config:
+    def __init__(self, cfg_file):
+        self.cfg_file = cfg_file
+        self.config = ConfigParser.RawConfigParser()
+        if os.path.exists(self.cfg_file):
+            self.config.read(self.cfg_file)
 
+    def read_keys(self, options):
+        """
+        Read the Parse keys and set them back to the options object.
+        """
+        if not self.config.has_section('keys'):
+            return
+        if self.config.has_option('keys', 'app_id'):
+            options.app_id = self.config.get('keys', 'app_id')
+        if self.config.has_option('keys', 'api_key'):
+            options.api_key = self.config.get('keys', 'api_key')
+        if self.config.has_option('keys', 'session_token'):
+            options.session_token = self.config.get('keys', 'session_token')
 
-def write_config(options):
-    """
-    Write the configuration file from the options object
-    """
-    config = ConfigParser.RawConfigParser()
-    if os.path.exists(options.config):
-        config.read(options.config)
-    if not config.has_section('keys'):
-        config.add_section('keys')
-    if options.app_id is not None:
-        config.set('keys', 'app_id', options.app_id)
-    if options.api_key is not None:
-        config.set('keys', 'api_key', options.api_key)
-    if options.session_token is not None:
-        config.set('keys', 'session_token', options.session_token)
-    with open(options.config, 'w') as f:
-        config.write(f)
+    def write_keys(self, options):
+        """
+        Write the keys back to the configuration file.
+        """
+        if not self.config.has_section('keys'):
+            self.config.add_section('keys')
+        if options.app_id is not None:
+            self.config.set('keys', 'app_id', options.app_id)
+        if options.api_key is not None:
+            self.config.set('keys', 'api_key', options.api_key)
+        if options.session_token is not None:
+            self.config.set('keys', 'session_token', options.session_token)
+        self.write()
+
+    def write(self):
+        with open(self.cfg_file, 'w') as f:
+            self.config.write(f)

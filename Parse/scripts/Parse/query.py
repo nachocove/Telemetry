@@ -1,6 +1,7 @@
 import json
 import urllib
 from objects import Object
+from users import User
 from utc_datetime import UtcDateTime
 
 
@@ -99,23 +100,34 @@ class Query:
                         data[field][op] = value
         return data
 
-    @staticmethod
-    def objects(cls, query, conn):
+    def urlencoding_data(self):
+        """
+        Return a dictionary ready for URL encoding (e.g. urllib.urlencode())
+        """
         data = dict()
-        data['where'] = json.dumps(query.where())
-        if len(query.keys) > 0:
-            data['keys'] = ','.join(query.keys)
-        if query.count is not None:
-            assert isinstance(query.count, int)
-            data['count'] = query.count
-        if query.limit is not None:
-            assert isinstance(query.limit, int)
-            data['limit'] = query.limit
-        if query.skip is not None:
-            assert isinstance(query.skip, int)
-            data['skip'] = query.skip
+        data['where'] = json.dumps(self.where())
+        if len(self.keys) > 0:
+            data['keys'] = ','.join(self.keys)
+        if self.count is not None:
+            assert isinstance(self.count, int)
+            data['count'] = self.count
+        if self.limit is not None:
+            assert isinstance(self.limit, int)
+            data['limit'] = self.limit
+        if self.skip is not None:
+            assert isinstance(self.skip, int)
+            data['skip'] = self.skip
+        return data
 
-        result = conn.get('classes/' + cls + '?' + urllib.urlencode(data))
+
+    @staticmethod
+    def _objects(cls, class_name, path, query, conn):
+        data = query.urlencoding_data()
+        if len(data) > 0:
+            result = conn.get(path + '?' + urllib.urlencode(data))
+        else:
+            # Empty query has no parameters and does not need ?
+            result = conn.get(path)
         obj_list = []
         count = None
         if 'results' not in result:
@@ -123,7 +135,15 @@ class Query:
         if 'count' in result:
             count = result['count']
         for data in result['results']:
-            obj = Object(class_name=cls)
+            obj = cls(class_name=class_name)
             obj.parse(data)
             obj_list.append(obj)
         return obj_list, count
+
+    @staticmethod
+    def objects(cls, query, conn):
+        return Query._objects(Object, cls, 'classes/' + cls, query, conn)
+
+    @staticmethod
+    def users(query, conn):
+        return Query._objects(User, None, 'users', query, conn)
