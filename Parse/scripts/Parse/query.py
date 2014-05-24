@@ -65,9 +65,18 @@ class SelectorGreaterThanEqual(SelectorCompare):
 
 class SelectorExists(Selector):
     def __init__(self, value):
-        assert isinstance(value, bool)
+        if not isinstance(value, bool):
+            raise TypeError('value must be bool')
         Selector.__init__(self, value)
         self.op = '$exists'
+
+
+class SelectorContain(Selector):
+    def __init__(self, value):
+        if not isinstance(value, str):
+            raise TypeError('value must be str')
+        Selector.__init__(self, value)
+        self.op = '$regex'
 
 
 class Query:
@@ -118,7 +127,6 @@ class Query:
             assert isinstance(self.skip, int)
             data['skip'] = self.skip
         return data
-
 
     @staticmethod
     def _objects(cls, class_name, path, query, conn):

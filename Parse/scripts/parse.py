@@ -198,19 +198,21 @@ class SelectorAction(argparse.Action):
             sel = Parse.query.SelectorEqual(value)
         elif option_string == '--exists':
             value = value.strip()
-            if value == 'True':
+            if value == 'true':
                 sel = Parse.query.SelectorExists(True)
-            elif value == 'False':
+            elif value == 'false':
                 sel = Parse.query.SelectorExists(False)
             else:
                 raise ValueError('invalid boolean value %s' % value)
         elif option_string == '--after':
-            sel = Parse.utc_datetime.UtcDateTime(value)
+            sel = Parse.query.SelectorGreaterThanEqual(Parse.utc_datetime.UtcDateTime(value))
         elif option_string == '--before':
             if value == 'now':
-                sel = Parse.utc_datetime.UtcDateTime.now()
+                sel = Parse.query.SelectorLessThan(Parse.utc_datetime.UtcDateTime.now())
             else:
-                sel = Parse.utc_datetime.UtcDateTime(value)
+                sel = Parse.query.SelectorLessThan(Parse.utc_datetime.UtcDateTime(value))
+        elif option_string == '--contains':
+            sel = Parse.query.SelectorContain(value)
         else:
             raise ValueError('unknown option %s' % option_string)
         getattr(namespace, self.dest).append(sel)
@@ -276,11 +278,13 @@ def main():
                              action=SelectorAction, dest='selectors', default=[])
     query_group.add_argument('--equal', help='Match a field to be equal to this value',
                              action=SelectorAction, dest='selectors', default=[])
-    query_group.add_argument('--exists', help='Match a field to exist',
+    query_group.add_argument('--exists', help='Match a field to exist', choices=['true', 'false'],
                              action=SelectorAction, dest='selectors', default=[])
     query_group.add_argument('--field', help='A field for query (%s)' % ', ' .join(valid_fields),
                              action='append', metavar='FIELD',
                              choices=valid_fields, default=[])
+    query_group.add_argument('--contains', help='Match a field that contains this string',
+                             action=SelectorAction, dest='selectors', default=[])
 
     # Filtering options
     filter_group = parser.add_argument_group(title='Filter Options')
