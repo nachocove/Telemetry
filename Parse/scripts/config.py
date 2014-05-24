@@ -47,9 +47,9 @@ class Config:
         """
         Write the keys back to the configuration file.
         """
-        self.set('keys', 'app_id', options.app_id)
-        self.set('keys', 'api_key', options.api_key)
-        self.set('keys', 'session_token', options.session_token)
+        self.set('keys', 'app_id', options)
+        self.set('keys', 'api_key', options)
+        self.set('keys', 'session_token', options)
         self.write()
 
     def write(self):
