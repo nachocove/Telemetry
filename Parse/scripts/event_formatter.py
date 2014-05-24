@@ -1,0 +1,208 @@
+class AnsiDecorator:
+    """
+    Decorator a string using ANSI escape sequence to add color, bold
+    or italic font.
+    """
+    COLOR_CODES = {'black': 30,
+                   'red': 31,
+                   'green': 32,
+                   'yellow': 33,
+                   'blue': 34,
+                   'magenta': 35,
+                   'cyan': 36,
+                   'white': 37}
+    ESC = chr(27)
+
+    def __init__(self, color=None, bold=False, underscore=False):
+        self.esc_on = None
+        self.esc_off = None
+        codes = []
+        if color is not None:
+            if color not in AnsiDecorator.COLOR_CODES:
+                raise ValueError('invalid color code %s' % color)
+            else:
+                codes.append(AnsiDecorator.COLOR_CODES[color])
+        if bold:
+            codes.append(1)
+        if underscore:
+            codes.append(5)
+        if len(codes) > 0:
+            self.esc_on = AnsiDecorator.ESC + '[' + ','.join(str(x) for x in codes) + 'm'
+            self.esc_off = AnsiDecorator.ESC + '[0m'
+
+    def format(self, text):
+        if self.esc_on:
+            assert self.esc_off
+            return self.esc_on + text + self.esc_off
+        return text
+
+
+class EventFormatterSection:
+    """
+    One section of the formatted event. Each section consists of the
+    content and its decorator.
+    """
+    def __init__(self, decorator=None):
+        self.decorator = decorator
+        if self.decorator is None:
+            self.decorator = AnsiDecorator()
+        self.content_ = ''
+
+    def format(self, field, value):
+        raise Exception('not implemented')
+
+    def content(self):
+        return self.decorator.format(self.content_)
+
+    def reset(self):
+        self.content_ = ''
+
+    @staticmethod
+    def format_content(value):
+        if isinstance(value, dict):
+            if value['__type'] == 'Date':
+                return value['iso']
+            elif value['__type'] == 'Bytes':
+                return value['base64']
+            else:
+                raise TypeError('unsupported type %s (%s)' % (value.__class__.__name__, value))
+        else:
+            try:
+                return str(value)
+            except UnicodeEncodeError:
+                return value
+
+
+class RecordStyleSection(EventFormatterSection):
+    """
+    Record style section consists of both the name of the field and the content of the field.
+    """
+    def format(self, field, value):
+        self.content_ += '%s: %s\n' % (field, EventFormatterSection.format_content(value))
+
+
+class LogStyleSection(EventFormatterSection):
+    """
+    Log style section consists of only the content. The field is implicitly identified by
+    its position.
+    """
+    def format(self, field, value):
+        self.content_ += EventFormatterSection.format_content(value)
+
+    def content(self):
+        return EventFormatterSection.content(self) + ' '
+
+
+class LogStyleIdentSection(LogStyleSection):
+    def format(self, field, value):
+        if self.content_ != '':
+            self.content_ += ', '
+        self.content_ += EventFormatterSection.format_content(value)
+
+    def content(self):
+        if len(self.content_) == 0:
+            return ''
+        return self.decorator.format('[' + self.content_ + '] ')
+
+
+class EventDecorator:
+    def __init__(self, decorator=None):
+        self.timestamp = decorator
+        self.event_type = decorator
+        self.ident = decorator
+        self.info = decorator
+
+
+class EventFormatter:
+    EVENT_TYPES = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'WBXML_REQUEST', 'WBXML_RESPONSE']
+
+    def __init__(self,
+                 timestamp_section, event_type_section,
+                 ident_section, info_section,
+                 default_decorator=None):
+        self.timestamp = timestamp_section(None)
+        self.event_type = event_type_section(None)
+        self.ident = ident_section(None)
+        self.info = info_section(None)
+        self.default_decorator = default_decorator
+        self.decorators = dict()
+        for et in EventFormatter.EVENT_TYPES:
+            self.decorators[et] = EventDecorator(default_decorator)
+
+    def may_add(self, section, obj, field):
+        if field in obj:
+            section.format(field, obj[field])
+
+    def reset(self):
+        self.timestamp.reset()
+        self.event_type.reset()
+        self.ident.reset()
+        self.info.reset()
+
+    def set_decorators(self, obj):
+        if 'event_type' not in obj:
+            return
+        event_decorator = self.decorators[obj['event_type']]
+        self.timestamp.decorator = event_decorator.timestamp
+        self.event_type.decorator = event_decorator.event_type
+        self.ident.decorator = event_decorator.ident
+        self.info.decorator = event_decorator.info
+
+    def reset_decorators(self):
+        self.timestamp.decorator = self.default_decorator
+        self.event_type.decorator = self.default_decorator
+        self.ident.decorator = self.default_decorator
+        self.info.decorator = self.default_decorator
+
+    def format(self, obj):
+        self.reset()
+        self.set_decorators(obj)
+
+        # Format timestamp
+        self.may_add(self.timestamp, obj, 'timestamp')
+
+        # Format event type
+        self.may_add(self.event_type, obj, 'event_type')
+
+        # Format the identification section
+        self.may_add(self.ident, obj, 'client')
+        self.may_add(self.ident, obj, 'build_version')
+        self.may_add(self.ident, obj, 'os_type')
+        self.may_add(self.ident, obj, 'os_version')
+        self.may_add(self.ident, obj, 'device_model')
+        self.may_add(self.ident, obj, 'createdAt')
+        self.may_add(self.ident, obj, 'updatedAt')
+
+        # Format the information section
+        self.may_add(self.info, obj, 'message')
+        self.may_add(self.info, obj, 'wbxml')
+
+        # Combine all sections
+        output = self.timestamp.content() + self.event_type.content() + self.ident.content() + self.info.content()
+
+        self.reset_decorators()
+        return output
+
+
+class LogStyleEventFormatter(EventFormatter):
+    def __init__(self, decorator=None):
+        if decorator is None:
+            decorator = AnsiDecorator()
+        EventFormatter.__init__(self,
+                                timestamp_section=LogStyleSection,
+                                event_type_section=LogStyleSection,
+                                ident_section=LogStyleIdentSection,
+                                info_section=LogStyleSection,
+                                default_decorator=decorator)
+
+
+class RecordStyleEventFormatter(EventFormatter):
+    def __init__(self, decorator=None):
+        if decorator is None:
+            decorator = AnsiDecorator()
+        EventFormatter.__init__(self,
+                                timestamp_section=RecordStyleSection,
+                                event_type_section=RecordStyleSection,
+                                ident_section=RecordStyleSection,
+                                info_section=RecordStyleSection,
+                                default_decorator=decorator)

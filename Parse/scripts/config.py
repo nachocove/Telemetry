@@ -20,31 +20,36 @@ class Config:
         if os.path.exists(self.cfg_file):
             self.config.read(self.cfg_file)
 
+    def get(self, section, key, options):
+        if not self.config.has_section(section):
+            return
+        if not self.config.has_option(section, key):
+            return
+        setattr(options, key, self.config.get(section, key))
+
+    def set(self, section, key, options):
+        value = getattr(options, key)
+        if value is None:
+            return
+        if not self.config.has_section(section):
+            self.config.add_section(section)
+        self.config.set(section, key, value)
+
     def read_keys(self, options):
         """
         Read the Parse keys and set them back to the options object.
         """
-        if not self.config.has_section('keys'):
-            return
-        if self.config.has_option('keys', 'app_id'):
-            options.app_id = self.config.get('keys', 'app_id')
-        if self.config.has_option('keys', 'api_key'):
-            options.api_key = self.config.get('keys', 'api_key')
-        if self.config.has_option('keys', 'session_token'):
-            options.session_token = self.config.get('keys', 'session_token')
+        self.get('keys', 'app_id', options)
+        self.get('keys', 'api_key', options)
+        self.get('keys', 'session_token', options)
 
     def write_keys(self, options):
         """
         Write the keys back to the configuration file.
         """
-        if not self.config.has_section('keys'):
-            self.config.add_section('keys')
-        if options.app_id is not None:
-            self.config.set('keys', 'app_id', options.app_id)
-        if options.api_key is not None:
-            self.config.set('keys', 'api_key', options.api_key)
-        if options.session_token is not None:
-            self.config.set('keys', 'session_token', options.session_token)
+        self.set('keys', 'app_id', options.app_id)
+        self.set('keys', 'api_key', options.api_key)
+        self.set('keys', 'session_token', options.session_token)
         self.write()
 
     def write(self):

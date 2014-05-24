@@ -5,6 +5,7 @@ import pprint
 import config
 import threading
 import Queue
+import event_formatter
 
 
 def abort(mesg):
@@ -143,6 +144,19 @@ def count(options):
     return obj_count
 
 
+def setup_event_formatter(cls, options):
+    formatter = cls()
+    for event_type in event_formatter.EventFormatter.EVENT_TYPES:
+        if not hasattr(options, event_type.lower()):
+            continue
+        color = getattr(options, event_type.lower())
+        if color is None:
+            continue
+        formatter.decorators[event_type] = \
+            event_formatter.EventDecorator(event_formatter.AnsiDecorator(color=color))
+    return formatter
+
+
 def query_(options):
     conn = Parse.connection.Connection(app_id=options.app_id, api_key=options.api_key,
                                        session_token=options.session_token)
@@ -152,7 +166,7 @@ def query_(options):
     query.limit = 1000
     query.skip = 0
 
-    pp = pprint.PrettyPrinter(depth=4)
+    formatter = setup_event_formatter(event_formatter.RecordStyleEventFormatter, options)
 
     n = 0
     obj_list = Parse.query.Query.objects('Events', query, conn)[0]
@@ -162,10 +176,14 @@ def query_(options):
         print 'No object matches the query'
     while len(obj_list) > 0:
         # Print out the result
-        pp.pprint(obj_list)
+        for obj in obj_list:
+            print formatter.format(obj)
 
         # Read the next block
         query.skip += query.limit
+        # Create a new connection because the old one may have timed out already
+        conn = Parse.connection.Connection(app_id=options.app_id, api_key=options.api_key,
+                                           session_token=options.session_token)
         obj_list = Parse.query.Query.objects('Events', query, conn)[0]
     return n
 
@@ -196,6 +214,16 @@ class SelectorAction(argparse.Action):
         else:
             raise ValueError('unknown option %s' % option_string)
         getattr(namespace, self.dest).append(sel)
+
+
+class ParseConfig(config.Config):
+    def read_colors(self, options):
+        self.get('colors', 'debug', options)
+        self.get('colors', 'info', options)
+        self.get('colors', 'warn', options)
+        self.get('colors', 'error', options)
+        self.get('colors', 'wbxml_request', options)
+        self.get('colors', 'wbxml_response', options)
 
 
 def main():
@@ -276,7 +304,7 @@ def main():
 
     # Sanity check parameters
     # Make sure we have keys
-    config_ = config.Config(options.config)
+    config_ = ParseConfig(options.config)
     if not has_credential(options):
         config_.read_keys(options)
     else:
@@ -285,11 +313,16 @@ def main():
 
     # If there is no display fields, set up the default
     if len(options.display) == 0:
-        options.display = ['objectId', 'timestamp', 'event_type', 'message', 'wbxml']
+        options.display = ['timestamp', 'event_type', 'message', 'wbxml']
 
-    if options.command not in globals():
+    # Read the configuration to get the color
+    for event_type in event_formatter.EventFormatter.EVENT_TYPES:
+        setattr(options, event_type, None)
+    config_.read_colors(options)
+
+    if options.command not in command_mapping:
         raise ValueError('unknown command %s' % options.command)
-    globals()[options.command](options)
+    command_mapping[options.command](options)
 
 if __name__ == '__main__':
     main()
