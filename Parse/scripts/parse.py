@@ -6,6 +6,7 @@ import config
 import threading
 import Queue
 import event_formatter
+import time
 
 
 def abort(mesg):
@@ -189,7 +190,35 @@ def query_(options):
 
 
 def console(options):
-    pass
+    # Set up current time
+    current = Parse.utc_datetime.UtcDateTime.now()
+
+    formatter = setup_event_formatter(event_formatter.LogStyleEventFormatter, options)
+
+    try:
+        while True:
+            # Query for all entries after current time
+            query = get_query(options)
+            query.add('createdAt', Parse.query.SelectorGreaterThanEqual(current))
+            conn = Parse.connection.Connection(app_id=options.app_id, api_key=options.api_key,
+                                               session_token=options.session_token)
+            obj_list = Parse.query.Query.objects('Events', query, conn)[0]
+
+            if len(obj_list) == 0:
+                # We are completely caught up. Sleep for a little bit
+                time.sleep(3)
+                continue
+
+            # Update time
+            current = Parse.utc_datetime.UtcDateTime(obj_list[-1]['createdAt'])
+
+            # Print out the event
+            for obj in obj_list:
+                # Strip createdAt
+                obj.pop('createdAt')
+                print formatter.format(obj)
+    except KeyboardInterrupt:
+        print 'Goodbye!'
 
 
 class SelectorAction(argparse.Action):
