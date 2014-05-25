@@ -43,8 +43,7 @@ class Object(dict):
             self.acl = Acl()
             self.acl.parse(acl_dict)
 
-        # Get rid of unused fields
-        self.pop('createdAt', None)
+        # Get rid of unused field
         self.pop('updatedAt', None)
 
     def create(self, conn=None):
