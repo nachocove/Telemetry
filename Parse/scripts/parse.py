@@ -155,6 +155,7 @@ def setup_event_formatter(cls, options):
             continue
         formatter.decorators[event_type] = \
             event_formatter.EventDecorator(event_formatter.AnsiDecorator(color=color))
+    formatter.wbxml_tool_path = options.wbxml_tool_path
     return formatter
 
 
@@ -199,7 +200,7 @@ def console(options):
         while True:
             # Query for all entries after current time
             query = get_query(options)
-            query.add('createdAt', Parse.query.SelectorGreaterThanEqual(current))
+            query.add('createdAt', Parse.query.SelectorGreaterThan(current))
             conn = Parse.connection.Connection(app_id=options.app_id, api_key=options.api_key,
                                                session_token=options.session_token)
             obj_list = Parse.query.Query.objects('Events', query, conn)[0]
@@ -279,7 +280,7 @@ def main():
 
     valid_commands = sorted(command_mapping.keys())
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(add_help=False)
 
     # Access credential
     credential_group = parser.add_argument_group(title='Credential Options',
@@ -323,10 +324,30 @@ def main():
                               metavar='FIELD', action='append',
                               choices=valid_fields, default=[])
 
-    parser.add_argument('command', nargs='?', help='Choices: ' + ', '.join(valid_commands),
-                        choices=valid_commands, metavar='COMMAND')
+    # Miscellaneous options
+    misc_group = parser.add_argument_group(title='Miscellaneous Options')
+    misc_group.add_argument('-h', '--help', help='Print this help message', action='store_true', dest='help')
+    misc_group.add_argument('--wbxml-tool', metavar='PATH', help='File path to WbxmlTool', dest='wbxml_tool_path')
+
+    # Command
+    command_group = parser.add_argument_group(title='Commands',
+                                              description='Actions to take after query returns a list of matching'
+                                                          'events.\n\n'
+                                                          'console - Stream the events to stdout to mimic Xcode'
+                                                          'organizer console.\n'
+                                                          'count - Return the number of events matching the query.\n'
+                                                          'delete - Delete the matching events.\n'
+                                                          'login - Print the user information after authentication.'
+                                                          'This is used for getting the session token of user '
+                                                          '"monitor".\n')
+    command_group.add_argument('command', nargs='?', help='Choices: ' + ', '.join(valid_commands),
+                               choices=valid_commands, metavar='COMMAND')
 
     options = parser.parse_args()
+
+    if options.help or options.command is None:
+        parser.print_help()
+        exit(0)
 
     def has_credential(opt):
         if opt.app_id is None:
@@ -344,7 +365,13 @@ def main():
         # Write the credential
         config_.write_keys(options)
 
-    # If there is no display fields, set up the default
+    # Check if we have WbxmlTool configured
+    if options.wbxml_tool_path is not None:
+        config_.write_wbxml_tool(options)
+    else:
+        config_.read_wbxml_tool(options)
+
+    # If there is no display field, set up the default
     if len(options.display) == 0:
         options.display = ['timestamp', 'event_type', 'message', 'wbxml']
 

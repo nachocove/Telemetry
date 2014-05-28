@@ -55,3 +55,16 @@ class Config:
     def write(self):
         with open(self.cfg_file, 'w') as f:
             self.config.write(f)
+
+    def read_wbxml_tool(self, options):
+        """
+        Read the path to WbxmlTool
+        """
+        self.get('wbxml_tool', 'wbxml_tool_path', options)
+
+    def write_wbxml_tool(self, options):
+        """
+        Write the path to WbxmlTool
+        """
+        self.set('wbxml_tool', 'wbxml_tool_path', options)
+        self.write()

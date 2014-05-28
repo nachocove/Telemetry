@@ -1,3 +1,6 @@
+import subprocess
+
+
 class AnsiDecorator:
     """
     Decorator a string using ANSI escape sequence to add color, bold
@@ -119,7 +122,8 @@ class EventFormatter:
     def __init__(self,
                  timestamp_section, event_type_section,
                  ident_section, info_section,
-                 default_decorator=None):
+                 default_decorator=None,
+                 wbxml_tool_path=None):
         self.timestamp = timestamp_section(None)
         self.event_type = event_type_section(None)
         self.ident = ident_section(None)
@@ -128,6 +132,7 @@ class EventFormatter:
         self.decorators = dict()
         for et in EventFormatter.EVENT_TYPES:
             self.decorators[et] = EventDecorator(default_decorator)
+        self.wbxml_tool_path = wbxml_tool_path
 
     def may_add(self, section, obj, field):
         if field in obj:
@@ -154,6 +159,17 @@ class EventFormatter:
         self.ident.decorator = self.default_decorator
         self.info.decorator = self.default_decorator
 
+    def decode_wbxml(self, wbxml):
+        if self.wbxml_tool_path is None:
+            return None
+        command = ['mono', self.wbxml_tool_path, '-d', '-f', '-']
+        try:
+            p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            (output, error) = p.communicate(wbxml)
+        except subprocess.CalledProcessError:
+            return None
+        return output
+
     def format(self, obj):
         self.reset()
         self.set_decorators(obj)
@@ -165,17 +181,28 @@ class EventFormatter:
         self.may_add(self.event_type, obj, 'event_type')
 
         # Format the identification section
-        self.may_add(self.ident, obj, 'client')
-        self.may_add(self.ident, obj, 'build_version')
-        self.may_add(self.ident, obj, 'os_type')
-        self.may_add(self.ident, obj, 'os_version')
-        self.may_add(self.ident, obj, 'device_model')
-        self.may_add(self.ident, obj, 'createdAt')
-        self.may_add(self.ident, obj, 'updatedAt')
+        for field in ['client',
+                      'build_version',
+                      'os_type',
+                      'device_model',
+                      'createdAt',
+                      'updatedAt']:
+            self.may_add(self.ident, obj, field)
 
         # Format the information section
-        self.may_add(self.info, obj, 'message')
-        self.may_add(self.info, obj, 'wbxml')
+        for field in ['message',
+                      'counter_name',
+                      'count',
+                      'counter_start',
+                      'counter_end']:
+            self.may_add(self.info, obj, field)
+        if 'wbxml' in obj:
+            # WBXML is special because we may optionally decode it.
+            decoded = self.decode_wbxml(obj['wbxml']['base64'])
+            if decoded is None:
+                self.info.format('wbxml', obj['wbxml'])
+            else:
+                self.info.format('wbxml', obj['wbxml']['base64'] + '\n\n' + decoded)
 
         # Combine all sections
         output = self.timestamp.content() + self.event_type.content() + self.ident.content() + self.info.content()

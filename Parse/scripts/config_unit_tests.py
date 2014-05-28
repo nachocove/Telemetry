@@ -4,15 +4,17 @@ from config import Config
 
 
 class MockOptions:
-    def __init__(self, app_id=None, api_key=None, session_token=None):
+    def __init__(self, app_id=None, api_key=None, session_token=None, wbxml_tool_path=None):
         self.app_id = app_id
         self.api_key = api_key
         self.session_token = session_token
+        self.wbxml_tool_path = wbxml_tool_path
 
     def __eq__(self, other):
         return (self.app_id == other.app_id and
                 self.api_key == other.api_key and
-                self.session_token == other.session_token)
+                self.session_token == other.session_token and
+                self.wbxml_tool_path == other.wbxml_tool_path)
 
 
 class TestConfig(unittest.TestCase):
@@ -78,6 +80,14 @@ class TestConfig(unittest.TestCase):
         expected = MockOptions(app_id='abcdefg', api_key='xyz', session_token='012345678')
         self.assertEqual(expected, self.options)
 
+    def test_read_wbxml_tool_path(self):
+        self.write_config('[wbxml_tool]\n'
+                          'wbxml_tool_path = /Users/bob/WbxmlTool.Mac.exe')
+        config = Config(self.config_filename)
+        config.read_wbxml_tool(self.options)
+        expected = MockOptions(wbxml_tool_path='/Users/bob/WbxmlTool.Mac.exe')
+        self.assertEqual(expected, self.options)
+
     def test_write_no_keys(self):
         config = Config(self.config_filename)
         config.write_keys(self.options)
@@ -104,6 +114,15 @@ class TestConfig(unittest.TestCase):
                    'app_id = abcdefg\n' \
                    'api_key = xyz\n' \
                    'session_token = 012345678\n\n'
+        got = self.read_config()
+        self.assertEqual(expected, got)
+
+    def test_write_wbxml_tool_path(self):
+        self.options.wbxml_tool_path = '/Users/bob/WbxmlTool.Mac.exe'
+        config = Config(self.config_filename)
+        config.write_wbxml_tool(self.options)
+        expected = '[wbxml_tool]\n' \
+                   'wbxml_tool_path = /Users/bob/WbxmlTool.Mac.exe\n\n'
         got = self.read_config()
         self.assertEqual(expected, got)
 
