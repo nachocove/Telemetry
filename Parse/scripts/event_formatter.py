@@ -117,7 +117,7 @@ class EventDecorator:
 
 
 class EventFormatter:
-    EVENT_TYPES = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'WBXML_REQUEST', 'WBXML_RESPONSE']
+    EVENT_TYPES = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'WBXML_REQUEST', 'WBXML_RESPONSE', 'COUNTER', 'CAPTURE']
 
     def __init__(self,
                  timestamp_section, event_type_section,

@@ -256,6 +256,8 @@ class ParseConfig(config.Config):
         self.get('colors', 'error', options)
         self.get('colors', 'wbxml_request', options)
         self.get('colors', 'wbxml_response', options)
+        self.get('colors', 'counter', options)
+        self.get('colors', 'capture', options)
 
 
 def main():
@@ -270,7 +272,15 @@ def main():
                     'os_version',
                     'timestamp',
                     'updatedAt',
-                    'wbxml']
+                    'wbxml',
+                    'counter_name',
+                    'count',
+                    'counter_start',
+                    'counter_end',
+                    'capture_name',
+                    'average',
+                    'min',
+                    'max']
 
     command_mapping = {'console': console,
                        'count': count,
@@ -373,7 +383,18 @@ def main():
 
     # If there is no display field, set up the default
     if len(options.display) == 0:
-        options.display = ['timestamp', 'event_type', 'message', 'wbxml']
+        options.display = ['timestamp',
+                           'event_type',
+                           'message',
+                           'wbxml',
+                           'counter_name',
+                           'count',
+                           'counter_start',
+                           'counter_end',
+                           'capture_name',
+                           'average',
+                           'min',
+                           'max']
 
     # Read the configuration to get the color
     for event_type in event_formatter.EventFormatter.EVENT_TYPES:
