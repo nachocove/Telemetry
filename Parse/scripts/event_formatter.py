@@ -1,4 +1,5 @@
 import subprocess
+import events
 
 
 class AnsiDecorator:
@@ -117,8 +118,6 @@ class EventDecorator:
 
 
 class EventFormatter:
-    EVENT_TYPES = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'WBXML_REQUEST', 'WBXML_RESPONSE', 'COUNTER', 'CAPTURE']
-
     def __init__(self,
                  timestamp_section, event_type_section,
                  ident_section, info_section,
@@ -130,7 +129,7 @@ class EventFormatter:
         self.info = info_section(None)
         self.default_decorator = default_decorator
         self.decorators = dict()
-        for et in EventFormatter.EVENT_TYPES:
+        for et in events.TYPES:
             self.decorators[et] = EventDecorator(default_decorator)
         self.wbxml_tool_path = wbxml_tool_path
 
@@ -181,20 +180,11 @@ class EventFormatter:
         self.may_add(self.event_type, obj, 'event_type')
 
         # Format the identification section
-        for field in ['client',
-                      'build_version',
-                      'os_type',
-                      'device_model',
-                      'createdAt',
-                      'updatedAt']:
+        for field in (events.IDENT_FIELDS + events.INTERNAL_FIELDS):
             self.may_add(self.ident, obj, field)
 
         # Format the information section
-        for field in ['message',
-                      'counter_name',
-                      'count',
-                      'counter_start',
-                      'counter_end']:
+        for field in events.INFO_FIELDS:
             self.may_add(self.info, obj, field)
         if 'wbxml' in obj:
             # WBXML is special because we may optionally decode it.

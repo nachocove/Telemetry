@@ -7,6 +7,7 @@ import threading
 import Queue
 import event_formatter
 import time
+import events
 
 
 def abort(mesg):
@@ -147,7 +148,7 @@ def count(options):
 
 def setup_event_formatter(cls, options):
     formatter = cls()
-    for event_type in event_formatter.EventFormatter.EVENT_TYPES:
+    for event_type in events.TYPES:
         if not hasattr(options, event_type.lower()):
             continue
         color = getattr(options, event_type.lower())
@@ -248,6 +249,20 @@ class SelectorAction(argparse.Action):
         getattr(namespace, self.dest).append(sel)
 
 
+class FieldSelectorAction(argparse.Action):
+    def __call__(self, parser, namespace, value, option_string=None):
+        if option_string == '--event_type':
+            field = 'event_type'
+            sel = Parse.query.SelectorEqual(value)
+        elif option_string == '--client':
+            field = 'client'
+            sel = Parse.query.SelectorEqual(value)
+        else:
+            raise ValueError('unknown option %s' % option_string)
+        getattr(namespace, 'field').append(field)
+        getattr(namespace, 'selectors').append(sel)
+
+
 class ParseConfig(config.Config):
     def read_colors(self, options):
         self.get('colors', 'debug', options)
@@ -261,27 +276,6 @@ class ParseConfig(config.Config):
 
 
 def main():
-    valid_fields = ['build_version',
-                    'client',
-                    'createdAt',
-                    'device_model',
-                    'event_type',
-                    'message',
-                    'objectId',
-                    'os_type',
-                    'os_version',
-                    'timestamp',
-                    'updatedAt',
-                    'wbxml',
-                    'counter_name',
-                    'count',
-                    'counter_start',
-                    'counter_end',
-                    'capture_name',
-                    'average',
-                    'min',
-                    'max']
-
     command_mapping = {'console': console,
                        'count': count,
                        'delete': delete,
@@ -320,11 +314,18 @@ def main():
                              action=SelectorAction, dest='selectors', default=[])
     query_group.add_argument('--exists', help='Match a field to exist', choices=['true', 'false'],
                              action=SelectorAction, dest='selectors', default=[])
-    query_group.add_argument('--field', help='A field for query (%s)' % ', ' .join(valid_fields),
+    query_group.add_argument('--field', help='A field for query (%s)' % ', ' .join(events.VALID_FIELDS),
                              action='append', metavar='FIELD',
-                             choices=valid_fields, default=[])
+                             choices=events.VALID_FIELDS, default=[])
     query_group.add_argument('--contains', help='Match a field that contains this string',
                              action=SelectorAction, dest='selectors', default=[])
+
+    # Query shorthands
+    query_shorthand_group = parser.add_argument_group(title='Query Shorthands')
+    query_shorthand_group.add_argument('--event_type', help='Same as --field event_type --equal EVENT_TYPE',
+                                       action=FieldSelectorAction)
+    query_shorthand_group.add_argument('--client', help='Same as --field client --equal CLIENT',
+                                       action=FieldSelectorAction)
 
     # Filtering options
     filter_group = parser.add_argument_group(title='Filter Options')
@@ -332,7 +333,7 @@ def main():
                               default=None)
     filter_group.add_argument('--display', help='A list of all field to display',
                               metavar='FIELD', action='append',
-                              choices=valid_fields, default=[])
+                              choices=events.VALID_FIELDS, default=[])
 
     # Miscellaneous options
     misc_group = parser.add_argument_group(title='Miscellaneous Options')
@@ -397,7 +398,7 @@ def main():
                            'max']
 
     # Read the configuration to get the color
-    for event_type in event_formatter.EventFormatter.EVENT_TYPES:
+    for event_type in events.TYPES:
         setattr(options, event_type, None)
     config_.read_colors(options)
 
