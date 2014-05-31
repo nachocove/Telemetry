@@ -226,7 +226,7 @@ class MonitorConfig(config.Config):
                 tls = False
 
             email.from_address = username
-            email.to_addresses = [self.config.get('email', 'recipient')]
+            email.to_addresses = self.config.get('email', 'recipient').split(',')
 
             smtp_server = emails.EmailServer(server=server, port=port, username=username,
                                              password=password, tls=tls, start_tls=start_tls)
