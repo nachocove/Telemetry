@@ -54,6 +54,7 @@ class MonitorLog(Monitor):
         self.report_ = dict()  # an analysis structure derived from raw events
         self.msg = msg  # message about total # of events in summary
         self.rate_msg = rate_msg  # message about the rate of the events in summary
+        self.event_count = 0
 
     def _query(self):
         query = Parse.query.Query()
@@ -62,16 +63,22 @@ class MonitorLog(Monitor):
             query.add('createdAt', Parse.query.SelectorGreaterThanEqual(self.start))
         if self.end is not None:
             query.add('createdAt', Parse.query.SelectorLessThan(self.end))
+        query.limit = 0
+        query.count = 1
+        self.event_count = Parse.query.Query.objects('Events', query, self.conn)[1]
+
         query.limit = 1000
         query.skip = 0
 
         # Keep querying until the list is less than 1000
         results = Parse.query.Query.objects('Events', query, self.conn)[0]
         self.events.extend(results)
-        while len(results) == query.limit:
+        while len(results) == query.limit and query.skip < 10000:
             query.skip += query.limit
             results = Parse.query.Query.objects('Events', query, self.conn)[0]
             self.events.extend(results)
+        if self.event_count < len(self.events):
+            self.event_count = len(self.events)
 
     def _classify(self):
         self.report_ = dict()
@@ -98,7 +105,7 @@ class MonitorLog(Monitor):
         return new_report
 
     def report(self, summary):
-        count = len(self.events)
+        count = self.event_count
         rate = Monitor.compute_rate(count, self.start, self.end, 'hr')
 
         # Generate summary info
@@ -122,6 +129,10 @@ class MonitorLog(Monitor):
         for (message, count) in report_list:
             row = TableRow([TableElement(Text(str(count))),
                             TableElement(Text(message))])
+            table.add_row(row)
+        if self.event_count > len(self.events):
+            row = TableRow([TableElement(Text(str(self.event_count - len(self.events)))),
+                            TableElement(Italic('Events skipped'))])
             table.add_row(row)
 
         title = self.title()
