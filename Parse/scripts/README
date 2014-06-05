@@ -57,8 +57,9 @@ will be able to read all events.
 
 5. setup.py
 -----------
-This script creates a user name 'monitor' and a role named 'ops' and add 
-'monitor' to this role. It only needs to run once.
+This is an administrative script that others do not need to run. I am including
+it in this README for completeness sake. Itcreates a user name 'monitor' and
+a role named 'ops' and add 'monitor' to this role. It only needs to run once.
 
 For example,
 
@@ -69,20 +70,51 @@ python setup.py --app-id $APP_ID --api-key $API_KEY --username monitor
 6. parse.py
 -----------
 This script can perform various operations; mostly for query purpose.
-It can also get the session token.
+You need to set up a parse.cfg file that holds various keys. To set up,
 
-python parse.py --app-id $APP_ID --api-key $API_KEY --username monitor login
+python parse.py setup
 
-You will be prompted for the password. The monitor password is the 
-"well-known" password. (Ask Chris, Jeff, or Steve.) You should see something
-like:
+and follow the instruction. It should produce a parse.cfg file that has your
+keys. Its permission is set to user read-only for security purpose.
 
-{'email': None,
- 'password': None,
- 'sessionToken': 'session token here!!!',
- 'username': 'monitor'}
+6.1 Query
+---------
+A query is a set of "and" conditions. Each condition consists of:
 
-[More features to be added and to be documented]
+1. A field - E.g. event_type
+2. A relation - E.g. =
+3. A value - E.g. "ERROR"
+
+A query is a series of command line option of field selection followed by a relation with a value. For example,
+
+--field event_type --equal "ERROR" --field client --equal xyz123
+
+This query looks for all error logs in the client instance xyz123.
+
+The client instance is Parse's anonymous account username.
+
+For timestamp, you can use --after and --before. The timestamp format
+must be in ISO-8601 UTC. It has the format of: YYYY-MM-DDThh:mm:ssZ
+UTC is 7 hours ahead of PST.
+
+6.2 Action
+----------
+You can form various queries and take actions with the results. The following
+commands support various actions:
+
+1. count - Return the number of events that match the query.
+2. query - Display all events that match the query.
+3. console - Stream the latest events that match the query. The display 
+   format of console mimicks Xcode organizer.
+4. delete - Delete all match events. To perform this operation, you must
+   use --master-key option.
+
+6.3 Display
+-----------
+--display option allows you to specify which field to display. By default,
+only the timestamp, event_type, and all other info fields are displayed.
+If you need identification fields (e.g., os_type, os_version, client), you
+can specify them using --display (One per field you want to display).
 
 
 7. monitor.py
