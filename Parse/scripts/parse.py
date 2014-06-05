@@ -1,6 +1,17 @@
+try:
+    import dateutil
+except ImportError:
+    print ''
+    print 'python-dateutil package is not found. Please make sure that it is installed.'
+    print 'If you have easy_install, you can issue:'
+    print ''
+    print 'sudo easy_install python-dateutil'
+    print ''
+    exit(1)
 import argparse
 import Parse
 import getpass
+import os
 import pprint
 import config
 import threading
@@ -223,6 +234,100 @@ def console(options):
         print 'Goodbye!'
 
 
+def setup_keys(options, config_):
+    # Determine if keys are already set up
+    if options.app_id is not None and options.api_key is not None:
+        print 'App ID and API key are already set up!'
+        return
+
+    # Get app id and api key
+    print 'parse.py will try to set up your parse.cfg.'
+    print ''
+    print 'We need to set up Parse keys. Please log into your Parse account'
+    print 'and locate your keys:'
+    print ''
+    print '1. Log into https://www.parse.com/.'
+    print '2. Click "Welcome [your name]" around the upper right corner.'
+    print '3. You should see "NachoMail" as one of the apps. Select it.'
+    print '4. Click "Settings".'
+    print '5. Click "Application Keys" on the left.'
+    print '6. Please enter keys (from Parse) when prompted.'
+    print ''
+    options.app_id = raw_input('Application ID: ')
+    options.api_key = raw_input('REST API Key: ')
+    config_.write_keys(options)
+
+
+def setup_session_token(options, config_):
+    if options.session_token is not None:
+        print 'Session token is already set up!'
+        return
+
+    # Log in and get session token
+    print ''
+    print 'Now, we need to log in as user "%s" to get its session token.' % options.username
+    options.password = getpass.getpass('Enter the "well-known" password: ')
+    conn = Parse.connection.Connection(app_id=options.app_id, api_key=options.api_key)
+    user = Parse.users.User.login(username=options.username, password=options.password, conn=conn)
+    options.session_token = user.session_token
+    config_.write_keys(options)
+
+
+def setup_test_query(options):
+    # Make a test query to make sure it is working
+    conn = Parse.connection.Connection(app_id=options.app_id,
+                                       api_key=options.api_key,
+                                       session_token=options.session_token)
+    query = Parse.query.Query()
+    query.add('event_type', Parse.query.SelectorEqual('INFO'))
+    query.limit = 1
+    event = Parse.query.Query.objects('Events', query, conn)[0]
+    if len(event) != 1:
+        print 'Fail to find an event. The credential may be invalid.'
+        exit(1)
+    print 'Query works!'
+
+
+def setup_wbxml_tool(options, config_):
+    if options.wbxml_tool_path is not None:
+        print 'WbxmlTool is already set up!'
+        return
+
+    print ''
+    print 'WbxmlTool.exe is a tool for decoding WBXML requests / responses in ' \
+          'telemetry events. You can build your own copy in WbxmlTool.Mac project in ' \
+          'NachoClientX solution.'
+    print ''
+    print 'parse.py needs the absolute path to WbxmlTool.exe. After build it, you ' \
+          'should find the binary in NachoClientX/WbxmlTool.Mac/bin/Debug/.'
+    while not options.wbxml_tool_path:
+        path = raw_input('WbxmlTool path [press Enter to skip]: ')
+        if not os.path.exists(path):
+            print 'ERROR: file path does not exist.'
+            continue
+        if os.path.isdir(path):
+            print 'ERROR: file path is a directory'
+            continue
+        if path == '':
+            print 'No WbxmlTool is configured. parse.py still works but WBXML decoding is not available.'
+            return
+        options.wbxml_tool_path = path
+    config_.write_wbxml_tool(options)
+
+
+def setup(options, config_):
+    if os.path.exists(options.config):
+        os.chmod(options.config, 0600)
+
+    setup_keys(options, config_)
+    setup_session_token(options, config_)
+    setup_test_query(options)
+    setup_wbxml_tool(options, config_)
+
+    # Keys are sensitive. Make sure only the user can read it.
+    os.chmod(options.config, 0400)
+
+
 class SelectorAction(argparse.Action):
     def __call__(self, parser, namespace, value, option_string=None):
         if option_string == '--equal':
@@ -280,7 +385,8 @@ def main():
                        'count': count,
                        'delete': delete,
                        'login': login,
-                       'query': query_}  # add _ to avoid local var query shadows the function name
+                       'query': query_,
+                       'setup': setup}  # add _ to avoid local var query shadows the function name
 
     valid_commands = sorted(command_mapping.keys())
 
@@ -301,7 +407,7 @@ def main():
                                             description='Options for login command.')
     login_group.add_argument('--password', help='Password. If none is given and it is needed, it will prompt for one',
                              default=None)
-    login_group.add_argument('--username', help='Username', default=None)
+    login_group.add_argument('--username', help='Username', default='monitor')
 
     # Query options
     query_group = parser.add_argument_group(title='Query Options')
@@ -401,6 +507,12 @@ def main():
     for event_type in events.TYPES:
         setattr(options, event_type, None)
     config_.read_colors(options)
+
+    # Handle setup command separately because it takes an extra
+    # parameter
+    if options.command == 'setup':
+        setup(options, config_)
+        exit(0)
 
     if options.command not in command_mapping:
         raise ValueError('unknown command %s' % options.command)
