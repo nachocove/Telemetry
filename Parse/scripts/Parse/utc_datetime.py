@@ -11,7 +11,7 @@ class UtcDateTime:
         s = self.datetime.strftime('%Y-%m-%dT%H:%M:%S')
         if self.datetime.microsecond == 0:
             return s + 'Z'
-        return s + '.%dZ' % int(self.datetime.microsecond/1000.)
+        return s + '.%03dZ' % int(self.datetime.microsecond/1000.)
 
     def __sub__(self, other):
         """

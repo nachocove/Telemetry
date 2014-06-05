@@ -13,15 +13,21 @@ class Selector:
     def data(self):
         return {self.op: self.value}
 
+    def __setattr__(self, key, value):
+        if key == 'value':
+            if isinstance(value, str) or isinstance(value, int):
+                self.__dict__[key] = value
+            elif isinstance(value, UtcDateTime):
+                self.__dict__[key] = {'__type': 'Date', 'iso': str(value)}
+            else:
+                raise TypeError('unsupported type %s' % value.__class__.__name__)
+        else:
+            self.__dict__[key] = value
+
 
 class SelectorCompare(Selector):
     def __init__(self, value):
-        if isinstance(value, int) or isinstance(value, str):
-            Selector.__init__(self, value)
-        elif isinstance(value, UtcDateTime):
-            Selector.__init__(self, {'__type': 'Date', 'iso': str(value)})
-        else:
-            raise TypeError('unsupported type %s' % value.__class__.__name__)
+        Selector.__init__(self, value)
 
 
 class SelectorEqual(SelectorCompare):

@@ -36,6 +36,7 @@ def get_query(options):
     else:
         query.limit = options.limit
     query.keys = options.display
+
     return query
 
 
@@ -472,6 +473,18 @@ def main():
         if (opt.api_key is None) and (opt.master_key is None):
             return False
         return True
+
+    # We need to go thru the selectors and convert the value to a different
+    # type if necessary. For example, --equal for timestamp should be converted to
+    # a UtcDateTime object not a string.
+    if len(options.field) != len(options.selectors):
+        abort('ERROR: the number of fields does not match the number of selectors.')
+    for (field, sel) in zip(options.field, options.selectors):
+        if field in ['timestamp', 'createdAt', 'updatedAt', 'counter_start', 'counter_end']:
+            if isinstance(sel, Parse.query.SelectorEqual):
+                sel.value = Parse.utc_datetime.UtcDateTime(sel.value)
+        elif field in ['count']:
+            sel.value = int(sel.value)
 
     # Sanity check parameters
     # Make sure we have keys
