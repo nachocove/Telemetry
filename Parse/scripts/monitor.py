@@ -5,6 +5,8 @@ import config
 import ConfigParser
 import emails
 import getpass
+import event_formatter
+import zipfile
 from html_elements import *
 
 
@@ -23,13 +25,16 @@ class Monitor:
         self.end = end
 
     def run(self):
-        raise Exception('not implemented')
+        raise NotImplementedError()
 
     def report(self, summary):
-        raise Exception('not implemented')
+        raise NotImplementedError()
 
     def title(self):
         return self.desc[0].upper() + self.desc[1:]
+
+    def attachment(self):
+        raise NotImplementedError()
 
     @staticmethod
     def compute_rate(count, start, end, unit):
@@ -139,6 +144,18 @@ class MonitorLog(Monitor):
         paragraph = Paragraph([Bold(title), table])
         return paragraph
 
+    def attachment(self):
+        ef = event_formatter.RecordStyleEventFormatter()
+        raw_log_path = '%s_%s.txt' % (self.desc, datetime_tostr(self.end))
+        with open(raw_log_path, 'w') as raw_log:
+            for event in self.events:
+                print >>raw_log, ef.format(event)
+        zipped_log_path = raw_log_path + '.zip'
+        zipped_file = zipfile.ZipFile(zipped_log_path, 'w', zipfile.ZIP_DEFLATED)
+        zipped_file.write(raw_log_path)
+        zipped_file.close()
+        return zipped_log_path
+
 
 class MonitorErrors(MonitorLog):
     def __init__(self, conn, start=None, end=None):
@@ -182,6 +199,9 @@ class MonitorCount(Monitor):
         if self.rate_desc and rate is not None:
             summary.add_entry(self.rate_desc, rate)
         return None  # does not have its own report
+
+    def attachment(self):
+        return None
 
 
 class MonitorUsers(MonitorCount):
@@ -259,6 +279,15 @@ class DateTimeAction(argparse.Action):
             setattr(namespace, self.dest, 'now')
         else:
             setattr(namespace, self.dest, Parse.utc_datetime.UtcDateTime(value))
+
+
+def datetime_tostr(iso_datetime):
+    """
+    This function returns a string from a UtcDateTime object that is good for
+    usage as part of file paths.
+    """
+    datetime_str = str(iso_datetime)
+    return datetime_str.replace(':', '_').replace('-', '_').replace('.', '_')
 
 
 def main():
@@ -374,13 +403,15 @@ def main():
         output = monitor.report(summary_table)
         if options.email and output is not None:
             email.content.add(output)
+        attachment_path = monitor.attachment()
+        if attachment_path is not None and options.email:
+            email.attachments.append(attachment_path)
 
     # Send the email
     if options.email:
         print 'Sending email...'
         # Save the HTML and plain text body to files
-        end_time = str(options.end)
-        end_time_suffix = end_time.replace(':', '_').replace('-', '_').replace('.', '_')
+        end_time_suffix = datetime_tostr(options.end)
         with open('monitor-email.%s.html' % end_time_suffix, 'w') as f:
             print >>f, email.content.html()
         with open('monitor-email.%s.txt' % end_time_suffix, 'w') as f:
