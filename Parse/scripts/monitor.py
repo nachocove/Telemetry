@@ -8,6 +8,7 @@ import getpass
 import event_formatter
 import zipfile
 from html_elements import *
+from number_formatter import *
 
 
 class Summary(Table):
@@ -48,7 +49,7 @@ class Monitor:
             scale = 3600.0
         else:
             raise ValueError('unit must be sec, min, or hr')
-        return str(float(count) / (end - start) * scale) + ' / ' + unit
+        return pretty_number(float(count) / (end - start) * scale) + ' / ' + unit
 
 
 class MonitorLog(Monitor):
@@ -114,9 +115,9 @@ class MonitorLog(Monitor):
         rate = Monitor.compute_rate(count, self.start, self.end, 'hr')
 
         # Generate summary info
-        print '%s: %d' % (self.msg, count)
+        print '%s: %s' % (self.msg, pretty_number(count))
         print '%s: %s' % (self.rate_msg, rate)
-        summary.add_entry(self.msg, count)
+        summary.add_entry(self.msg, pretty_number(count))
         summary.add_entry(self.rate_msg, rate)
 
         # Create the monitor specific report if there is anything to report
@@ -132,11 +133,11 @@ class MonitorLog(Monitor):
                         TableHeader(Bold('Message'))])
         table.add_row(row)
         for (message, count) in report_list:
-            row = TableRow([TableElement(Text(str(count))),
+            row = TableRow([TableElement(Text(pretty_number(count))),
                             TableElement(Text(message))])
             table.add_row(row)
         if self.event_count > len(self.events):
-            row = TableRow([TableElement(Text(str(self.event_count - len(self.events)))),
+            row = TableRow([TableElement(Text(pretty_number(self.event_count - len(self.events)))),
                             TableElement(Italic('Events skipped'))])
             table.add_row(row)
 
@@ -192,9 +193,10 @@ class MonitorCount(Monitor):
 
     def report(self, summary):
         rate = Monitor.compute_rate(self.count, self.start, self.end, 'hr')
-        print '%s: %d' % (self.desc, self.count)
+        count_str = pretty_number(self.count)
+        print '%s: %s' % (self.desc, count_str)
         print '%s: %s' % (self.rate_desc, rate)
-        summary.add_entry(self.desc, str(self.count))
+        summary.add_entry(self.desc, count_str)
 
         if self.rate_desc and rate is not None:
             summary.add_entry(self.rate_desc, rate)
@@ -209,6 +211,7 @@ class MonitorUsers(MonitorCount):
         MonitorCount.__init__(self, conn, 'New user count', 'New user rate', start, end)
 
     def run(self):
+        print 'Querying %s...' % self.desc
         self.count = Parse.query.Query.users(self.query, self.conn)[1]
 
 
@@ -217,6 +220,7 @@ class MonitorEvents(MonitorCount):
         MonitorCount.__init__(self, conn, 'Event count', 'Event rate', start, end)
 
     def run(self):
+        print 'Querying %s...' % self.desc
         self.count = Parse.query.Query.objects('Events', self.query, self.conn)[1]
 
 
@@ -243,10 +247,22 @@ class MonitorConfig(config.Config):
             server = self.config.get('email', 'smtp_server')
             port = self.config.getint('email', 'port')
             username = self.config.get('email', 'username')
+            # We need to get the email account password
             if self.config.has_option('email', 'password'):
+                # Option 1 - hardcoded into the file. highly not recommended.
                 password = self.config.get('email', 'password')
             else:
-                password = getpass.getpass('Email password: ')
+                # Option 2 - try to get it from keychain
+                try:
+                    import keyring
+                    password = keyring.get_password('NachoCove Telemetry', username)
+                except ImportError:
+                    password = None
+                if password is None:
+                    # Option 3 - user input
+                    password = getpass.getpass('Email password: ')
+                else:
+                    print 'Got email account password from keychain.'
             if self.config.has_option('email', 'start_tls'):
                 start_tls = self.config.getboolean('email', 'start_tls')
             else:
