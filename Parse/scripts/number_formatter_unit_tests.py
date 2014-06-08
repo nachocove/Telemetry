@@ -44,6 +44,7 @@ class TestNumberFormatter(unittest.TestCase):
     def test_pretty_number(self):
         self.assertEqual(pretty_number(123), '123')
         self.assertEqual(pretty_number(12.0), '12.0')
+        self.assertEqual(pretty_number(123456.0), '123,456.0')
         self.assertEqual(pretty_number(123.456), '123.456')
         self.assertEqual(pretty_number(12345678.901), '12,345,678.90')
         self.assertEqual(pretty_number(12.3456789), '12.3456')

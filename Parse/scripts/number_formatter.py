@@ -6,6 +6,8 @@ def valid_number_str(s):
         return True
     if re.search('^([1-9])([0-9]*)(\.([0-9]+))?$', s):
         return True
+    if s == '0':
+        return True
     return False
 
 
@@ -39,7 +41,7 @@ def pretty_number(value, width=6, decimal_place=2):
         integral = s[:idx]
         fractional = s[idx+1:]
 
-        if len(integral) > width:
+        if len(integral) >= width:
             s = integral + '.' + fractional[:decimal_place]
         else:
             s = integral + '.' + fractional[:(width - len(integral))]
