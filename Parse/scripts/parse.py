@@ -129,6 +129,7 @@ def delete(options):
             print 'Thread %d queue empty' % (n + 1)
 
         # Read the next block
+        conn = Parse.connection.Connection(app_id=options.app_id, api_key=None, master_key=options.master_key)
         obj_list = Parse.query.Query.objects('Events', query, conn)[0]
 
     # Terminate threads
@@ -515,7 +516,8 @@ def main():
                            'capture_name',
                            'average',
                            'min',
-                           'max']
+                           'max',
+                           'stddev']
 
     # Read the configuration to get the color
     for event_type in events.TYPES:
