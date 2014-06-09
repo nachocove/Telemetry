@@ -481,10 +481,11 @@ def main():
         abort('ERROR: the number of fields does not match the number of selectors.')
     for (field, sel) in zip(options.field, options.selectors):
         if field in ['timestamp', 'createdAt', 'updatedAt', 'counter_start', 'counter_end']:
-            if isinstance(sel, Parse.query.SelectorEqual):
+            if issubclass(sel.__class__, Parse.query.SelectorCompare):
                 sel.value = Parse.utc_datetime.UtcDateTime(sel.value)
         elif field in ['count', 'min', 'max', 'average', 'stddev']:
-            sel.value = int(sel.value)
+            if issubclass(sel.__class__, Parse.query.SelectorCompare):
+                sel.value = int(sel.value)
 
     # Sanity check parameters
     # Make sure we have keys
