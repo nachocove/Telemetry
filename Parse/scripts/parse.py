@@ -483,7 +483,7 @@ def main():
         if field in ['timestamp', 'createdAt', 'updatedAt', 'counter_start', 'counter_end']:
             if isinstance(sel, Parse.query.SelectorEqual):
                 sel.value = Parse.utc_datetime.UtcDateTime(sel.value)
-        elif field in ['count', 'min', 'max', 'average']:
+        elif field in ['count', 'min', 'max', 'average', 'stddev']:
             sel.value = int(sel.value)
 
     # Sanity check parameters

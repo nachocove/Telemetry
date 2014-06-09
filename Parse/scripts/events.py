@@ -39,6 +39,7 @@ INFO_FIELDS = ['message',  # for logs
                'capture_name',   # for captures
                'average',
                'max',
-               'min']
+               'min',
+               'stddev']
 
 VALID_FIELDS = ['timestamp', 'event_type'] + IDENT_FIELDS + INFO_FIELDS + INTERNAL_FIELDS
