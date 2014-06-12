@@ -358,19 +358,19 @@ class MonitorCaptures(Monitor):
         for kind in sorted(self.captures.keys()):
             capture_kind = self.captures[kind]
             if capture_kind.count > 0:
-                min_str = pretty_number(capture_kind.min)
-                avg_str = pretty_number(capture_kind.average)
-                max_str = pretty_number(capture_kind.max)
+                min_str = commafy('%.2f' % capture_kind.min)
+                avg_str = commafy('%.2f' % capture_kind.average)
+                max_str = commafy('%.2f' % capture_kind.max)
             else:
                 min_str = '-'
                 avg_str = '-'
                 max_str = '-'
             table.add_row(TableRow([TableElement(Text(kind)),
-                                    TableElement(Text(pretty_number(len(capture_kind.clients)))),
-                                    TableElement(Text(pretty_number(capture_kind.count))),
-                                    TableElement(Text(min_str)),
-                                    TableElement(Text(avg_str)),
-                                    TableElement(Text(max_str))]))
+                                    TableElement(Text(pretty_number(len(capture_kind.clients))), align='right'),
+                                    TableElement(Text(pretty_number(capture_kind.count)), align='right'),
+                                    TableElement(Text(min_str), align='right'),
+                                    TableElement(Text(avg_str), align='right'),
+                                    TableElement(Text(max_str), align='right')]))
 
         title = self.title()
         paragraph = Paragraph([Bold(title), table])

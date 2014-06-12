@@ -220,6 +220,7 @@ class Table(Element):
             return ''
 
         num_cols = 0
+        max_widths = []
         for row in rows:
             if num_cols == 0:
                 num_cols = len(row.elements())
@@ -294,10 +295,11 @@ class TableHeader(Element):
 
 
 class TableElement(Element):
-    def __init__(self, content):
+    def __init__(self, content, **attrs):
         Text.assert_text(content)
         Element.__init__(self, 'td', content)
         self.width = 0
+        self.attrs = attrs
 
     def plain_text(self):
         return ('%%-%ds' % (self.width + 1)) % self.content.plain_text()
