@@ -9,6 +9,7 @@ import event_formatter
 import zipfile
 from html_elements import *
 from number_formatter import *
+from captures import Capture, CaptureKind
 
 
 class Summary(Table):
@@ -224,78 +225,6 @@ class MonitorEvents(MonitorCount):
         self.count = Parse.query.Query.objects('Events', self.query, self.conn)[1]
 
 
-class Capture:
-    def __init__(self, event):
-        self.client = event['client']
-        self.name = event['capture_name']
-        self.count = event['count']
-        self.average = event['average']
-        self.max = event['max']
-        self.min = event['min']
-        self.timestamp = Parse.utc_datetime.UtcDateTime(event['timestamp']['iso'])
-
-    def _same_client(self, other):
-        if self.client != other.client:
-            raise ValueError('cannot compare timestamp of different clients')
-
-    def __lt__(self, other):
-        self._same_client(other)
-        return 0.0 > (self.timestamp - other.timestamp)
-
-    def __gt__(self, other):
-        self._same_client(other)
-        return 0.0 < (self.timestamp - other.timestamp)
-
-    def __eq__(self, other):
-        self._same_client(other)
-        return 0.0 == (self.timestamp - other.timestamp)
-
-    def __le__(self, other):
-        self._same_client(other)
-        return 0.0 >= (self.timestamp - other.timestamp)
-
-    def __ge__(self, other):
-        self._same_client(other)
-        return 0.0 <= (self.timestamp - other.timestamp)
-
-
-class CaptureKind:
-    def __init__(self, kind):
-        self.kind = kind
-        self.clients = dict()
-        self.total = 0.0
-        self.count = 0
-        self.max = None
-        self.min = None
-        self.average = 0.0
-
-    def add(self, capture):
-        if capture.client in self.clients:
-            if capture > self.clients[capture.client]:
-                self.clients[capture.client] = capture
-        else:
-            self.clients[capture.client] = capture
-
-    def update_statistics(self):
-        self.total = 0.0
-        self.count = 0
-        self.max = None
-        self.min = None
-        self.average = 0.0
-
-        for capture in self.clients.values():
-            self.total += float(capture.average * capture.count)
-            self.count += capture.count
-            if capture.count > 0:
-                if self.max is None or self.max < capture.max:
-                    self.max = float(capture.max)
-                if self.min is None or self.min > capture.min:
-                    self.min = float(capture.min)
-
-        if self.count > 0:
-            self.average = self.total / self.count
-
-
 class MonitorCaptures(Monitor):
     def __init__(self, conn, start, end):
         Monitor.__init__(self, conn=conn, desc='captures', start=start, end=end)
@@ -354,23 +283,28 @@ class MonitorCaptures(Monitor):
                                 TableHeader(Bold('Count')),
                                 TableHeader(Bold('Min (msec)')),
                                 TableHeader(Bold('Average (msec)')),
-                                TableHeader(Bold('Max (msec)'))]))
+                                TableHeader(Bold('Max (msec)')),
+                                TableHeader(Bold('Std.Dev. (msec)'))]))
         for kind in sorted(self.captures.keys()):
             capture_kind = self.captures[kind]
-            if capture_kind.count > 0:
-                min_str = commafy('%.2f' % capture_kind.min)
-                avg_str = commafy('%.2f' % capture_kind.average)
-                max_str = commafy('%.2f' % capture_kind.max)
+            stats = capture_kind.statistics
+            if stats.count > 0:
+                min_str = commafy('%.2f' % stats.min)
+                avg_str = commafy('%.2f' % stats.average)
+                max_str = commafy('%.2f' % stats.max)
+                sdev_str = commafy('%.2f' % stats.stddev)
             else:
                 min_str = '-'
                 avg_str = '-'
                 max_str = '-'
+                sdev_str = '-'
             table.add_row(TableRow([TableElement(Text(kind)),
                                     TableElement(Text(pretty_number(len(capture_kind.clients))), align='right'),
-                                    TableElement(Text(pretty_number(capture_kind.count)), align='right'),
+                                    TableElement(Text(pretty_number(stats.count)), align='right'),
                                     TableElement(Text(min_str), align='right'),
                                     TableElement(Text(avg_str), align='right'),
-                                    TableElement(Text(max_str), align='right')]))
+                                    TableElement(Text(max_str), align='right'),
+                                    TableElement(Text(sdev_str), align='right')]))
 
         title = self.title()
         paragraph = Paragraph([Bold(title), table])
