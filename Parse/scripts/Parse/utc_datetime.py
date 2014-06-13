@@ -20,6 +20,9 @@ class UtcDateTime:
         delta = self.datetime - other.datetime
         return (float(delta.days) * 86400.0) + float(delta.seconds) + (float(delta.microseconds) / 1.e6)
 
+    def file_suffix(self):
+        return str(self.datetime).replace(':', '_').replace('-', '_').replace('.', '_')
+
     @staticmethod
     def now():
         dt = datetime.datetime.utcnow()
