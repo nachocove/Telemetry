@@ -9,6 +9,7 @@ from monitor_base import Summary
 from monitor_log import MonitorErrors, MonitorWarnings
 from monitor_count import MonitorUsers, MonitorEvents
 from monitor_captures import MonitorCaptures
+from monitor_counters import MonitorCounters
 
 
 class MonitorConfig(config.Config):
@@ -140,7 +141,7 @@ def main():
     report_group.add_argument('monitors',
                               nargs='*',
                               metavar='MONITOR',
-                              help='Choices are: users, events, errors, warnings')
+                              help='Choices are: users, events, errors, warnings, captures, counters')
     options = parser.parse_args()
 
     if options.help or len(options.monitors) == 0:
@@ -194,7 +195,8 @@ def main():
                    'warnings': MonitorWarnings,
                    'users': MonitorUsers,
                    'events': MonitorEvents,
-                   'captures': MonitorCaptures}
+                   'captures': MonitorCaptures,
+                   'counters': MonitorCounters}
         if monitor_name not in mapping:
             print 'ERROR: unknown monitor %s. ignore' % monitor_name
             continue

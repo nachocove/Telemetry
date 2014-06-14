@@ -24,22 +24,8 @@ class MonitorLog(Monitor):
             query.add('createdAt', Parse.query.SelectorGreaterThanEqual(self.start))
         if self.end is not None:
             query.add('createdAt', Parse.query.SelectorLessThan(self.end))
-        query.limit = 0
-        query.count = 1
-        self.event_count = Parse.query.Query.objects('Events', query, self.conn)[1]
 
-        query.limit = 1000
-        query.skip = 0
-
-        # Keep querying until the list is less than 1000
-        results = Parse.query.Query.objects('Events', query, self.conn)[0]
-        self.events.extend(results)
-        while len(results) == query.limit and query.skip < 10000:
-            query.skip += query.limit
-            results = Parse.query.Query.objects('Events', query, self.conn)[0]
-            self.events.extend(results)
-        if self.event_count < len(self.events):
-            self.event_count = len(self.events)
+        self.events, self.event_count = self.query_all(query)
 
     def _classify(self):
         self.report_ = dict()

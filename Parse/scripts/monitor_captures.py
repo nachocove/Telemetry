@@ -1,8 +1,69 @@
 import Parse
+import analytics
 from monitor_base import Monitor
 from html_elements import *
-from captures import Capture, CaptureKind
 from number_formatter import *
+
+
+class Capture:
+    def __init__(self, event):
+        self.client = event['client']
+        self.name = event['capture_name']
+        self.statistics = analytics.statistics.Statistics(count=event['count'],
+                                                          min_=event['min'],
+                                                          max_=event['max'],
+                                                          average=event['average'],
+                                                          stddev=event['stddev'])
+        self.timestamp = Parse.utc_datetime.UtcDateTime(event['timestamp']['iso'])
+
+    def _same_client(self, other):
+        if self.client != other.client:
+            raise ValueError('cannot compare timestamp of different clients')
+
+    def combine(self, other):
+        if other > self:
+            if other.statistics.count < self.statistics.count:
+                self.statistics = self.statistics + other.statistics
+            else:
+                self.statistics = other.statistics
+
+    def __lt__(self, other):
+        self._same_client(other)
+        return 0.0 > (self.timestamp - other.timestamp)
+
+    def __gt__(self, other):
+        self._same_client(other)
+        return 0.0 < (self.timestamp - other.timestamp)
+
+    def __eq__(self, other):
+        self._same_client(other)
+        return 0.0 == (self.timestamp - other.timestamp)
+
+    def __le__(self, other):
+        self._same_client(other)
+        return 0.0 >= (self.timestamp - other.timestamp)
+
+    def __ge__(self, other):
+        self._same_client(other)
+        return 0.0 <= (self.timestamp - other.timestamp)
+
+
+class CaptureKind:
+    def __init__(self, kind):
+        self.kind = kind
+        self.clients = dict()
+        self.statistics = analytics.statistics.Statistics(count=0)
+
+    def add(self, capture):
+        if capture.client in self.clients:
+            self.clients[capture.client].combine(capture)
+        else:
+            self.clients[capture.client] = capture
+
+    def update_statistics(self):
+        self.statistics = analytics.statistics.Statistics(count=0)
+        for capture in self.clients.values():
+            self.statistics += capture.statistics
 
 
 class MonitorCaptures(Monitor):
@@ -17,23 +78,8 @@ class MonitorCaptures(Monitor):
             query.add('createdAt', Parse.query.SelectorGreaterThanEqual(self.start))
         if self.end is not None:
             query.add('createdAt', Parse.query.SelectorLessThan(self.end))
-        query.limit = 0
-        query.count = 1
-        self.event_count = Parse.query.Query.objects('Events', query, self.conn)[1]
 
-        query.limit = 1000
-        query.skip = 0
-
-        # Keep querying until the list is less than 1000
-        # TODO - we need a robust way to pull more than 11,000 events
-        results = Parse.query.Query.objects('Events', query, self.conn)[0]
-        self.events.extend(results)
-        while len(results) == query.limit and query.skip < 10000:
-            query.skip += query.limit
-            results = Parse.query.Query.objects('Events', query, self.conn)[0]
-            self.events.extend(results)
-        if self.event_count < len(self.events):
-            self.event_count = len(self.events)
+        self.events = self.query_all(query)[0]
 
     def _analyze(self):
         self.captures = dict()
@@ -48,7 +94,7 @@ class MonitorCaptures(Monitor):
             self.clients.update(capture_kind.clients)
 
     def run(self):
-        print 'Query %s...' % self.desc
+        print 'Querying %s...' % self.desc
         self._query()
         self._analyze()
 
