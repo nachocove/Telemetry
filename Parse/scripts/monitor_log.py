@@ -2,9 +2,38 @@ import Parse
 import pprint
 import zipfile
 import event_formatter
+from datetime import timedelta
 from monitor_base import Monitor
 from number_formatter import pretty_number
 from html_elements import *
+
+
+class LogTrace:
+    def __init__(self, desc, client, start, end):
+        self.desc = desc
+        self.client = client
+        self.start = start
+        self.end = end
+        self.events = []
+
+    def query(self, conn):
+        query = Parse.query.Query()
+        query.add('client', Parse.query.SelectorEqual(self.client))
+        query.add('timestamp', Parse.query.SelectorGreaterThanEqual(self.start))
+        query.add('timestamp', Parse.query.SelectorLessThan(self.end))
+        self.events = Parse.query.Query.objects('Events', query, conn)[0]
+
+    def _filename(self):
+        return '%s.client_%s.%s.%s.trace.txt' % (self.desc, self.client,
+                                                 self.start.file_suffix(), self.end.file_suffix())
+
+    def write_file(self):
+        ef = event_formatter.RecordStyleEventFormatter()
+        fname = self._filename()
+        with open(fname, 'w') as trace_file:
+            for event in self.events:
+                print >>trace_file, ef.format(event).encode('utf-8')
+        return fname
 
 
 class MonitorLog(Monitor):
@@ -16,6 +45,8 @@ class MonitorLog(Monitor):
         self.msg = msg  # message about total # of events in summary
         self.rate_msg = rate_msg  # message about the rate of the events in summary
         self.event_count = 0
+        self.traces = list()  # list of event lists for every log event
+        self.trace_enabled = False
 
     def _query(self):
         query = Parse.query.Query()
@@ -35,10 +66,32 @@ class MonitorLog(Monitor):
             else:
                 self.report_[log['message']] += 1
 
+    def _get_trace(self, event):
+        assert 'client' in event and 'timestamp' in event
+        time_str = event['timestamp']['iso']
+
+        print '  Tracing client %s at %s...' % (event['client'], time_str)
+        # Set the window to 3 min before 1 min after
+        before = Parse.utc_datetime.UtcDateTime(time_str)
+        after = Parse.utc_datetime.UtcDateTime(time_str)
+        before.datetime += timedelta(minutes=-3)
+        after.datetime += timedelta(minutes=+1)
+
+        trace = LogTrace(desc=self.desc, client=event['client'], start=before, end=after)
+        trace.query(self.conn)
+        return trace
+
+    def _get_traces(self):
+        self.traces = list()
+        for event in self.events:
+            self.traces.append(self._get_trace(event))
+
     def run(self):
         print 'Querying %s...' % self.desc
         self._query()
         self._classify()
+        if self.trace_enabled:
+            self._get_traces()
 
     @staticmethod
     def _process_report(report):
@@ -88,13 +141,18 @@ class MonitorLog(Monitor):
 
     def attachment(self):
         ef = event_formatter.RecordStyleEventFormatter()
-        raw_log_path = '%s_%s.txt' % (self.desc, self.end.file_suffix())
+        raw_log_prefix = '%s_%s' % (self.desc, self.end.file_suffix())
+        raw_log_path = raw_log_prefix + '.txt'
         with open(raw_log_path, 'w') as raw_log:
             for event in self.events:
-                print >>raw_log, ef.format(event)
-        zipped_log_path = raw_log_path + '.zip'
+                print >>raw_log, ef.format(event).encode('utf-8')
+        zipped_log_path = raw_log_prefix + '.zip'
         zipped_file = zipfile.ZipFile(zipped_log_path, 'w', zipfile.ZIP_DEFLATED)
         zipped_file.write(raw_log_path)
+
+        for trace in self.traces:
+            fname = trace.write_file()
+            zipped_file.write(fname)
         zipped_file.close()
         return zipped_log_path
 
@@ -104,6 +162,7 @@ class MonitorErrors(MonitorLog):
         MonitorLog.__init__(self, conn, event_type='ERROR', desc='errors',
                             msg='Error count', rate_msg='Error rate',
                             start=start, end=end)
+        self.trace_enabled = True
 
 
 class MonitorWarnings(MonitorLog):
