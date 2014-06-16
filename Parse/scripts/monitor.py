@@ -158,9 +158,9 @@ def main():
     # If we want a time window but do not have one from command line, get it
     # from config and current time
     do_update_timestamp = False
-    if options.start == 'last':
+    if isinstance(options.start, str) and options.start == 'last':
         options.start = config_.read_timestamp()
-    if options.end == 'now':
+    if isinstance(options.end, str) and options.end == 'now':
         options.end = Parse.utc_datetime.UtcDateTime.now()
         do_update_timestamp = True
 

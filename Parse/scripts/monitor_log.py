@@ -16,6 +16,12 @@ class LogTrace:
         self.end = end
         self.events = []
 
+    def __eq__(self, other):
+        return (self.client == other.client) and (self.start == other.start) and (self.end == other.end)
+
+    def __ne__(self, other):
+        return not (self == other)
+
     def query(self, conn):
         query = Parse.query.Query()
         query.add('client', Parse.query.SelectorEqual(self.client))
@@ -70,21 +76,46 @@ class MonitorLog(Monitor):
         assert 'client' in event and 'timestamp' in event
         time_str = event['timestamp']['iso']
 
-        print '  Tracing client %s at %s...' % (event['client'], time_str)
-        # Set the window to 3 min before 1 min after
-        before = Parse.utc_datetime.UtcDateTime(time_str)
-        after = Parse.utc_datetime.UtcDateTime(time_str)
-        before.datetime += timedelta(minutes=-3)
-        after.datetime += timedelta(minutes=+1)
+        # Set the window to 3 min before and 0 min after
+        start = Parse.utc_datetime.UtcDateTime(time_str)
+        end = Parse.utc_datetime.UtcDateTime(time_str)
+        start.datetime += timedelta(minutes=-2)
 
-        trace = LogTrace(desc=self.desc, client=event['client'], start=before, end=after)
-        trace.query(self.conn)
+        def round_down_to_minutes(udt):
+            udt.datetime -= timedelta(seconds=udt.datetime.second,
+                                      microseconds=udt.datetime.microsecond)
+
+        # Round down to the nearest minute for start time
+        round_down_to_minutes(start)
+        # Round up for end time
+        if end.datetime.second or end.datetime.microsecond:
+            round_down_to_minutes(end)
+            end.datetime += timedelta(minutes=+1)
+
+        trace = LogTrace(desc=self.desc, client=event['client'], start=start, end=end)
         return trace
 
     def _get_traces(self):
         self.traces = list()
+        clients = dict()
+        # Examine all events and consolidate traces when it makes sense
         for event in self.events:
-            self.traces.append(self._get_trace(event))
+            trace = self._get_trace(event)
+            client = event['client']
+            if client not in clients:
+                clients[client] = trace
+            else:
+                if clients[client] == trace:
+                    # with rounding of the time window to the nearest
+                    # minutes, if it is the same as another trace,
+                    # consolidate them.
+                    continue
+                clients[client] = trace
+            print '  Tracing client %s at %s...' % (event['client'], event['timestamp']['iso'])
+            self.traces.append(trace)
+        # Get all the traces
+        for trace in self.traces:
+            trace.query(self.conn)
 
     def run(self):
         print 'Querying %s...' % self.desc

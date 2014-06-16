@@ -247,6 +247,16 @@ class TestUtcDateTime(unittest.TestCase):
         self.assertEqual(end8 - start, total)
         self.assertEqual(start - end8, -total)
 
+    def test_cmp(self):
+        dt1a = UtcDateTime('2014-06-15T01:02:03.004Z')
+        dt1b = UtcDateTime('2014-06-15T01:02:03.004Z')
+        dt2 = UtcDateTime('2014-05-15T01:02:03.004Z')
+        dt3 = UtcDateTime('2014-06-15T02:02:03.004Z')
+
+        self.assertEqual(dt1a, dt1b)
+        self.assertGreater(dt1a, dt2)
+        self.assertLess(dt1a, dt3)
+
 
 if __name__ == '__main__':
     unittest.main()

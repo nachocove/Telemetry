@@ -13,6 +13,9 @@ class UtcDateTime:
             return s + 'Z'
         return s + '.%03dZ' % int(self.datetime.microsecond/1000.)
 
+    def __cmp__(self, other):
+        return cmp(self - other, 0.0)
+
     def __sub__(self, other):
         """
         Return the elapsed time in seconds (with millisecond resolution).
