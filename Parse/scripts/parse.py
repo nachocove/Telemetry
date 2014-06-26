@@ -507,17 +507,7 @@ def main():
     if len(options.display) == 0:
         options.display = ['timestamp',
                            'event_type',
-                           'message',
-                           'wbxml',
-                           'counter_name',
-                           'count',
-                           'counter_start',
-                           'counter_end',
-                           'capture_name',
-                           'average',
-                           'min',
-                           'max',
-                           'stddev']
+                           'client'] + events.INFO_FIELDS
 
     # Read the configuration to get the color
     for event_type in events.TYPES:
