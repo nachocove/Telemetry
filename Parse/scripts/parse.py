@@ -412,15 +412,23 @@ def main():
     login_group.add_argument('--username', help='Username', default='monitor')
 
     # Query options
-    query_group = parser.add_argument_group(title='Query Options')
-    query_group.add_argument('--after', help='Match a field after a time specified in ISO-8601 UTC format',
+    query_group = parser.add_argument_group(title='Query Options',
+                                            description='A query consists of a list of expression. It is an AND '
+                                                        'condition of all expressions. Each expression consists of a '
+                                                        'field, an operator and a value. Use --field to specify the '
+                                                        'field and other options (e.g. --equal) to specify the operator '
+                                                        'and value. For example, --field event_type --equal INFO means '
+                                                        'event_type == "INFO".')
+
+    query_group.add_argument('--after',
+                             help='Match a field after (and including) a time specified in ISO-8601 UTC format',
                              action=SelectorAction, dest='selectors', default=[])
-    query_group.add_argument('--before', help='Match a field before a time specified '
+    query_group.add_argument('--before', help='Match a field before (but excluding) a time specified '
                                               'in ISO-8601 UTC format or "now" for current time',
                              action=SelectorAction, dest='selectors', default=[])
     query_group.add_argument('--equal', help='Match a field to be equal to this value',
                              action=SelectorAction, dest='selectors', default=[])
-    query_group.add_argument('--exists', help='Match a field to exist', choices=['true', 'false'],
+    query_group.add_argument('--exists', help='Match a field to exist or not exist', choices=['true', 'false'],
                              action=SelectorAction, dest='selectors', default=[])
     query_group.add_argument('--field', help='A field for query (%s)' % ', ' .join(events.VALID_FIELDS),
                              action='append', metavar='FIELD',
