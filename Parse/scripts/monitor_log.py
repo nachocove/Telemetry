@@ -6,40 +6,7 @@ from datetime import timedelta
 from monitor_base import Monitor
 from number_formatter import pretty_number
 from html_elements import *
-
-
-class LogTrace:
-    def __init__(self, desc, client, start, end):
-        self.desc = desc
-        self.client = client
-        self.start = start
-        self.end = end
-        self.events = []
-
-    def __eq__(self, other):
-        return (self.client == other.client) and (self.start == other.start) and (self.end == other.end)
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def query(self, conn):
-        query = Parse.query.Query()
-        query.add('client', Parse.query.SelectorEqual(self.client))
-        query.add('timestamp', Parse.query.SelectorGreaterThanEqual(self.start))
-        query.add('timestamp', Parse.query.SelectorLessThan(self.end))
-        self.events = Parse.query.Query.objects('Events', query, conn)[0]
-
-    def _filename(self):
-        return '%s.client_%s.%s.%s.trace.txt' % (self.desc, self.client,
-                                                 self.start.file_suffix(), self.end.file_suffix())
-
-    def write_file(self):
-        ef = event_formatter.RecordStyleEventFormatter()
-        fname = self._filename()
-        with open(fname, 'w') as trace_file:
-            for event in self.events:
-                print >>trace_file, ef.format(event).encode('utf-8')
-        return fname
+from logtrace import LogTrace
 
 
 class MonitorLog(Monitor):
@@ -74,24 +41,7 @@ class MonitorLog(Monitor):
 
     def _get_trace(self, event):
         assert 'client' in event and 'timestamp' in event
-        time_str = event['timestamp']['iso']
-
-        # Set the window to 3 min before and 0 min after
-        start = Parse.utc_datetime.UtcDateTime(time_str)
-        end = Parse.utc_datetime.UtcDateTime(time_str)
-        start.datetime += timedelta(minutes=-2)
-
-        def round_down_to_minutes(udt):
-            udt.datetime -= timedelta(seconds=udt.datetime.second,
-                                      microseconds=udt.datetime.microsecond)
-
-        # Round down to the nearest minute for start time
-        round_down_to_minutes(start)
-        # Round up for end time
-        if end.datetime.second or end.datetime.microsecond:
-            round_down_to_minutes(end)
-            end.datetime += timedelta(minutes=+1)
-
+        (start, end) = LogTrace.get_time_window(event['timestamp']['iso'], 2, 0)
         trace = LogTrace(desc=self.desc, client=event['client'], start=start, end=end)
         return trace
 
