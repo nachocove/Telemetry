@@ -166,6 +166,7 @@ def main():
 
     # If send email, we want to make sure that the email credential is there
     summary_table = Summary()
+    summary_table.colors = [None, '#f0f0f0']
     if options.email:
         (smtp_server, email) = config_.read_email_settings()
         if smtp_server is None:
@@ -206,6 +207,7 @@ def main():
 
     # Generate all outputs
     for monitor in monitors:
+        summary_table.toggle_color()
         output = monitor.report(summary_table)
         if options.email and output is not None:
             email.content.add(output)

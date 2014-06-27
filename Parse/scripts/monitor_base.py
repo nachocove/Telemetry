@@ -4,10 +4,29 @@ from number_formatter import pretty_number
 
 
 class Summary(Table):
+    def __init__(self):
+        Table.__init__(self)
+        self.colors = list()
+        self.current_color_idx = 0
+
+    def _current_color(self):
+        if len(self.colors) == 0:
+            return None
+        assert self.current_color_idx < len(self.colors)
+        return self.colors[self.current_color_idx]
+
     def add_entry(self, desc, value):
         row = TableRow([TableElement(Text(desc)),
                         TableElement(Text(str(value)))])
+        color = self._current_color()
+        if color is not None:
+            row.attrs['bgcolor'] = color
         self.add_row(row)
+
+    def toggle_color(self):
+        self.current_color_idx += 1
+        if self.current_color_idx == len(self.colors):
+            self.current_color_idx = 0
 
 
 class Monitor:
