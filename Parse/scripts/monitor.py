@@ -1,5 +1,6 @@
 import argparse
 import Parse
+import HockeyApp
 import config
 import ConfigParser
 import emails
@@ -10,6 +11,7 @@ from monitor_log import MonitorErrors, MonitorWarnings
 from monitor_count import MonitorUsers, MonitorEvents
 from monitor_captures import MonitorCaptures
 from monitor_counters import MonitorCounters
+from monitor_hockeyapp import MonitorHockeyApp
 
 
 class MonitorConfig(config.Config):
@@ -68,6 +70,10 @@ class MonitorConfig(config.Config):
             return smtp_server, email
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             return None, None
+
+    def read_hockeyapp_settings(self, options):
+        self.get('keys', 'ha_app_id', options)
+        self.get('keys', 'ha_api_token', options)
 
 
 class DateTimeAction(argparse.Action):
@@ -141,7 +147,7 @@ def main():
     report_group.add_argument('monitors',
                               nargs='*',
                               metavar='MONITOR',
-                              help='Choices are: users, events, errors, warnings, captures, counters')
+                              help='Choices are: users, events, errors, warnings, captures, counters, crashes')
     options = parser.parse_args()
 
     if options.help or len(options.monitors) == 0:
@@ -154,6 +160,7 @@ def main():
         config_.read_keys(options)
     else:
         config_.write_keys(options)
+    config_.read_hockeyapp_settings(options)
 
     # If we want a time window but do not have one from command line, get it
     # from config and current time
@@ -197,11 +204,17 @@ def main():
                    'users': MonitorUsers,
                    'events': MonitorEvents,
                    'captures': MonitorCaptures,
-                   'counters': MonitorCounters}
+                   'counters': MonitorCounters,
+                   'crashes': MonitorHockeyApp}
         if monitor_name not in mapping:
             print 'ERROR: unknown monitor %s. ignore' % monitor_name
             continue
-        monitor = mapping[monitor_name](conn, options.start, options.end)
+        extra_params = list()
+        if monitor_name == 'crashes':
+            ha_obj = HockeyApp.hockeyapp.HockeyApp(options.ha_api_token)
+            ha_app_obj = ha_obj.app(options.ha_app_id)
+            extra_params.append(ha_app_obj)
+        monitor = mapping[monitor_name](conn, options.start, options.end, *extra_params)
         monitors.append(monitor)
         monitor.run()
 
