@@ -43,9 +43,6 @@ class Object(dict):
             self.acl = Acl()
             self.acl.parse(acl_dict)
 
-        # Get rid of unused field
-        self.pop('updatedAt', None)
-
     def create(self, conn=None):
         conn = self._check_conn(conn)
         result = conn.post(self.path(), self.data())

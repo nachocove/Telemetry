@@ -149,7 +149,10 @@ class Query:
         if 'count' in result:
             count = result['count']
         for data in result['results']:
-            obj = cls(class_name=class_name)
+            if cls.__name__ == 'User':
+                obj = cls()
+            else:
+                obj = cls(class_name=class_name)
             obj.parse(data)
             obj_list.append(obj)
         return obj_list, count

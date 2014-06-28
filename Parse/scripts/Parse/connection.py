@@ -8,7 +8,7 @@ class Connection:
     SERVER = 'api.parse.com'
     PORT = 443
 
-    def __init__(self, app_id, api_key, session_token=None, master_key=None):
+    def __init__(self, app_id, api_key=None, session_token=None, master_key=None):
         self.app_id = app_id
         self.api_key = api_key
         self.session_token = session_token
