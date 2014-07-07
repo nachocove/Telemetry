@@ -4,11 +4,28 @@ from html_elements import *
 from number_formatter import pretty_number
 
 
+class CounterInfo:
+    """
+    Represents all information / statistics about a particular counter.
+    """
+    def __init__(self, name):
+        self.name = name
+        self.clients = set()
+        self.event_count = 0
+        self.count = 0
+
+    def add(self, client, count):
+        self.clients.add(client)
+        self.event_count += 1
+        self.count += count
+
+
 class MonitorCounters(Monitor):
     def __init__(self, conn, start, end):
         Monitor.__init__(self, conn=conn, desc='counters', start=start, end=end)
         self.events = list()
-        self.clients = set()
+        self.counters = dict()
+        self.client_count = 0
 
     def _query(self):
         query = Parse.query.Query()
@@ -23,12 +40,14 @@ class MonitorCounters(Monitor):
     def _analyze(self):
         self.counters = dict()
         for event in self.events:
-            self.clients.add(event['client'])
             name = event['counter_name']
-            if name in self.counters:
-                self.counters[name] += event['count']
-            else:
-                self.counters[name] = event['count']
+            client = event['client']
+            count = event['count']
+            if name not in self.counters:
+                self.counters[name] = CounterInfo(name)
+            self.counters[name].add(client, count)
+        for info in self.counters.values():
+            self.client_count += len(info.clients)
 
     def run(self):
         print 'Querying %s...' % self.desc
@@ -38,14 +57,18 @@ class MonitorCounters(Monitor):
     def report(self, summary):
         summary.add_entry('Counter event count', len(self.events))
         summary.add_entry('Counter type count', len(self.counters))
-        summary.add_entry('Counter client count', len(self.clients))
+        summary.add_entry('Counter client count', self.client_count)
 
         table = Table()
         table.add_row(TableRow([TableHeader(Bold('Name')),
+                                TableHeader(Bold('# clients')),
+                                TableHeader(Bold('# events')),
                                 TableHeader(Bold('Count'))]))
-        for (name, count) in self.counters.items():
+        for (name, info) in sorted(self.counters.items()):
             table.add_row(TableRow([TableElement(Text(name)),
-                                    TableElement(Text(pretty_number(count)), align='right')]))
+                                    TableElement(Text(pretty_number(len(info.clients))), align='right'),
+                                    TableElement(Text(pretty_number(info.event_count)), align='right'),
+                                    TableElement(Text(pretty_number(info.count)), align='right')]))
 
         title = self.title()
         paragraph = Paragraph([Bold(title), table])
