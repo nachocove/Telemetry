@@ -191,11 +191,6 @@ def main():
     summary_table.add_entry('Start time', str(options.start))
     summary_table.add_entry('End time', str(options.end))
 
-    # Create a connection
-    conn = Parse.connection.Connection(app_id=options.app_id,
-                                       api_key=options.api_key,
-                                       session_token=options.session_token)
-
     # Run each monitor
     monitors = list()
     for monitor_name in options.monitors:
@@ -214,6 +209,12 @@ def main():
             ha_obj = HockeyApp.hockeyapp.HockeyApp(options.ha_api_token)
             ha_app_obj = ha_obj.app(options.ha_app_id)
             extra_params.append(ha_app_obj)
+
+        # Create a connection
+        conn = Parse.connection.Connection(app_id=options.app_id,
+                                           api_key=options.api_key,
+                                           session_token=options.session_token)
+
         monitor = mapping[monitor_name](conn, options.start, options.end, *extra_params)
         monitors.append(monitor)
         monitor.run()

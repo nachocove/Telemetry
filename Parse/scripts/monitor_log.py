@@ -61,10 +61,10 @@ class MonitorLog(Monitor):
                     # consolidate them.
                     continue
                 clients[client] = trace
-            print '  Tracing client %s at %s...' % (event['client'], event['timestamp']['iso'])
             self.traces.append(trace)
         # Get all the traces
         for trace in self.traces:
+            print '  Tracing client %s from %s to %s...' % (trace.client, trace.start, trace.end)
             trace.query(self.conn)
 
     def run(self):

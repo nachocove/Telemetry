@@ -104,6 +104,7 @@ class Monitor:
         events.extend(results)
         while len(results) == query.limit and query.skip < 10000:
             query.skip += query.limit
+            print '  Querying additional objects (skip=%d)' % query.skip
             results = Parse.query.Query.objects('Events', query, self.conn)[0]
             events.extend(results)
         if event_count < len(events):

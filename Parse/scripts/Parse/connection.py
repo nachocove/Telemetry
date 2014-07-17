@@ -59,7 +59,11 @@ class Connection:
                         value[str(key)] = tmp_value
             return value
 
-        result = json.loads(html_result, object_hook=convert_to_str)
+        try:
+            result = json.loads(html_result, object_hook=convert_to_str)
+        except ValueError, e:
+            print 'HTML response is:\n' + html_result
+            raise e
         if 'error' in result:
             code = result.get('code', None)
             raise ParseException(code, result['error'])
