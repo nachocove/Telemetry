@@ -5,8 +5,8 @@
 # But none of them will generate a reasonable plain text version of the content.
 # This library is based on the base class Element. It provides two key methods -
 # 1) html(), 2) plain_text() for creating HTML and plain text content.
-# An email message can create a document using these HTML elements and generate
-# both version as MIME content (with plain text as MIME alternatives)
+# An email message can create a document using these HTML elements and generates
+# both versions as MIME content (with plain text as MIME alternatives)
 import cgi
 
 
@@ -14,7 +14,7 @@ class Element:
     @staticmethod
     def assert_type(obj, class_):
         if not isinstance(obj, class_) and not issubclass(obj.__class__, class_):
-            raise TypeError('Object must be of class %s' % class_.__name__)
+            raise TypeError('Object (%s) must be of class %s' % (obj.__class__.__name__, str(class_)))
 
     @staticmethod
     def assert_list(obj, ex_msg):
@@ -120,7 +120,7 @@ class Text(Element):
     """
     @staticmethod
     def assert_text(obj):
-        Element.assert_type(obj, (str, Text))
+        Element.assert_type(obj, (str, unicode, Text))
 
     def __init__(self, text):
         Text.assert_text(text)
