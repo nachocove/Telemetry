@@ -211,9 +211,9 @@ def main():
             extra_params.append(ha_app_obj)
 
         # Create a connection
-        conn = Parse.connection.Connection(app_id=options.app_id,
-                                           api_key=options.api_key,
-                                           session_token=options.session_token)
+        conn = Parse.connection.Connection.create(app_id=options.app_id,
+                                                  api_key=options.api_key,
+                                                  session_token=options.session_token)
 
         monitor = mapping[monitor_name](conn, options.start, options.end, *extra_params)
         monitors.append(monitor)

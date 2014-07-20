@@ -1,5 +1,6 @@
 import json
 import httplib
+import socket
 from exception import ParseException
 
 
@@ -80,3 +81,14 @@ class Connection:
 
     def delete(self, path):
         return self.request('DELETE', path, '', self.header())
+
+    @staticmethod
+    def create(app_id, api_key=None, session_token=None, master_key=None):
+        num_retries = 0
+        while num_retries < 10:
+            try:
+                return Connection(app_id, api_key, session_token, master_key)
+            except socket.error, e:
+                print 'WARN: fail to create connection (message=%s, num_retries=%d)' % (e.message, num_retries)
+                num_retries += 1
+        raise ParseException('fail to create connection after %d retries' % num_retries)

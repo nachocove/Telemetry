@@ -128,6 +128,6 @@ class Monitor:
 
     @staticmethod
     def clone_connection(conn):
-        return Parse.connection.Connection(app_id=conn.app_id,
-                                           api_key=conn.api_key,
-                                           session_token=conn.session_token)
+        return Parse.connection.Connection.create(app_id=conn.app_id,
+                                                  api_key=conn.api_key,
+                                                  session_token=conn.session_token)

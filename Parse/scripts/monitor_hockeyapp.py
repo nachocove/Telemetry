@@ -184,7 +184,8 @@ class MonitorHockeyApp(Monitor):
             os.unlink(crash_log_path)
             crash_trace_path = crash.save_trace()
             if crash_trace_path is not None:
-                zipped_file.write(crash_trace_path)
+                # TODO - for some reason, all traces are empty. Leave it out for now
+                #zipped_file.write(crash_trace_path)
                 os.unlink(crash_trace_path)
 
         zipped_file.close()
