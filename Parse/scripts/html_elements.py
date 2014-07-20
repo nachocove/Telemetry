@@ -8,6 +8,7 @@
 # An email message can create a document using these HTML elements and generates
 # both versions as MIME content (with plain text as MIME alternatives)
 import cgi
+import re
 
 
 class Element:
@@ -122,16 +123,23 @@ class Text(Element):
     def assert_text(obj):
         Element.assert_type(obj, (str, unicode, Text))
 
-    def __init__(self, text):
+    def __init__(self, text, keep_linefeed=False):
         Text.assert_text(text)
         Element.__init__(self, None, text)
+        # keep_linefeed retain the formatting of linefeed in the original
+        # text by converting them to <BR>. The default is False and let
+        # the browser to deciding when to break a line.
+        self.keep_linefeed = keep_linefeed
 
     def html(self):
         val = self.start_tag()
         if issubclass(self.content.__class__, Element):
             val += self.content.html()
         else:
-            val += cgi.escape(str(self.content))
+            text = cgi.escape(str(self.content))
+            if self.keep_linefeed:
+                text = re.sub('\n', '<br>', text)
+            val += text
         val += self.end_tag()
         return val
 
@@ -153,6 +161,17 @@ class Italic(Text):
     def __init__(self, text):
         Text.__init__(self, text)
         self.tag = 'i'
+
+
+class Link(Text):
+    def __init__(self, content, link):
+        Text.assert_text(content)
+        Text.__init__(self, content)
+        self.tag = 'a'
+        self.attrs['href'] = link
+
+    def plain_text(self):
+        return Text.plain_text(self) + ' (%s)' % self.attrs['href']
 
 
 class Paragraph(Element):

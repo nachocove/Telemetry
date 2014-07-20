@@ -29,10 +29,11 @@ class App:
         else:
             raise ValueError('unknown release type value %s' % str(release_type_value))
 
-    def __init__(self, hockeyapp_obj, app_id=None,
+    def __init__(self, hockeyapp_obj, app_id=None, id=None,
                  title=None, bundle_id=None, platform=None, release_type=None):
         self.hockeyapp_obj = hockeyapp_obj
         self.app_id = app_id
+        self.id = id
         if self.app_id is not None:
             self.base_url = self.hockeyapp_obj.base_url + '/apps/' + self.app_id
         else:
@@ -115,6 +116,7 @@ class App:
         for app in app_list:
             if app.app_id != self.app_id:
                 continue
+            self.id = app.id
             self.title = app.title
             self.bundle_id = app.bundle_id
             self.platform = app.platform

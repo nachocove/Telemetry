@@ -113,6 +113,7 @@ class HockeyApp:
         for app_data in response['apps']:
             app = App(hockeyapp_obj=self,
                       app_id=str(app_data['public_identifier']),
+                      id=str(app_data['id']),
                       title=app_data['title'],
                       bundle_id=str(app_data['bundle_identifier']),
                       platform=str(app_data['platform']))

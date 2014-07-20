@@ -85,6 +85,14 @@ class SelectorContain(Selector):
         self.op = '$regex'
 
 
+class SelectorStartsWith(Selector):
+    def __init__(self, value):
+        if not isinstance(value, str):
+            raise TypeError('value must be str')
+        Selector.__init__(self, '^' + value)
+        self.op = '$regex'
+
+
 class Query:
     def __init__(self):
         self.selectors = dict()

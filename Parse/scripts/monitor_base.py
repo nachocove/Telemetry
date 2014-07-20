@@ -125,3 +125,9 @@ class Monitor:
         else:
             raise ValueError('unit must be sec, min, or hr')
         return pretty_number(float(count) / (end - start) * scale) + ' / ' + unit
+
+    @staticmethod
+    def clone_connection(conn):
+        return Parse.connection.Connection(app_id=conn.app_id,
+                                           api_key=conn.api_key,
+                                           session_token=conn.session_token)
