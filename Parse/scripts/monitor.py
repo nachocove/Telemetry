@@ -75,6 +75,14 @@ class MonitorConfig(config.Config):
         self.get('keys', 'ha_app_id', options)
         self.get('keys', 'ha_api_token', options)
 
+    def read_monitors(self, options):
+        self.get('profile', 'monitors', options)
+        if isinstance(options.monitors, str):
+            options.monitors = options.monitors.split(',')
+
+    def read_profile_name(self, options):
+        self.get('profile', 'name', options)
+
 
 class DateTimeAction(argparse.Action):
     """
@@ -150,7 +158,7 @@ def main():
                               help='Choices are: users, events, errors, warnings, captures, counters, crashes')
     options = parser.parse_args()
 
-    if options.help or len(options.monitors) == 0:
+    if options.help:
         parser.print_help()
         exit(0)
 
@@ -161,6 +169,14 @@ def main():
     else:
         config_.write_keys(options)
     config_.read_hockeyapp_settings(options)
+    config_.read_profile_name(options)
+
+    # Must have 1+ monitor from command-line or config
+    if len(options.monitors) == 0:
+        config_.read_monitors(options)
+        if len(options.monitors) == 0:
+            parser.print_help()
+            exit(0)
 
     # If we want a time window but do not have one from command line, get it
     # from config and current time
@@ -231,7 +247,7 @@ def main():
 
     # Send the email
     if options.email:
-        print 'Sending email...'
+        print 'Sending email to %s...' % ', '.join(email.to_addresses)
         # Save the HTML and plain text body to files
         end_time_suffix = datetime_tostr(options.end)
         with open('monitor-email.%s.html' % end_time_suffix, 'w') as f:
@@ -239,7 +255,7 @@ def main():
         with open('monitor-email.%s.txt' % end_time_suffix, 'w') as f:
             print >>f, email.content.plain_text()
         # Add title
-        email.subject = 'Telemetry summary [%s]' % str(options.end)
+        email.subject = 'Telemetry summary - %s [%s]' % (options.name, str(options.end))
         email.send(smtp_server)
 
     # Update timestamp in config if necessary after we have successfully
