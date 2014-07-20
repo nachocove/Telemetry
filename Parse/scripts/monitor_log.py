@@ -2,7 +2,7 @@ import Parse
 import pprint
 import zipfile
 import event_formatter
-from datetime import timedelta
+import os
 from monitor_base import Monitor
 from number_formatter import pretty_number
 from html_elements import *
@@ -130,10 +130,12 @@ class MonitorLog(Monitor):
         zipped_log_path = raw_log_prefix + '.zip'
         zipped_file = zipfile.ZipFile(zipped_log_path, 'w', zipfile.ZIP_DEFLATED)
         zipped_file.write(raw_log_path)
+        os.unlink(raw_log_path)
 
         for trace in self.traces:
-            fname = trace.write_file()
-            zipped_file.write(fname)
+            trace_path = trace.write_file()
+            zipped_file.write(trace_path)
+            os.unlink(trace_path)
         zipped_file.close()
         return zipped_log_path
 
