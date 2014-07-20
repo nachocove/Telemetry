@@ -35,6 +35,11 @@ class TestText(unittest.TestCase):
         self.assertEqual(composite.html(), '<b><i><font color="red">%s</font></i></b>' % self.composite_text)
         self.assertEqual(composite.plain_text(), self.composite_text)
 
+    def test_link(self):
+        link = Link(Text('this is a link'), 'http://www.google.com')
+        self.assertEqual(link.html(), '<a href="http://www.google.com">this is a link</a>')
+        self.assertEqual(link.plain_text(), 'this is a link (http://www.google.com)')
+
 
 class TestList(unittest.TestCase):
     def test_list_item(self):
