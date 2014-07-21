@@ -50,7 +50,7 @@ class MonitorCounters(Monitor):
             self.client_count += len(info.clients)
 
     def run(self):
-        print 'Querying %s...' % self.desc
+        self.logger.info('Querying %s...', self.desc)
         self._query()
         self._analyze()
 

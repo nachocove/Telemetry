@@ -25,8 +25,8 @@ class MonitorCount(Monitor):
     def report(self, summary):
         rate = Monitor.compute_rate(self.count, self.start, self.end, 'hr')
         count_str = pretty_number(self.count)
-        print '%s: %s' % (self.desc, count_str)
-        print '%s: %s' % (self.rate_desc, rate)
+        self.logger.info('%s: %s', self.desc, count_str)
+        self.logger.info('%s: %s', self.rate_desc, rate)
         summary.add_entry(self.desc, count_str)
 
         if self.rate_desc and rate is not None:
@@ -42,7 +42,7 @@ class MonitorUsers(MonitorCount):
         MonitorCount.__init__(self, conn, 'New user count', 'New user rate', start, end)
 
     def run(self):
-        print 'Querying %s...' % self.desc
+        self.logger.info('Querying %s...', self.desc)
         self.count = Parse.query.Query.users(self.query, self.conn)[1]
 
 
@@ -51,5 +51,5 @@ class MonitorEvents(MonitorCount):
         MonitorCount.__init__(self, conn, 'Event count', 'Event rate', start, end)
 
     def run(self):
-        print 'Querying %s...' % self.desc
+        self.logger.info('Querying %s...', self.desc)
         self.count = Parse.query.Query.objects('Events', self.query, self.conn)[1]

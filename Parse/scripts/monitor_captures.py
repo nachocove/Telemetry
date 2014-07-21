@@ -94,7 +94,7 @@ class MonitorCaptures(Monitor):
             self.clients.update(capture_kind.clients)
 
     def run(self):
-        print 'Querying %s...' % self.desc
+        self.logger.info('Querying %s...', self.desc)
         self._query()
         self._analyze()
 

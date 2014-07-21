@@ -2,6 +2,7 @@ import os
 import zipfile
 import HockeyApp
 import Parse
+import logging
 from monitor_base import Monitor
 from Parse.utc_datetime import UtcDateTime
 from logtrace import LogTrace
@@ -16,6 +17,7 @@ class CrashInfo:
         assert isinstance(ha_crash_obj, HockeyApp.crash.Crash)
         assert isinstance(conn, Parse.connection.Connection)
 
+        self.logger = logging.getLogger('monitor')
         self.ha_crash_obj = ha_crash_obj
         self.ha_desc_obj = None
         self.conn = conn
@@ -42,10 +44,10 @@ class CrashInfo:
             return None
         ha_desc_obj = HockeyApp.crash.CrashDescription(description)
         if ha_desc_obj.device_id is None:
-            print '    WARN: no device ID to correlate with telemetry logs'
+            self.logger.warning('    no device ID to correlate with telemetry logs')
             return None
         else:
-            print '    device id = %s' % ha_desc_obj.device_id
+            self.logger.debug('    device id = %s', ha_desc_obj.device_id)
 
         # Query telemetry for the build
         query = Parse.query.Query()
@@ -53,22 +55,22 @@ class CrashInfo:
         query.add('message', Parse.query.SelectorStartsWith('Device ID: ' + ha_desc_obj.device_id))
         events = Parse.query.Query.objects('Events', query, self.conn)[0]
         if len(events) == 0:
-            print '    WARN: cannot find build info log for crash %s' % self.ha_crash_obj.crash_id
+            self.logger.warning('    cannot find build info log for crash %s', self.ha_crash_obj.crash_id)
             return None
         assert 'client' in events[0]
         client = events[0]['client']
-        print '    client = %s' % client
+        self.logger.debug('    client = %s', client)
         return client
 
     def _get_trace(self):
         trace = None
         self.crash_utc = self._determine_crash_time()
         if self.crash_utc is None:
-            print '    WARN: cannot find crash time'
+            self.logger.warning('    cannot find crash time')
             self.events = None
             return trace
         else:
-            print '    crash time = %s' % self.crash_utc
+            self.logger.debug('    crash time = %s', self.crash_utc)
         if self.client is None:
             return trace
         (start, end) = LogTrace.get_time_window(self.crash_utc, 2, 0)
@@ -124,7 +126,7 @@ class MonitorHockeyApp(Monitor):
         return True
 
     def run(self):
-        print 'Query crash logs...'
+        self.logger.info('Query crash logs...')
         self.crashes = list()
         for crash_group in self.ha_app_obj.crash_groups():
             # Look for all crash groups that have been updated within the time window
@@ -135,7 +137,8 @@ class MonitorHockeyApp(Monitor):
                 # Get all crashes that uploaded within the time window
                 if not self._within_window(UtcDateTime(crash.created_at)):
                     continue
-                print '  Analyzing crash %s (in crash group %s)' % (crash.crash_id, crash_group.crash_group_id)
+                self.logger.debug('  Analyzing crash %s (in crash group %s)',
+                                  crash.crash_id, crash_group.crash_group_id)
                 # HockeyApp is quite slow. By the time we get here,
                 # the Parse connection would have time out. So, create
                 # a new one

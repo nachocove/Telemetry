@@ -5,6 +5,7 @@ import config
 import ConfigParser
 import emails
 import getpass
+import logging
 from html_elements import *
 from monitor_base import Summary
 from monitor_log import MonitorErrors, MonitorWarnings
@@ -52,7 +53,7 @@ class MonitorConfig(config.Config):
                     # Option 3 - user input
                     password = getpass.getpass('Email password: ')
                 else:
-                    print 'Got email account password from keychain.'
+                    logging.getLogger('monitor').info('Got email account password from keychain.')
             if self.config.has_option('email', 'start_tls'):
                 start_tls = self.config.getboolean('email', 'start_tls')
             else:
@@ -109,6 +110,10 @@ def datetime_tostr(iso_datetime):
 
 
 def main():
+    logging.basicConfig(format='%(asctime)-15s %(levelname)-8s %(message)s')
+    logger = logging.getLogger('monitor')
+    logger.setLevel(logging.DEBUG)
+
     parser = argparse.ArgumentParser(add_help=False)
     config_group = parser.add_argument_group(title='Configuration Options',
                                              description='These options specify the Parse credential and various '
@@ -193,7 +198,7 @@ def main():
     if options.email:
         (smtp_server, email) = config_.read_email_settings()
         if smtp_server is None:
-            print 'ERROR: no email configuration'
+            logger.error('no email configuration')
             exit(1)
         email.content = Html()
         email.content.add(Paragraph([Bold('Summary'), summary_table]))
@@ -202,8 +207,8 @@ def main():
         smtp_server = None
 
     # Start processing
-    print 'Start time: %s' % options.start
-    print 'End time: %s' % options.end
+    logger.info('Start time: %s', options.start)
+    logger.info('End time: %s', options.end)
     summary_table.add_entry('Start time', str(options.start))
     summary_table.add_entry('End time', str(options.end))
 
@@ -218,7 +223,7 @@ def main():
                    'counters': MonitorCounters,
                    'crashes': MonitorHockeyApp}
         if monitor_name not in mapping:
-            print 'ERROR: unknown monitor %s. ignore' % monitor_name
+            logger.error('unknown monitor %s. ignore', monitor_name)
             continue
         extra_params = list()
         if monitor_name == 'crashes':
@@ -247,7 +252,7 @@ def main():
 
     # Send the email
     if options.email:
-        print 'Sending email to %s...' % ', '.join(email.to_addresses)
+        logger.info('Sending email to %s...', ', '.join(email.to_addresses))
         # Save the HTML and plain text body to files
         end_time_suffix = datetime_tostr(options.end)
         with open('monitor-email.%s.html' % end_time_suffix, 'w') as f:

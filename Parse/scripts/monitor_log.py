@@ -64,11 +64,11 @@ class MonitorLog(Monitor):
             self.traces.append(trace)
         # Get all the traces
         for trace in self.traces:
-            print '  Tracing client %s from %s to %s...' % (trace.client, trace.start, trace.end)
+            self.logger.debug('  Tracing client %s from %s to %s...', trace.client, trace.start, trace.end)
             trace.query(self.conn)
 
     def run(self):
-        print 'Querying %s...' % self.desc
+        self.logger.info('Querying %s...', self.desc)
         self._query()
         self._classify()
         if self.trace_enabled:
@@ -90,8 +90,8 @@ class MonitorLog(Monitor):
         rate = Monitor.compute_rate(count, self.start, self.end, 'hr')
 
         # Generate summary info
-        print '%s: %s' % (self.msg, pretty_number(count))
-        print '%s: %s' % (self.rate_msg, rate)
+        self.logger.info('%s: %s', self.msg, pretty_number(count))
+        self.logger.info('%s: %s', self.rate_msg, rate)
         summary.add_entry(self.msg, pretty_number(count))
         summary.add_entry(self.rate_msg, rate)
 
