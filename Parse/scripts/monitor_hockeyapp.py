@@ -148,6 +148,10 @@ class MonitorHockeyApp(Monitor):
 
     def report(self, summary):
         summary.add_entry('Crash count', str(len(self.crashes)))
+
+        if len(self.crashes) == 0:
+            return None
+
         table = Table()
         row = TableRow([TableHeader(Bold('Time')),
                         TableHeader(Bold('Client')),
@@ -177,6 +181,8 @@ class MonitorHockeyApp(Monitor):
         return paragraph
 
     def attachment(self):
+        if len(self.crashes) == 0:
+            return None
         raw_log_prefix = '%s_%s' % (self.desc, self.end.file_suffix())
         zipped_file_path = raw_log_prefix + '.zip'
         zipped_file = zipfile.ZipFile(zipped_file_path, 'w', zipfile.ZIP_DEFLATED)

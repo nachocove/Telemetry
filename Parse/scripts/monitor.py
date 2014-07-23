@@ -175,6 +175,7 @@ def main():
         config_.write_keys(options)
     config_.read_hockeyapp_settings(options)
     config_.read_profile_name(options)
+    logger.info('Running profile "%s"', options.name)
 
     # Must have 1+ monitor from command-line or config
     if len(options.monitors) == 0:

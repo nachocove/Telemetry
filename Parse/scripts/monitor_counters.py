@@ -59,6 +59,9 @@ class MonitorCounters(Monitor):
         summary.add_entry('Counter type count', len(self.counters))
         summary.add_entry('Counter client count', self.client_count)
 
+        if len(self.counters) == 0:
+            return None
+
         table = Table()
         table.add_row(TableRow([TableHeader(Bold('Name')),
                                 TableHeader(Bold('# clients')),

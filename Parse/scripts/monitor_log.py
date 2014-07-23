@@ -121,6 +121,8 @@ class MonitorLog(Monitor):
         return paragraph
 
     def attachment(self):
+        if len(self.events) == 0:
+            return None
         ef = event_formatter.RecordStyleEventFormatter()
         raw_log_prefix = '%s_%s' % (self.desc, self.end.file_suffix())
         raw_log_path = raw_log_prefix + '.txt'

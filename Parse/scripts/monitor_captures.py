@@ -103,6 +103,9 @@ class MonitorCaptures(Monitor):
         summary.add_entry('Capture kind count', pretty_number(len(self.captures)))
         summary.add_entry('Capture client count', pretty_number(len(self.clients)))
 
+        if len(self.captures) == 0:
+            return None
+
         table = Table()
         table.add_row(TableRow([TableHeader(Bold('Kind')),
                                 TableHeader(Bold('# clients')),
