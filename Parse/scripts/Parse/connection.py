@@ -64,7 +64,7 @@ class Connection:
             result = json.loads(html_result, object_hook=convert_to_str)
         except ValueError, e:
             print 'HTML response is:\n' + html_result
-            raise e
+            raise ParseException(None, e.message)
         if 'error' in result:
             code = result.get('code', None)
             raise ParseException(code, result['error'])

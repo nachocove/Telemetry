@@ -232,14 +232,26 @@ def main():
             ha_app_obj = ha_obj.app(options.ha_app_id)
             extra_params.append(ha_app_obj)
 
-        # Create a connection
-        conn = Parse.connection.Connection.create(app_id=options.app_id,
-                                                  api_key=options.api_key,
-                                                  session_token=options.session_token)
+        # Run the monitor with retries to robustly handle service failures
+        num_retries = 0
+        while num_retries < 5:
+            try:
+                # Create a connection
+                conn = Parse.connection.Connection.create(app_id=options.app_id,
+                                                          api_key=options.api_key,
+                                                          session_token=options.session_token)
 
-        monitor = mapping[monitor_name](conn, options.start, options.end, *extra_params)
+                monitor = mapping[monitor_name](conn, options.start, options.end, *extra_params)
+                monitor.run()
+                break
+            except Parse.connection.ParseException, e:
+                logger.error('fail to run monitor %s (%s:%s)', monitor_name, e.code, e.error)
+                num_retries += 1
+                if num_retries < 5:
+                    continue
+                else:
+                    raise e  # re-throw exception if retries are exhausted
         monitors.append(monitor)
-        monitor.run()
 
     # Generate all outputs
     for monitor in monitors:
