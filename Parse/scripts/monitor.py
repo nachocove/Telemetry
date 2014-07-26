@@ -7,7 +7,7 @@ import emails
 import getpass
 import logging
 from html_elements import *
-from monitor_base import Summary
+from monitor_base import Summary, Monitor
 from monitor_log import MonitorErrors, MonitorWarnings
 from monitor_count import MonitorUsers, MonitorEvents
 from monitor_captures import MonitorCaptures
@@ -233,24 +233,15 @@ def main():
             extra_params.append(ha_app_obj)
 
         # Run the monitor with retries to robustly handle service failures
-        num_retries = 0
-        while num_retries < 5:
-            try:
-                # Create a connection
-                conn = Parse.connection.Connection.create(app_id=options.app_id,
-                                                          api_key=options.api_key,
-                                                          session_token=options.session_token)
+        def run_monitor():
+            conn = Parse.connection.Connection.create(app_id=options.app_id,
+                                                      api_key=options.api_key,
+                                                      session_token=options.session_token)
 
-                monitor = mapping[monitor_name](conn, options.start, options.end, *extra_params)
-                monitor.run()
-                break
-            except Parse.connection.ParseException, e:
-                logger.error('fail to run monitor %s (%s:%s)', monitor_name, e.code, e.error)
-                num_retries += 1
-                if num_retries < 5:
-                    continue
-                else:
-                    raise e  # re-throw exception if retries are exhausted
+            new_monitor = mapping[monitor_name](conn, options.start, options.end, *extra_params)
+            new_monitor.run()
+            return new_monitor
+        monitor = Monitor.run_with_retries(run_monitor, 'monitor %s' % monitor_name, 5)
         monitors.append(monitor)
 
     # Generate all outputs

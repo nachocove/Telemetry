@@ -133,3 +133,18 @@ class Monitor:
         return Parse.connection.Connection.create(app_id=conn.app_id,
                                                   api_key=conn.api_key,
                                                   session_token=conn.session_token)
+
+    @staticmethod
+    def run_with_retries(func, desc, max_retries):
+        num_retries = 0
+        while num_retries <= max_retries:
+            try:
+                retval = func()
+                break
+            except Parse.exception.ParseException, e:
+                logger = logging.getLogger('monitor')
+                logger.error('fail to run %s (Parse:%s:%s)' % (desc, e.code, e.message))
+                num_retries += 1
+        else:
+            raise Exception('retries (%d) exhausted' % max_retries)
+        return retval

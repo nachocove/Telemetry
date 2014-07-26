@@ -74,7 +74,12 @@ class MonitorLog(Monitor):
         # Get all the traces
         for trace in self.traces:
             self.logger.debug('  Tracing client %s from %s to %s...', trace.client, trace.start, trace.end)
-            trace.query(self.conn)
+
+            def trace_query():
+                conn = self.clone_connection(self.conn)
+                trace.query(conn)
+                return None
+            Monitor.run_with_retries(trace_query, 'trace query', 5)
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
