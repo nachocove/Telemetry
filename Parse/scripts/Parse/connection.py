@@ -39,7 +39,11 @@ class Connection:
 
     def request(self, method, path, data, header):
         self.connection.request(method, self.abspath(path), data, header)
-        html_result = self.connection.getresponse().read()
+        try:
+            html_result = self.connection.getresponse().read()
+        except socket.error, e:
+            # Re-throw as ParseException. Monitor logic will catch and retry
+            raise ParseException(None, e.message)
 
         def convert_to_str(value):
             if isinstance(value, unicode):

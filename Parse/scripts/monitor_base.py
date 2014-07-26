@@ -135,7 +135,7 @@ class Monitor:
                                                   session_token=conn.session_token)
 
     @staticmethod
-    def run_with_retries(func, desc, max_retries):
+    def run_with_retries(func, desc, max_retries, exception_func=None):
         num_retries = 0
         while num_retries <= max_retries:
             try:
@@ -145,6 +145,8 @@ class Monitor:
                 logger = logging.getLogger('monitor')
                 logger.error('fail to run %s (Parse:%s:%s)' % (desc, e.code, e.message))
                 num_retries += 1
+                if exception_func is not None:
+                    exception_func()
         else:
             raise Exception('retries (%d) exhausted' % max_retries)
         return retval

@@ -71,15 +71,21 @@ class MonitorLog(Monitor):
                     continue
                 clients[client] = trace
             self.traces.append(trace)
+        self.logger.info('  Consolidate %d events into %d traces', len(self.events), len(self.traces))
+        
         # Get all the traces
         for trace in self.traces:
             self.logger.debug('  Tracing client %s from %s to %s...', trace.client, trace.start, trace.end)
 
+            conn = self.conn
+
             def trace_query():
-                conn = self.clone_connection(self.conn)
                 trace.query(conn)
                 return None
-            Monitor.run_with_retries(trace_query, 'trace query', 5)
+
+            def trace_query_exception():
+                conn = self.clone_connection(self.conn)
+            Monitor.run_with_retries(trace_query, 'trace query', 5, trace_query_exception)
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
