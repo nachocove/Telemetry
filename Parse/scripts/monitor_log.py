@@ -7,6 +7,8 @@ from monitor_base import Monitor
 from number_formatter import pretty_number
 from html_elements import *
 from logtrace import LogTrace
+from analytics.token import TokenList, WhiteSpaceTokenizer
+from analytics.cluster import Clusterer
 
 
 class MonitorLog(Monitor):
@@ -32,12 +34,19 @@ class MonitorLog(Monitor):
         self.events, self.event_count = self.query_all(query)
 
     def _classify(self):
-        self.report_ = dict()
+        # Cluster log messages
+        clusterer = Clusterer()
+        tokenizer = WhiteSpaceTokenizer()
         for log in self.events:
-            if log['message'] not in self.report_:
-                self.report_[log['message']] = 1
-            else:
-                self.report_[log['message']] += 1
+            # We cluster using only the first line of the message
+            message = log['message'].split('\n')[0]
+            token_list = TokenList(tokenizer.process(message))
+            clusterer.add(token_list)
+
+        # Generate the report dictionary
+        self.report_ = dict()
+        for cluster in clusterer.clusters:
+            self.report_[str(cluster.pattern)] = len(cluster)
 
     def _get_trace(self, event):
         assert 'client' in event and 'timestamp' in event
