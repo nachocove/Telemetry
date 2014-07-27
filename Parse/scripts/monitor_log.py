@@ -9,6 +9,29 @@ from html_elements import *
 from logtrace import LogTrace
 from analytics.token import TokenList, WhiteSpaceTokenizer
 from analytics.cluster import Clusterer
+from threadpool import *
+
+
+class MonitorLogTraceThread(ThreadPoolThread):
+    def __init__(self, conn, logger):
+        ThreadPoolThread.__init__(self)
+        self.conn = conn
+        self.logger = logger
+
+    def start(self):
+        self.conn = Monitor.run_with_retries(lambda: Monitor.clone_connection(self.conn), 'trace thread connection', 5)
+        ThreadPoolThread.start(self)
+
+    def process(self, trace):
+        self.logger.debug('  [%d] Tracing client %s from %s to %s...', self.id, trace.client, trace.start, trace.end)
+
+        def trace_query():
+            trace.query(self.conn)
+            return None
+
+        def trace_query_exception():
+            self.conn = Monitor.clone_connection(self.conn)
+        Monitor.run_with_retries(trace_query, 'trace query', 5, trace_query_exception)
 
 
 class MonitorLog(Monitor):
@@ -72,20 +95,18 @@ class MonitorLog(Monitor):
                 clients[client] = trace
             self.traces.append(trace)
         self.logger.info('  Consolidate %d events into %d traces', len(self.events), len(self.traces))
-        
+
         # Get all the traces
+        num_threads = 4
+        thread_pool = ThreadPool(4, MonitorLogTraceThread, self.conn, self.logger)
+        n = 0
         for trace in self.traces:
-            self.logger.debug('  Tracing client %s from %s to %s...', trace.client, trace.start, trace.end)
-
-            conn = self.conn
-
-            def trace_query():
-                trace.query(conn)
-                return None
-
-            def trace_query_exception():
-                conn = self.clone_connection(self.conn)
-            Monitor.run_with_retries(trace_query, 'trace query', 5, trace_query_exception)
+            thread_pool.threads[n].obj_queue.put(trace)
+            n = (n + 1) % num_threads
+        for n in range(num_threads):
+            thread_pool.threads[n].obj_queue.put(None)
+        thread_pool.start()
+        thread_pool.wait()
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)

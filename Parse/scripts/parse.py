@@ -58,7 +58,7 @@ def login(options):
 
 class ThreadSafeDeleteCounter:
     """
-    This class provides a thread-safe counter that can provide a
+    This class provides a thread-safe counter
     """
     def __init__(self):
         self.lock = threading.Lock()
