@@ -1,6 +1,7 @@
 try:
     import dateutil
 except ImportError:
+    dateutil = None  # useless but makes PyCharm happy
     print ''
     print 'python-dateutil package is not found. Please make sure that it is installed.'
     print 'If you have easy_install, you can issue:'
@@ -416,9 +417,9 @@ def main():
                                             description='A query consists of a list of expression. It is an AND '
                                                         'condition of all expressions. Each expression consists of a '
                                                         'field, an operator and a value. Use --field to specify the '
-                                                        'field and other options (e.g. --equal) to specify the operator '
-                                                        'and value. For example, --field event_type --equal INFO means '
-                                                        'event_type == "INFO".')
+                                                        'field and other options (e.g. --equal) to specify the '
+                                                        'operator and value. For example, --field event_type --equal '
+                                                        'INFO means event_type == "INFO".')
 
     query_group.add_argument('--after',
                              help='Match a field after (and including) a time specified in ISO-8601 UTC format',
@@ -530,7 +531,8 @@ def main():
 
     if options.command not in command_mapping:
         raise ValueError('unknown command %s' % options.command)
-    command_mapping[options.command](options)
+    command = command_mapping[options.command]
+    command(options)
 
 if __name__ == '__main__':
     main()
