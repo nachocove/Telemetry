@@ -304,15 +304,15 @@ def setup_wbxml_tool(options, config_):
           'should find the binary in NachoClientX/WbxmlTool.Mac/bin/Debug/.'
     while not options.wbxml_tool_path:
         path = raw_input('WbxmlTool path [press Enter to skip]: ')
+        if path == '':
+            print 'No WbxmlTool is configured. parse.py still works but WBXML decoding is not available.'
+            return
         if not os.path.exists(path):
             print 'ERROR: file path does not exist.'
             continue
         if os.path.isdir(path):
             print 'ERROR: file path is a directory'
             continue
-        if path == '':
-            print 'No WbxmlTool is configured. parse.py still works but WBXML decoding is not available.'
-            return
         options.wbxml_tool_path = path
     config_.write_wbxml_tool(options)
 
