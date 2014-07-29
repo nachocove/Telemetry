@@ -110,7 +110,7 @@ def datetime_tostr(iso_datetime):
 
 
 def main():
-    logging.basicConfig(format='%(asctime)-15s %(levelname)-8s %(message)s')
+    logging.basicConfig(format='%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('monitor')
     logger.setLevel(logging.DEBUG)
 
@@ -238,8 +238,8 @@ def main():
             conn = Parse.connection.Connection.create(app_id=options.app_id,
                                                       api_key=options.api_key,
                                                       session_token=options.session_token)
-
-            new_monitor = mapping[monitor_name](conn, options.start, options.end, *extra_params)
+            monitor_cls = mapping[monitor_name]
+            new_monitor = monitor_cls(conn, options.start, options.end, *extra_params)
             new_monitor.run()
             return new_monitor
         monitor = Monitor.run_with_retries(run_monitor, 'monitor %s' % monitor_name, 5)
