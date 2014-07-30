@@ -10,7 +10,5 @@ urlpatterns = patterns('',
     url(r'^login/$', 'Bugfix.views.login'),
     url(r'^$', 'Bugfix.views.home'),
     url(r'^bugfix/$', 'Bugfix.views.home'),
-    url(r'^bugfix/logs/(?P<client>\w+)/(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)/$', 'Bugfix.views.entry_page'),
     url(r'^bugfix/logs/(?P<client>\w+)/(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)/(?P<span>\d+)/$', 'Bugfix.views.entry_page'),
-    #url(r'^bugfix/logs/(?P<client>\w+)/(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} -\d{4})/$', 'Bugfix.views.entry_page'),
 )

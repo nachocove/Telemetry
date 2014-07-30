@@ -18,6 +18,7 @@ sys.path.append('../Parse/scripts')
 username = 'monitor'
 api_key = 'FL6KXH6xFC2n4Y1pGQcpf0GWWX3FJ61GmdqZYY72'
 app_id = 'uRVtTGj8WhhK4OJNRqKmSVg5FyS5gYXtQGIRRlqs'
+default_span = 15
 
 import Parse
 class LoginForm(forms.Form):
@@ -86,7 +87,8 @@ def home(request):
         if form.is_valid():
             loc = _parse_error_report(form.cleaned_data['tele_paste'])
             if (None != loc):
-                return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/" % loc)
+                loc['span'] = str(default_span)
+                return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/(span)s/" % loc)
             loc = _parse_crash_report(form.cleaned_data['tele_paste'])
             if (None != loc):
                 conn = Parse.connection.Connection(app_id=app_id, api_key=api_key,
@@ -100,19 +102,20 @@ def home(request):
                     assert 'client' in events[0]
                     client = events[0]['client']
                     loc['client'] = client
-                    return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/" % loc)
+                    loc['span'] = str(default_span)
+                    return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/%(span)s/" % loc)
     form = VectorForm()
     return render(request, 'home.html', {'form': form})
 
 def _iso_z_format(date):
     raw = date.isoformat()
     keep = raw.split('+',1)[0]
-    three_sig = keep[:-3]
-    return three_sig + 'Z'
+    return keep + 'Z'
 
-def entry_page(request, client='', timestamp='', span=60):
+def entry_page(request, client='', timestamp='', span=str(default_span)):
     if not 'session_token' in request.session:
         return HttpResponseRedirect('/login/')
+    span = int(span)
     client = str(client)
     center = dateutil.parser.parse(timestamp)
     spread = timedelta(minutes=int(span))
@@ -130,6 +133,9 @@ def entry_page(request, client='', timestamp='', span=60):
     query.add('timestamp', Parse.query.SelectorGreaterThanEqual(Parse.utc_datetime.UtcDateTime(str(after))))
     query.add('timestamp', Parse.query.SelectorLessThan(Parse.utc_datetime.UtcDateTime(str(before))))
     obj_list = Parse.query.Query.objects('Events', query, conn)[0]
-    ctxt = Context({'obj_list': obj_list, 'client': client, 'center': _iso_z_format(center), 'go_earlier': _iso_z_format(go_earlier), 'go_later': _iso_z_format(go_later), 'span': span, 'zoom': span*2})
+    iso_center = _iso_z_format(center)
+    iso_go_earlier = _iso_z_format(go_earlier)
+    iso_go_later = _iso_z_format(go_later)
+    ctxt = Context({'obj_list': obj_list, 'client': client, 'center': iso_center, 'go_earlier': iso_go_earlier, 'go_later': iso_go_later, 'span': span, 'zoom': span*2})
     tpl = get_template('list.html')
     return HttpResponse (tpl.render(ctxt))

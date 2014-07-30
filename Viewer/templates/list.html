@@ -1,6 +1,6 @@
-{% url 'Bugfix.views.entry_page' client go_earlier span as go_earlier_url %}
-{% url 'Bugfix.views.entry_page' client go_later span as go_later_url %}
-{% url 'Bugfix.views.entry_page' client center zoom as zoom_out_url %}
+{% url 'Bugfix.views.entry_page' client=client timestamp=go_earlier span=span as go_earlier_url %}
+{% url 'Bugfix.views.entry_page' client=client timestamp=go_later span=span as go_later_url %}
+{% url 'Bugfix.views.entry_page' client=client timestamp=center span=zoom as zoom_out_url %}
 <a href="{{ zoom_out_url }}">Zoom out.</a>
 <a href="{{ go_earlier_url }}">Go further back in time.</a>
 {% for item in obj_list %}
