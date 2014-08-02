@@ -266,7 +266,16 @@ def main():
             print >>f, email.content.plain_text()
         # Add title
         email.subject = 'Telemetry summary - %s [%s]' % (options.name, str(options.end))
-        email.send(smtp_server)
+        num_retries = 0
+        while num_retries < 5:
+            try:
+                email.send(smtp_server)
+                break
+            except Exception, e:
+                logger.error('fail to send email (%s)' % e.message)
+                num_retries += 1
+        else:
+            logger.error('fail to send email after %d retries' % num_retries)
 
     # Update timestamp in config if necessary after we have successfully
     # send the notification email
