@@ -44,6 +44,8 @@ INFO_FIELDS = ['message',  # for logs
                'stddev',
 
                'ui_type',  # for UI
-               'ui_object']
+               'ui_object',
+               'ui_string',
+               'ui_integer']
 
 VALID_FIELDS = ['timestamp', 'event_type'] + IDENT_FIELDS + INFO_FIELDS + INTERNAL_FIELDS
