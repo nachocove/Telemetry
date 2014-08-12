@@ -6,7 +6,8 @@ TYPES = ['DEBUG',
          'WBXML_RESPONSE',
          'COUNTER',
          'CAPTURE',
-         'UI']
+         'UI',
+         'SUPPORT']
 
 # All fields of an event are divided into the following groups
 # 1. timestamp
@@ -46,6 +47,9 @@ INFO_FIELDS = ['message',  # for logs
                'ui_type',  # for UI
                'ui_object',
                'ui_string',
-               'ui_integer']
+               'ui_integer',
+
+               'support',  # for SUPPORT
+               ]
 
 VALID_FIELDS = ['timestamp', 'event_type'] + IDENT_FIELDS + INFO_FIELDS + INTERNAL_FIELDS
