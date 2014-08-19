@@ -2,42 +2,36 @@ import math
 
 
 class Statistics:
-    def __init__(self, count=0, min_=0.0, max_=0.0, average=0.0, stddev=0.0):
+    def __init__(self, count=0, min_=0.0, max_=0.0, first_moment=0.0, second_moment=0.0):
         if isinstance(count, Statistics):
             # copy constructor
             self.count = count.count
             self.min = count.min
             self.max = count.max
-            self.average = count.average
-            self.stddev = count.stddev
+            self.first_moment = count.first_moment
+            self.second_moment = count.second_moment
             return
 
         self.count = count
         if count == 0:
             self.min = None
             self.max = None
-            self.average = None
-            self.stddev = None
+            self.first_moment = 0.0
+            self.second_moment = 0.0
         else:
-            # Check the values
-            if not min_ <= average <= max_:
-                raise ValueError('min must be <= average and average must be <= max')
             self.min = float(min_)
             self.max = float(max_)
-            self.average = float(average)
-            self.stddev = float(stddev)
+            self.first_moment = float(first_moment)
+            self.second_moment = float(second_moment)
 
-    def first_moment(self):
-        if self.count == 0:
-            return 0.0
-        return float(self.count) * self.average
-
-    def second_moment(self):
-        if self.count == 0:
-            return 0.0
-        if self.stddev is None:
-            return None
-        return ((self.stddev * self.stddev) + (self.average * self.average)) * self.count
+            # Sanity check the values
+            mean = self.mean()
+            if min_ > mean:
+                raise ValueError('1st moment results in mean less than min.')
+            if max_ < mean:
+                raise ValueError('1st moment results in mean less than max.')
+            if self.second_moment < (self.mean() ** 2):
+                raise ValueError('2nd moment results in negative variance.')
 
     def __add__(self, other):
         """
@@ -49,22 +43,44 @@ class Statistics:
             return Statistics(count=other.count,
                               min_=other.min,
                               max_=other.max,
-                              average=other.average,
-                              stddev=other.stddev)
+                              first_moment=other.first_moment,
+                              second_moment=other.second_moment)
         if other.count == 0:
             return Statistics(count=self.count,
                               min_=self.min,
                               max_=self.max,
-                              average=self.average,
-                              stddev=self.average)
+                              first_moment=self.first_moment,
+                              second_moment=self.second_moment)
+
         count = self.count + other.count
         max_ = max(self.max, other.max)
         min_ = min(self.min, other.min)
 
-        total = self.first_moment() + other.first_moment()
-        average = total / count
+        first_moment = self.first_moment + other.first_moment
+        second_moment = self.second_moment + other.second_moment
 
-        total2 = self.second_moment() + other.second_moment()
-        stddev = math.sqrt(total2/count - (average * average))
+        return Statistics(count=count, min_=min_, max_=max_, first_moment=first_moment, second_moment=second_moment)
 
-        return Statistics(count=count, min_=min_, max_=max_, average=average, stddev=stddev)
+    def add_sample(self, sample):
+        self.count += 1
+        self.first_moment += sample
+        self.second_moment += sample ** 2
+        if self.min is None:
+            self.min = sample
+        else:
+            if self.min > sample:
+                self.min = sample
+        if self.max is None:
+            self.max = sample
+        else:
+            if self.max < sample:
+                self.max = sample
+
+    def mean(self):
+        return self.first_moment / float(self.count)
+
+    def variance(self):
+        return self.second_moment - (self.mean() ** 2)
+
+    def stddev(self):
+        return math.sqrt(self.variance())

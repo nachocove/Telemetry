@@ -7,42 +7,45 @@ class TestStatistics(unittest.TestCase):
     def setUp(self):
         self.stats1 = Statistics(count=0)
         # samples: 100, 200
-        self.stats2 = Statistics(count=2, min_=100, max_=200, average=150, stddev=50)
+        self.stats2 = Statistics(count=2, min_=100, max_=200, first_moment=300, second_moment=50000)
         # samples: 200, 300
-        self.stats3 = Statistics(count=2, min_=200, max_=300, average=250, stddev=50)
+        self.stats3 = Statistics(count=2, min_=200, max_=300, first_moment=500, second_moment=130000)
         # samples: 100, 300
-        self.stats4 = Statistics(count=2, min_=100, max_=300, average=200, stddev=100)
+        self.stats4 = Statistics(count=2, min_=100, max_=300, first_moment=400, second_moment=100000)
 
-    def test_statistics(self):
-        self.assertEqual(self.stats1.count, 0)
-        self.assertEqual(self.stats1.min, None)
-        self.assertEqual(self.stats1.max, None)
-        self.assertEqual(self.stats1.average, None)
-        self.assertEqual(self.stats1.stddev, None)
+    def compare(self, stats, count, min_, max_, first, second):
+        self.assertEqual(stats.count, count)
+        self.assertEqual(stats.min, min_)
+        self.assertEqual(stats.max, max_)
+        self.assertEqual(stats.first_moment, first)
+        self.assertEqual(stats.second_moment, second)
 
-        self.assertEqual(self.stats2.count, 2)
-        self.assertEqual(self.stats2.min, 100.)
-        self.assertEqual(self.stats2.max, 200.)
-        self.assertEqual(self.stats2.average, 150.)
-        self.assertEqual(self.stats2.stddev, 50.)
+    def test_constructor(self):
+        self.compare(self.stats1, 0, None, None, 0.0, 0.0)
+        self.compare(self.stats2, 2, 100., 200., 300., 50000.)
 
-        self.assertRaises(ValueError, Statistics, count=10, min_=200, max_=100, average=150, stddev=55)
-        self.assertRaises(ValueError, Statistics, count=10, min_=100, max_=200, average=250, stddev=55)
+        self.assertRaises(ValueError, Statistics, count=10, min_=200,
+                          max_=100, first_moment=1500, second_moment=2500000)
+        self.assertRaises(ValueError, Statistics, count=10, min_=100,
+                          max_=200, first_moment=2500, second_moment=6500000)
 
-    def test_add(self):
+    def test_add_sample(self):
+        stats = Statistics()
+        stats.add_sample(-10.0)
+        self.compare(stats, 1, -10.0, -10.0, -10.0, 100.0)
+
+        stats.add_sample(10.0)
+        self.compare(stats, 2, -10.0, 10.0, 0.0, 200.0)
+
+        stats.add_sample(0.0)
+        self.compare(stats, 3, -10.0, 10.0, 0.0, 200.0)
+
+    def test_add_operator(self):
         sum1 = self.stats2 + self.stats3
-        self.assertEqual(sum1.count, 4)
-        self.assertEqual(sum1.min, 100.)
-        self.assertEqual(sum1.max, 300.)
-        self.assertEqual(sum1.average, 200.)
-        self.assertEqual(sum1.stddev, math.sqrt(5000.0))
+        self.compare(sum1, 4, 100.0, 300.0, 800.0, 180000.0)
 
         sum2 = sum1 + self.stats4
-        self.assertEqual(sum2.count, 6)
-        self.assertEqual(sum2.min, 100.)
-        self.assertEqual(sum2.max, 300.)
-        self.assertEqual(sum2.average, 200.)
-        self.assertLess(math.fabs(sum2.stddev - math.sqrt(20000./3.)), 0.00002)
+        self.compare(sum2, 6, 100.0, 300.0, 1200.0, 280000.0)
 
 if __name__ == '__main__':
     unittest.main()

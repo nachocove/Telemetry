@@ -9,11 +9,15 @@ class Capture:
     def __init__(self, event):
         self.client = event['client']
         self.name = event['capture_name']
+        count = float(event['count'])
+        average = float(event['average'])
+        first_moment = average * count
+        second_moment = (float(event['stddev']) ** 2) + (average ** 2)
         self.statistics = analytics.statistics.Statistics(count=event['count'],
                                                           min_=event['min'],
                                                           max_=event['max'],
-                                                          average=event['average'],
-                                                          stddev=event['stddev'])
+                                                          first_moment=first_moment,
+                                                          second_moment=second_moment)
         self.timestamp = Parse.utc_datetime.UtcDateTime(event['timestamp']['iso'])
 
     def _same_client(self, other):
@@ -119,9 +123,9 @@ class MonitorCaptures(Monitor):
             stats = capture_kind.statistics
             if stats.count > 0:
                 min_str = commafy('%.2f' % stats.min)
-                avg_str = commafy('%.2f' % stats.average)
+                avg_str = commafy('%.2f' % stats.mean())
                 max_str = commafy('%.2f' % stats.max)
-                sdev_str = commafy('%.2f' % stats.stddev)
+                sdev_str = commafy('%.2f' % stats.stddev())
             else:
                 min_str = '-'
                 avg_str = '-'
