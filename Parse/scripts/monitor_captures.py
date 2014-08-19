@@ -12,7 +12,7 @@ class Capture:
         count = float(event['count'])
         average = float(event['average'])
         first_moment = average * count
-        second_moment = (float(event['stddev']) ** 2) + (average ** 2)
+        second_moment = ((float(event['stddev']) ** 2) + (average ** 2)) * count
         self.statistics = analytics.statistics.Statistics(count=event['count'],
                                                           min_=event['min'],
                                                           max_=event['max'],
