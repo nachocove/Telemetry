@@ -80,7 +80,7 @@ class Statistics:
         return self.first_moment / float(self.count)
 
     def variance(self):
-        return self.second_moment - (self.mean() ** 2)
+        return (self.second_moment / float(self.count)) - (self.mean() ** 2)
 
     def stddev(self):
         return math.sqrt(self.variance())

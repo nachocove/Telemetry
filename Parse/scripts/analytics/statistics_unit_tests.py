@@ -37,6 +37,10 @@ class TestStatistics(unittest.TestCase):
         stats.add_sample(10.0)
         self.compare(stats, 2, -10.0, 10.0, 0.0, 200.0)
 
+        self.assertEqual(stats.mean(), 0.0)
+        self.assertEqual(stats.variance(), 100.0)
+        self.assertEqual(stats.stddev(), 10.0)
+
         stats.add_sample(0.0)
         self.compare(stats, 3, -10.0, 10.0, 0.0, 200.0)
 

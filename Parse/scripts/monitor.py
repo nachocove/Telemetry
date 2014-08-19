@@ -13,6 +13,7 @@ from monitor_count import MonitorUsers, MonitorEvents
 from monitor_captures import MonitorCaptures
 from monitor_counters import MonitorCounters
 from monitor_hockeyapp import MonitorHockeyApp
+from monitor_ui import MonitorUi
 
 
 class MonitorConfig(config.Config):
@@ -160,7 +161,7 @@ def main():
     report_group.add_argument('monitors',
                               nargs='*',
                               metavar='MONITOR',
-                              help='Choices are: users, events, errors, warnings, captures, counters, crashes')
+                              help='Choices are: users, events, errors, warnings, captures, counters, crashes, ui')
     options = parser.parse_args()
 
     if options.help:
@@ -223,7 +224,8 @@ def main():
                    'events': MonitorEvents,
                    'captures': MonitorCaptures,
                    'counters': MonitorCounters,
-                   'crashes': MonitorHockeyApp}
+                   'crashes': MonitorHockeyApp,
+                   'ui': MonitorUi}
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
             continue
@@ -250,7 +252,11 @@ def main():
         summary_table.toggle_color()
         output = monitor.report(summary_table)
         if options.email and output is not None:
-            email.content.add(output)
+            if isinstance(output, list):
+                for element in output:
+                    email.content.add(element)
+            else:
+                email.content.add(output)
         attachment_path = monitor.attachment()
         if attachment_path is not None and options.email:
             email.attachments.append(attachment_path)
