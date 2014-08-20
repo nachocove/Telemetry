@@ -25,31 +25,7 @@ class Capture:
             raise ValueError('cannot compare timestamp of different clients')
 
     def combine(self, other):
-        if other > self:
-            if other.statistics.count < self.statistics.count:
-                self.statistics = self.statistics + other.statistics
-            else:
-                self.statistics = other.statistics
-
-    def __lt__(self, other):
-        self._same_client(other)
-        return 0.0 > (self.timestamp - other.timestamp)
-
-    def __gt__(self, other):
-        self._same_client(other)
-        return 0.0 < (self.timestamp - other.timestamp)
-
-    def __eq__(self, other):
-        self._same_client(other)
-        return 0.0 == (self.timestamp - other.timestamp)
-
-    def __le__(self, other):
-        self._same_client(other)
-        return 0.0 >= (self.timestamp - other.timestamp)
-
-    def __ge__(self, other):
-        self._same_client(other)
-        return 0.0 <= (self.timestamp - other.timestamp)
+        self.statistics += other.statistics
 
 
 class CaptureKind:
