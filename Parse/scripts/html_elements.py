@@ -62,7 +62,7 @@ class Element:
         elif issubclass(self.content.__class__, Element):
             val += self.content.html()
         else:
-            val += str(self.content)
+            val += self.content.encode('utf-8')
         val += self.end_tag()
         return val
 
@@ -77,7 +77,7 @@ class Element:
         elif issubclass(self.content.__class__, Element):
             val = self.content.plain_text()
         else:
-            val += str(self.content)
+            val += self.content.encode('utf-8')
         return val
 
     def start_tag(self):
@@ -136,7 +136,7 @@ class Text(Element):
         if issubclass(self.content.__class__, Element):
             val += self.content.html()
         else:
-            text = cgi.escape(str(self.content))
+            text = cgi.escape(self.content.encode('utf-8'))
             if self.keep_linefeed:
                 text = re.sub('\n', '<br>', text)
             val += text

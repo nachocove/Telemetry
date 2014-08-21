@@ -9,6 +9,7 @@ class Summary(Table):
         Table.__init__(self)
         self.colors = list()
         self.current_color_idx = 0
+        self.num_entries = 0
 
     def _current_color(self):
         if len(self.colors) == 0:
@@ -23,6 +24,7 @@ class Summary(Table):
         if color is not None:
             row.attrs['bgcolor'] = color
         self.add_row(row)
+        self.num_entries += 1
 
     def toggle_color(self):
         self.current_color_idx += 1

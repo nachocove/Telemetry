@@ -14,6 +14,7 @@ from monitor_captures import MonitorCaptures
 from monitor_counters import MonitorCounters
 from monitor_hockeyapp import MonitorHockeyApp
 from monitor_ui import MonitorUi
+from monitor_support import MonitorSupport
 
 
 class MonitorConfig(config.Config):
@@ -161,7 +162,8 @@ def main():
     report_group.add_argument('monitors',
                               nargs='*',
                               metavar='MONITOR',
-                              help='Choices are: users, events, errors, warnings, captures, counters, crashes, ui')
+                              help='Choices are: users, events, errors, warnings, captures, counters, crashes, ui, '
+                                   'support')
     options = parser.parse_args()
 
     if options.help:
@@ -225,7 +227,8 @@ def main():
                    'captures': MonitorCaptures,
                    'counters': MonitorCounters,
                    'crashes': MonitorHockeyApp,
-                   'ui': MonitorUi}
+                   'ui': MonitorUi,
+                   'support': MonitorSupport}
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
             continue
@@ -262,7 +265,7 @@ def main():
             email.attachments.append(attachment_path)
 
     # Send the email
-    if options.email:
+    if options.email and summary_table.num_entries > 2:
         logger.info('Sending email to %s...', ', '.join(email.to_addresses))
         # Save the HTML and plain text body to files
         end_time_suffix = datetime_tostr(options.end)
@@ -271,7 +274,7 @@ def main():
         with open('monitor-email.%s.txt' % end_time_suffix, 'w') as f:
             print >>f, email.content.plain_text()
         # Add title
-        email.subject = 'Telemetry summary - %s [%s]' % (options.name, str(options.end))
+        email.subject = '%s [%s]' % (options.name, str(options.end))
         num_retries = 0
         while num_retries < 5:
             try:
