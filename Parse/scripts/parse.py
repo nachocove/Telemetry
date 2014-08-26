@@ -376,7 +376,7 @@ class SelectorAction(argparse.Action):
             else:
                 sel = Parse.query.SelectorLessThan(Parse.utc_datetime.UtcDateTime(value))
         elif option_string == '--contains':
-            sel = Parse.query.SelectorContain(value)
+            sel = Parse.query.SelectorContains(value)
         else:
             raise ValueError('unknown option %s' % option_string)
         getattr(namespace, self.dest).append(sel)

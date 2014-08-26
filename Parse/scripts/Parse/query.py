@@ -78,7 +78,7 @@ class SelectorExists(Selector):
         self.op = '$exists'
 
 
-class SelectorContain(Selector):
+class SelectorContains(Selector):
     def __init__(self, value):
         if not isinstance(value, str):
             raise TypeError('value must be str')
