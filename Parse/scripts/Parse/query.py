@@ -1,5 +1,6 @@
 import json
 import urllib
+import re
 from objects import Object
 from users import User
 from utc_datetime import UtcDateTime
@@ -81,7 +82,7 @@ class SelectorContain(Selector):
     def __init__(self, value):
         if not isinstance(value, str):
             raise TypeError('value must be str')
-        Selector.__init__(self, value)
+        Selector.__init__(self, re.escape(value))
         self.op = '$regex'
 
 
@@ -89,7 +90,7 @@ class SelectorStartsWith(Selector):
     def __init__(self, value):
         if not isinstance(value, str):
             raise TypeError('value must be str')
-        Selector.__init__(self, '^' + value)
+        Selector.__init__(self, '^' + re.escape(value))
         self.op = '$regex'
 
 
