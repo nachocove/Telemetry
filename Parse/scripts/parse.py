@@ -255,10 +255,10 @@ def email(options):
     query.skip = 0
 
     obj_list = Parse.query.Query.objects('Events', query, conn)[0]
-    (obfuscated, events) = support.Support.get_sha256_email_address(obj_list, options.email)
+    (obfuscated, email_events) = support.Support.get_sha256_email_address(obj_list, options.email)
     print 'Email address: %s' % options.email
     print 'Obfuscated email address: %s' % obfuscated
-    for event in events:
+    for event in email_events:
         print '%s: %s' % (event.timestamp, event.client)
 
 
@@ -413,7 +413,7 @@ def main():
                        'count': count,
                        'delete': delete,
                        'login': login,
-                       'query': query_, # add _ to avoid local var query shadows the function name
+                       'query': query_,  # add _ to avoid local var query shadows the function name
                        'setup': setup,
                        'email': email}
 
