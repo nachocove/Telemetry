@@ -39,20 +39,20 @@ class SupportRequestEvent(SupportEvent):
             return None
 
 
-class SupportSha1EmailAddressEvent(SupportEvent):
+class SupportSha256EmailAddressEvent(SupportEvent):
     def __init__(self, event):
         SupportEvent.__init__(self, event)
-        self.sha1_email_address = self.params['sha1_email_address']
+        self.sha256_email_address = self.params['sha256_email_address']
 
     def display(self):
         msg = SupportEvent.display(self)
-        msg += 'sha1_email_address: %s\n' % self.sha1_email_address
+        msg += 'sha256_email_address: %s\n' % self.sha256_email_address
         return msg
 
     @staticmethod
     def parse(event):
         try:
-            return SupportSha1EmailAddressEvent(event)
+            return SupportSha256EmailAddressEvent(event)
         except KeyError:
             return None
 
@@ -77,7 +77,12 @@ class Support:
         return Support.filter(events, [SupportRequestEvent])
 
     @staticmethod
-    def get_sha1_email_address(events, email_address):
-        sha1_hash = hashlib.sha1(email_address).hexdigest()
-        return filter(lambda x: x.sha1_email_address == sha1_hash,
-                      Support.filter(events, [SupportSha1EmailAddressEvent]))
+    def get_sha256_email_address(events, email_address):
+        index = email_address.find('@')
+        if 0 > index:
+            raise ValueError('Invalid email address')
+        if index != email_address.rfind('@'):
+            raise ValueError('Invalid email address')
+        obfuscated = hashlib.sha256(email_address[:index]).hexdigest() + email_address[index:]
+        email_events = Support.filter(events, [SupportSha256EmailAddressEvent])
+        return obfuscated, filter(lambda x: x.sha256_email_address == obfuscated, email_events)

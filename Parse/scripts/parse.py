@@ -20,6 +20,7 @@ import Queue
 import event_formatter
 import time
 import events
+import support
 
 
 def abort(mesg):
@@ -237,6 +238,30 @@ def console(options):
         print 'Goodbye!'
 
 
+def email(options):
+    conn = Parse.connection.Connection(app_id=options.app_id, api_key=options.api_key,
+                                       session_token=options.session_token)
+
+    # Set up query
+    query = Parse.query.Query()
+    assert len(options.field) == len(options.selectors)
+    for n in range(len(options.field)):
+        if options.field[n] != 'timestamp':
+            continue
+        query.add(options.field[n], options.selectors[n])
+    query.add('event_type', Parse.query.SelectorEqual('SUPPORT'))
+    query.keys = options.display
+    query.limit = 1000
+    query.skip = 0
+
+    obj_list = Parse.query.Query.objects('Events', query, conn)[0]
+    (obfuscated, events) = support.Support.get_sha256_email_address(obj_list, options.email)
+    print 'Email address: %s' % options.email
+    print 'Obfuscated email address: %s' % obfuscated
+    for event in events:
+        print '%s: %s' % (event.timestamp, event.client)
+
+
 def setup_keys(options, config_):
     # Determine if keys are already set up
     if options.app_id is not None and options.api_key is not None:
@@ -388,8 +413,9 @@ def main():
                        'count': count,
                        'delete': delete,
                        'login': login,
-                       'query': query_,
-                       'setup': setup}  # add _ to avoid local var query shadows the function name
+                       'query': query_, # add _ to avoid local var query shadows the function name
+                       'setup': setup,
+                       'email': email}
 
     valid_commands = sorted(command_mapping.keys())
 
@@ -454,6 +480,7 @@ def main():
 
     # Miscellaneous options
     misc_group = parser.add_argument_group(title='Miscellaneous Options')
+    misc_group.add_argument('--email', help='Email address for email command')
     misc_group.add_argument('-h', '--help', help='Print this help message', action='store_true', dest='help')
     misc_group.add_argument('--wbxml-tool', metavar='PATH', help='File path to WbxmlTool', dest='wbxml_tool_path')
 
