@@ -1,17 +1,18 @@
 import sys
-import pdb
+#import pdb
 import dateutil.parser
-import subprocess
+#import subprocess
 from datetime import timedelta
-from django.shortcuts import render
+#from django.shortcuts import render
 from django.http import HttpResponse
-from django import template
+#from django import template
 from django.template.loader import get_template
 from django.template import Context
 from django import forms
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
-from pytz import timezone
+#from pytz import timezone
+import logging
 
 sys.path.append('../Parse/scripts')
 
@@ -21,11 +22,15 @@ app_id = 'uRVtTGj8WhhK4OJNRqKmSVg5FyS5gYXtQGIRRlqs'
 default_span = 15
 
 import Parse
+
+
 class LoginForm(forms.Form):
     password = forms.CharField(widget=forms.PasswordInput)
 
+
 class VectorForm(forms.Form):
     tele_paste = forms.CharField(widget=forms.Textarea)
+
 
 def _parse_crash_report(junk):
     timestamp = None
@@ -44,6 +49,7 @@ def _parse_crash_report(junk):
     if timestamp and device_id:
         return {'timestamp': timestamp, 'device_id': device_id}
     return None
+
 
 def _parse_error_report(junk):
     timestamp = None
@@ -65,19 +71,25 @@ def _parse_error_report(junk):
 
 # Create your views here.
 
+
 def login(request):
+    logger = logging.getLogger('telemetry').getChild('login')
     if request.method == 'POST':
         form = LoginForm(request.POST)
         if form.is_valid():
+            logger.debug('app_id=%s', app_id)
+            logger.debug('api_key=%s', api_key)
             conn = Parse.connection.Connection(app_id=app_id, api_key=api_key)
             try:
                 user = Parse.users.User.login(username=username, password=form.cleaned_data['password'], conn=conn)
                 request.session['session_token'] = user.session_token
+                logger.debug('session_token=%s' % user.session_token)
                 return HttpResponseRedirect('/')
-            except:
-                pass
+            except Parse.exception.ParseException, e:
+                logger.error('fail to get session token - %s' % str(e))
     form = LoginForm()
     return render(request, 'login.html', {'form': form})
+
 
 def home(request):
     if not 'session_token' in request.session:
@@ -86,11 +98,11 @@ def home(request):
         form = VectorForm(request.POST)
         if form.is_valid():
             loc = _parse_error_report(form.cleaned_data['tele_paste'])
-            if (None != loc):
+            if loc is not None:
                 loc['span'] = str(default_span)
                 return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/(span)s/" % loc)
             loc = _parse_crash_report(form.cleaned_data['tele_paste'])
-            if (None != loc):
+            if None != loc:
                 conn = Parse.connection.Connection(app_id=app_id, api_key=api_key,
                                                    session_token=request.session['session_token'])
                 query = Parse.query.Query()
@@ -107,10 +119,12 @@ def home(request):
     form = VectorForm()
     return render(request, 'home.html', {'form': form})
 
+
 def _iso_z_format(date):
     raw = date.isoformat()
-    keep = raw.split('+',1)[0]
+    keep = raw.split('+', 1)[0]
     return keep + 'Z'
+
 
 def entry_page(request, client='', timestamp='', span=str(default_span)):
     if not 'session_token' in request.session:
@@ -136,6 +150,12 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     iso_center = _iso_z_format(center)
     iso_go_earlier = _iso_z_format(go_earlier)
     iso_go_later = _iso_z_format(go_later)
-    ctxt = Context({'obj_list': obj_list, 'client': client, 'center': iso_center, 'go_earlier': iso_go_earlier, 'go_later': iso_go_later, 'span': span, 'zoom': span*2})
+    ctxt = Context({'obj_list': obj_list,
+                    'client': client,
+                    'center': iso_center,
+                    'go_earlier': iso_go_earlier,
+                    'go_later': iso_go_later,
+                    'span': span,
+                    'zoom': span*2})
     tpl = get_template('list.html')
-    return HttpResponse (tpl.render(ctxt))
+    return HttpResponse(tpl.render(ctxt))
