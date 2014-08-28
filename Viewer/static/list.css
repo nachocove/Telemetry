@@ -1,0 +1,51 @@
+#table {
+    border-collapse: collapse;
+    border: 1px solid black;
+}
+
+#cell {
+    border: 1px solid black;
+    padding: 2px;
+}
+
+#button_table {
+    border-collapse: collapse;
+    border: 1px solid black;
+}
+
+#button_cell {
+    background-color: blue;
+    padding: 5px;
+}
+
+#button_text {
+    color: white;
+}
+
+#debug {
+}
+
+#info {
+}
+
+#warn {
+    background-color: #ffff99;
+}
+
+#error {
+    background-color: pink;
+}
+
+#wbxml {
+    background-color: #99ddff;
+}
+
+#ui {
+    background-color: lightgreen;
+}
+
+#counter {
+}
+
+#capture {
+}

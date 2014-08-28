@@ -177,17 +177,19 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
     # Just build a HTML page by hand
     def add_ctrl_button(text, url):
-        return '<td><table style="border-collapse: collapse" border="1" cellpadding="5">' \
-               '<td bgcolor="blue"><a href=%s><font color="white">%s</font></a></td></table><td>\n' % (url, text)
+        return '<td><table id="button_table">' \
+               '<td id="button_cell"><a href=%s><font id="button_text">%s</font></a></td></table><td>\n' % (url, text)
 
     def ctrl_url(client_, time_, span_):
         return '/bugfix/logs/%s/%s/%s/' % (client_, time_, span_)
 
     def add_summary_row(desc, value):
-        return '  <tr><td>%s</td><td>%s</td></tr>\n' % (desc, value)
+        return '  <tr><td id="cell">%s</td><td id="cell">%s</td></tr>\n' % (desc, value)
+
+    # Set up style sheet
+    html = '<link rel="stylesheet" type="text/css" href="/static/list.css">'
 
     # Add 3 buttons
-    html = ''
     html += '<table><tr>\n'
     html += add_ctrl_button('Zoom in (%d min)' % (span/2), ctrl_url(client, iso_center, span/2))
     html += add_ctrl_button('Zoom out (%d min)' % (span*2), ctrl_url(client, iso_center, span*2))
@@ -196,7 +198,7 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     html += '</tr></table><br/>\n'
 
     # Add a summary table that describes some basic parameters
-    html += '<table style="border-collapse: collapse" border="1" cellpadding="2"><str>\n'
+    html += '<table id="table"><str>\n'
     html += add_summary_row('Start Time (UTC)', after)
     html += add_summary_row('Stop Time (UTC)', before)
     html += add_summary_row('Client', client)
@@ -210,13 +212,9 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
     if len(obj_list) > 0:
         # Add the events
-        html += '<table style="border-collapse: collapse" border="1" cellpadding="2">\n'
-        html += '<tr><th>Date (UTC)</th><th>Time (UTC)</th><th>Event Type</th><th>Field</th><th>Value</th></tr>\n'
-        bg_colors = {'WARN': '#ffff99',
-                     'ERROR': 'pink',
-                     'WBXML_REQUEST': '#99ddff',
-                     'WBXML_RESPONSE': '#99ddff',
-                     'UI': 'lightgreen'}
+        html += '<table id="table">\n'
+        html += '<tr><th id="cell">Date (UTC)</th><th id="cell">Time (UTC)</th>' \
+                '<th id="cell">Event Type</th><th id="cell">Field</th><th id="cell">Value</th></tr>\n'
 
         for event in obj_list:
             event_type = event['event_type']
@@ -228,24 +226,27 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
             def row_header(event_type_):
                 # Set up row attributes
-                attrs = 'align="left" valign="top"'
-                if event_type in bg_colors:
-                    attrs += ' bgcolor="%s"' % bg_colors[event_type_]
-                header = '<tr %s>' % attrs
+                if event_type_ in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
+                    id_tag = 'wbxml'
+                else:
+                    id_tag = event_type_.lower()
+                header = '<tr id="%s">' % id_tag
                 return header
 
             def common_header(event_type_, iso, num_rows_):
                 (date, time) = beautify_iso8601(iso)
                 header = row_header(event_type_)
                 # Date, time, and event type
-                header += '<td rowspan="%d">%s</td><td rowspan="%d">%s</td><td rowspan="%d">%s</td>' % \
+                header += '<td rowspan="%d" id="cell">%s</td>' \
+                          '<td rowspan="%d" id="cell">%s</td>' \
+                          '<td rowspan="%d" id="cell">%s</td>' % \
                           (num_rows_, date, num_rows_, time, num_rows_, event_type_.replace('_', ' '))
                 return header
 
             # Event type specific processing
             if event_type in ['DEBUG', 'INFO', 'WARN', 'ERROR']:
                 html += common_header(event_type, event['timestamp']['iso'], 1)
-                html += '<td>message</td><td>%s</td>' % cgi.escape(event['message'])
+                html += '<td id="cell">message</td><td id="cell">%s</td>' % cgi.escape(event['message'])
             elif event_type in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
                 def decode_wbxml(wbxml_):
                     # This is kind ugly. A better looking solution would involve
@@ -262,7 +263,7 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
                     return output
                 wbxml = decode_wbxml(event['wbxml']['base64'])
                 html += common_header(event_type, event['timestamp']['iso'], 1)
-                html += '<td>wbxml</td><td><pre>%s</pre></td>' % cgi.escape(wbxml)
+                html += '<td id="cell">wbxml</td><td id="cell"><pre>%s</pre></td>' % cgi.escape(wbxml)
             elif event_type == 'UI':
                 num_rows = 2  # for ui_type, ui_object
                 if 'ui_string' in event:
@@ -271,12 +272,12 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
                     num_rows += 1
                 tr = row_header(event_type)
                 html += common_header(event_type, event['timestamp']['iso'], num_rows)
-                html += '<td>ui_type</td><td>%s</td></tr>\n' % event['ui_type']
-                html += tr + '<td>ui_object</td><td>%s</td>' % event['ui_object']
+                html += '<td id="cell">ui_type</td><td id="cell">%s</td></tr>\n' % event['ui_type']
+                html += tr + '<td id="cell">ui_object</td><td id="cell">%s</td>' % event['ui_object']
                 if 'ui_string' in event:
-                    html += '</tr>\n' + tr + '<td>ui_string</td><td>%s</td>' % event['ui_string']
+                    html += '</tr>\n' + tr + '<td id="cell">ui_string</td><td id="cell">%s</td>' % event['ui_string']
                 if 'ui_integer' in event:
-                    html += '</tr>\n' + tr + '<td>ui_integer</td><td>%s</td>' % event['ui_integer']
+                    html += '</tr>\n' + tr + '<td id="cell">ui_integer</td><td id="cell">%s</td>' % event['ui_integer']
             else:
                 logger.warn('unknown handled event type %s', event_type)
                 html += common_header(event_type, event['timestamp']['iso'], 1)
