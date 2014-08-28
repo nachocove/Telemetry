@@ -1,13 +1,8 @@
 import sys
 #import pdb
 import dateutil.parser
-#import subprocess
 from datetime import timedelta
-#from django.shortcuts import render
 from django.http import HttpResponse
-#from django import template
-#from django.template.loader import get_template
-#from django.template import Context
 from django import forms
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
@@ -22,7 +17,6 @@ import tempfile
 sys.path.append('../Parse/scripts')
 
 import Parse
-import event_formatter
 
 username = 'monitor'
 api_key = 'FL6KXH6xFC2n4Y1pGQcpf0GWWX3FJ61GmdqZYY72'
@@ -183,7 +177,8 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
     # Just build a HTML page by hand
     def add_ctrl_button(text, url):
-        return '  <td><a href=%s>%s</a></td>\n' % (url, text)
+        return '<td><table style="border-collapse: collapse" border="1" cellpadding="5">' \
+               '<td bgcolor="blue"><a href=%s><font color="white">%s</font></a></td></table><td>\n' % (url, text)
 
     def ctrl_url(client_, time_, span_):
         return '/bugfix/logs/%s/%s/%s/' % (client_, time_, span_)
@@ -193,10 +188,10 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
     # Add 3 buttons
     html = ''
-    html += '<table style="border-collapse: collapse" border="1" cellpadding="2"><tr>\n'
+    html += '<table><tr>\n'
     html += add_ctrl_button('Zoom out', ctrl_url(client, iso_center, span*2))
-    html += add_ctrl_button('Go back %d min' % span, ctrl_url(client, iso_go_earlier, span))
-    html += add_ctrl_button('Go forward %d min' % span, ctrl_url(client, iso_go_later, span))
+    html += add_ctrl_button('Go back %d min' % span, ctrl_url(client, iso_go_earlier, 2*span))
+    html += add_ctrl_button('Go forward %d min' % span, ctrl_url(client, iso_go_later, 2*span))
     html += '</tr></table><br/>\n'
 
     # Add a summary table that describes some basic parameters
