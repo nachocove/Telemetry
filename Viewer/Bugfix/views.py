@@ -189,7 +189,8 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     # Add 3 buttons
     html = ''
     html += '<table><tr>\n'
-    html += add_ctrl_button('Zoom out', ctrl_url(client, iso_center, span*2))
+    html += add_ctrl_button('Zoom in (%d min)' % (span/2), ctrl_url(client, iso_center, span/2))
+    html += add_ctrl_button('Zoom out (%d min)' % (span*2), ctrl_url(client, iso_center, span*2))
     html += add_ctrl_button('Go back %d min' % span, ctrl_url(client, iso_go_earlier, 2*span))
     html += add_ctrl_button('Go forward %d min' % span, ctrl_url(client, iso_go_later, 2*span))
     html += '</tr></table><br/>\n'
