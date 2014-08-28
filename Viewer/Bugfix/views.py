@@ -6,8 +6,8 @@ from datetime import timedelta
 #from django.shortcuts import render
 from django.http import HttpResponse
 #from django import template
-from django.template.loader import get_template
-from django.template import Context
+#from django.template.loader import get_template
+#from django.template import Context
 from django import forms
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
@@ -15,15 +15,19 @@ from django.http import HttpResponseRedirect
 import logging
 import re
 import cgi
+import os
+import tempfile
+
 
 sys.path.append('../Parse/scripts')
+
+import Parse
+import event_formatter
 
 username = 'monitor'
 api_key = 'FL6KXH6xFC2n4Y1pGQcpf0GWWX3FJ61GmdqZYY72'
 app_id = 'uRVtTGj8WhhK4OJNRqKmSVg5FyS5gYXtQGIRRlqs'
 default_span = 15
-
-import Parse
 
 
 class LoginForm(forms.Form):
@@ -247,8 +251,22 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
                 html += common_header(event_type, event['timestamp']['iso'], 1)
                 html += '<td>message</td><td>%s</td>' % cgi.escape(event['message'])
             elif event_type in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
+                def decode_wbxml(wbxml_):
+                    # This is kind ugly. A better looking solution would involve
+                    # using subprocess but redirecting pipes causes my Mac to
+                    # crash! I'm guessing it has something to do with redirecting
+                    # stdin / stdout in a WSGI process. Regardless to aesthetic,
+                    # this solution works fine.
+                    path = tempfile.mktemp()
+                    os.system('mono %s -d -b %s > %s' %
+                              (os.path.realpath('./WbxmlTool.Mac.exe'), wbxml_, path))
+                    with open(path, 'r') as f:
+                        output = f.read()
+                    os.unlink(path)
+                    return output
+                wbxml = decode_wbxml(event['wbxml']['base64'])
                 html += common_header(event_type, event['timestamp']['iso'], 1)
-                html += '<td>wbxml</td><td>%s</td>' % cgi.escape(event['wbxml']['base64'])
+                html += '<td>wbxml</td><td><pre>%s</pre></td>' % cgi.escape(wbxml)
             elif event_type == 'UI':
                 num_rows = 2  # for ui_type, ui_object
                 if 'ui_string' in event:
