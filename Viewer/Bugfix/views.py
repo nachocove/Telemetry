@@ -12,6 +12,7 @@ import re
 import cgi
 import os
 import tempfile
+import json
 
 
 sys.path.append('../Parse/scripts')
@@ -177,19 +178,63 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
     # Just build a HTML page by hand
     def add_ctrl_button(text, url):
-        return '<td><table id="button_table">' \
-               '<td id="button_cell"><a href=%s><font id="button_text">%s</font></a></td></table><td>\n' % (url, text)
+        return '<td><table class="button_table">' \
+               '<td class="button_cell"><a href=%s><font class="button_text">%s</font></a></td></table><td>\n' % \
+               (url, text)
 
     def ctrl_url(client_, time_, span_):
         return '/bugfix/logs/%s/%s/%s/' % (client_, time_, span_)
 
     def add_summary_row(desc, value):
-        return '  <tr><td id="cell">%s</td><td id="cell">%s</td></tr>\n' % (desc, value)
+        return '  <tr><td class="cell">%s</td><td class="cell">%s</td></tr>\n' % (desc, value)
 
     # Set up style sheet
     html = '<link rel="stylesheet" type="text/css" href="/static/list.css">'
 
+    # Save the client information for later
+    if len(obj_list) > 0:
+        os_type = obj_list[0]['os_type']
+        os_version = obj_list[0]['os_version']
+        device_model = obj_list[0]['device_model']
+        build_version = obj_list[0]['build_version']
+
+    # Generate the events JSON
+    html += '<script type="text/javascript">var events = '
+    for event in obj_list:
+        def beautify_iso8601(time):
+            match = re.match('(?P<date>.+)T(?P<time>.+)Z', time)
+            assert match
+            return match.group('date'), match.group('time')
+        event['date'], event['time'] = beautify_iso8601(event['timestamp']['iso'])
+        for field in ['timestamp', 'createdAt', 'updatedAt', 'os_type', 'os_version', 'device_model', 'build_version']:
+            del event[field]
+
+        if event['event_type'] in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
+            def decode_wbxml(wbxml_):
+                # This is kind ugly. A better looking solution would involve
+                # using subprocess but redirecting pipes causes my Mac to
+                # crash! I'm guessing it has something to do with redirecting
+                # stdin / stdout in a WSGI process. Regardless to aesthetic,
+                # this solution works fine.
+                path = tempfile.mktemp()
+                os.system('mono %s -d -b %s > %s' %
+                          (os.path.realpath('./WbxmlTool.Mac.exe'), wbxml_, path))
+                with open(path, 'r') as f:
+                    output = f.read()
+                os.unlink(path)
+                return output
+            base64 = event['wbxml']['base64']
+            event['wbxml_base64'] = cgi.escape(base64)
+            event['wbxml'] = cgi.escape(decode_wbxml(base64))
+        if 'message' in event:
+            event['message'] = cgi.escape(event['message'])
+
+    html += json.dumps(obj_list)
+    html += '</script>\n'
+    html += '<script type="text/javascript" src="/static/list.js"></script>\n'
+
     # Add 3 buttons
+    html += '<body onload="refresh()">\n'
     html += '<table><tr>\n'
     html += add_ctrl_button('Zoom in (%d min)' % (span/2), ctrl_url(client, iso_center, span/2))
     html += add_ctrl_button('Zoom out (%d min)' % (span*2), ctrl_url(client, iso_center, span*2))
@@ -198,89 +243,24 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     html += '</tr></table><br/>\n'
 
     # Add a summary table that describes some basic parameters
-    html += '<table id="table"><str>\n'
+    html += '<table class="table"><str>\n'
     html += add_summary_row('Start Time (UTC)', after)
     html += add_summary_row('Stop Time (UTC)', before)
     html += add_summary_row('Client', client)
     html += add_summary_row('# Events', len(obj_list))
     if len(obj_list) > 0:
-        html += add_summary_row('OS Type', obj_list[0]['os_type'])
-        html += add_summary_row('OS Version', obj_list[0]['os_version'])
-        html += add_summary_row('Device Model', obj_list[0]['device_model'])
-        html += add_summary_row('Build Version', obj_list[0]['build_version'])
+        html += add_summary_row('OS Type', os_type)
+        html += add_summary_row('OS Version', os_version)
+        html += add_summary_row('Device Model', device_model)
+        html += add_summary_row('Build Version', build_version)
     html += '</table><br/>\n'
 
     if len(obj_list) > 0:
         # Add the events
-        html += '<table id="table">\n'
-        html += '<tr><th id="cell">Date (UTC)</th><th id="cell">Time (UTC)</th>' \
-                '<th id="cell">Event Type</th><th id="cell">Field</th><th id="cell">Value</th></tr>\n'
 
-        for event in obj_list:
-            event_type = event['event_type']
+        html += '<table id="table_events" class="table">\n'
+        html += '<tr><th class="cell">Date (UTC)</th><th class="cell">Time (UTC)</th>' \
+                '<th class="cell">Event Type</th><th class="cell">Field</th><th class="cell">Value</th></tr>\n'
 
-            def beautify_iso8601(time):
-                match = re.match('(?P<date>.+)T(?P<time>.+)Z', time)
-                assert match
-                return match.group('date'), match.group('time')
-
-            def row_header(event_type_):
-                # Set up row attributes
-                if event_type_ in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
-                    id_tag = 'wbxml'
-                else:
-                    id_tag = event_type_.lower()
-                header = '<tr id="%s">' % id_tag
-                return header
-
-            def common_header(event_type_, iso, num_rows_):
-                (date, time) = beautify_iso8601(iso)
-                header = row_header(event_type_)
-                # Date, time, and event type
-                header += '<td rowspan="%d" id="cell">%s</td>' \
-                          '<td rowspan="%d" id="cell">%s</td>' \
-                          '<td rowspan="%d" id="cell">%s</td>' % \
-                          (num_rows_, date, num_rows_, time, num_rows_, event_type_.replace('_', ' '))
-                return header
-
-            # Event type specific processing
-            if event_type in ['DEBUG', 'INFO', 'WARN', 'ERROR']:
-                html += common_header(event_type, event['timestamp']['iso'], 1)
-                html += '<td id="cell">message</td><td id="cell">%s</td>' % cgi.escape(event['message'])
-            elif event_type in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
-                def decode_wbxml(wbxml_):
-                    # This is kind ugly. A better looking solution would involve
-                    # using subprocess but redirecting pipes causes my Mac to
-                    # crash! I'm guessing it has something to do with redirecting
-                    # stdin / stdout in a WSGI process. Regardless to aesthetic,
-                    # this solution works fine.
-                    path = tempfile.mktemp()
-                    os.system('mono %s -d -b %s > %s' %
-                              (os.path.realpath('./WbxmlTool.Mac.exe'), wbxml_, path))
-                    with open(path, 'r') as f:
-                        output = f.read()
-                    os.unlink(path)
-                    return output
-                wbxml = decode_wbxml(event['wbxml']['base64'])
-                html += common_header(event_type, event['timestamp']['iso'], 1)
-                html += '<td id="cell">wbxml</td><td id="cell"><pre>%s</pre></td>' % cgi.escape(wbxml)
-            elif event_type == 'UI':
-                num_rows = 2  # for ui_type, ui_object
-                if 'ui_string' in event:
-                    num_rows += 1
-                if 'ui_integer' in event:
-                    num_rows += 1
-                tr = row_header(event_type)
-                html += common_header(event_type, event['timestamp']['iso'], num_rows)
-                html += '<td id="cell">ui_type</td><td id="cell">%s</td></tr>\n' % event['ui_type']
-                html += tr + '<td id="cell">ui_object</td><td id="cell">%s</td>' % event['ui_object']
-                if 'ui_string' in event:
-                    html += '</tr>\n' + tr + '<td id="cell">ui_string</td><td id="cell">%s</td>' % event['ui_string']
-                if 'ui_integer' in event:
-                    html += '</tr>\n' + tr + '<td id="cell">ui_integer</td><td id="cell">%s</td>' % event['ui_integer']
-            else:
-                logger.warn('unknown handled event type %s', event_type)
-                html += common_header(event_type, event['timestamp']['iso'], 1)
-            html += '</tr>\n'
-        html += '</table>\n'
+        html += '</table></body>\n'
     return HttpResponse(html)

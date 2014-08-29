@@ -1,51 +1,53 @@
-#table {
+.table {
     border-collapse: collapse;
     border: 1px solid black;
 }
 
-#cell {
+.cell {
     border: 1px solid black;
     padding: 2px;
+    align: left;
+    vertical-align: top;
 }
 
-#button_table {
+.button_table {
     border-collapse: collapse;
     border: 1px solid black;
 }
 
-#button_cell {
+.button_cell {
     background-color: blue;
     padding: 5px;
 }
 
-#button_text {
+.button_text {
     color: white;
 }
 
-#debug {
+.debug {
 }
 
-#info {
+.info {
 }
 
-#warn {
+.warn {
     background-color: #ffff99;
 }
 
-#error {
+.error {
     background-color: pink;
 }
 
-#wbxml {
+.wbxml {
     background-color: #99ddff;
 }
 
-#ui {
+.ui {
     background-color: lightgreen;
 }
 
-#counter {
+.counter {
 }
 
-#capture {
+.capture {
 }
