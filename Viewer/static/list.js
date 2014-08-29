@@ -53,6 +53,19 @@ function addSummaryRow (table, field, value) {
     table.appendChild(tr);
 }
 
+function htmlUnescape(s) {
+    // not robust but good enough for our use.
+    return s.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&');
+}
+
+function previewString(s) {
+    var N = 20;
+    if (s.length <= N) {
+        return s;
+    }
+    return htmlUnescape(s.slice(0, N)) + '...';
+}
+
 function refreshSummary() {
     var table = document.getElementById('table_summary');
     addSummaryRow(table, 'Start Time (UTC)', params.start);
@@ -93,6 +106,7 @@ function refreshEvents() {
                 row.appendChild(getCell('wbxml'));
                 valueCell = getCell(event.wbxml_base64);
                 valueCell.id = i;
+                valueCell.title = previewString(event.wbxml);
                 valueCell.onclick = function() {
                     var event = events[this.id];
                     if (this.innerHTML == event.wbxml_base64) {
