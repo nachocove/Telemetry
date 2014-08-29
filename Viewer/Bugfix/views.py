@@ -1,14 +1,11 @@
 import sys
-#import pdb
 import dateutil.parser
 from datetime import timedelta
 from django.http import HttpResponse
 from django import forms
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
-#from pytz import timezone
 import logging
-import re
 import cgi
 import os
 import tempfile
@@ -234,24 +231,17 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     # Add 3 buttons
     html += '<body onload="refresh()">\n'
     html += '<table><tr>\n'
-    html += add_ctrl_button('Zoom in (%d min)' % (span/2), ctrl_url(client, iso_center, span/2))
+    html += add_ctrl_button('Zoom in (%d min)' % (span/2), ctrl_url(client, iso_center, max(1, span/2)))
     html += add_ctrl_button('Zoom out (%d min)' % (span*2), ctrl_url(client, iso_center, span*2))
     html += add_ctrl_button('Go back %d min' % span, ctrl_url(client, iso_go_earlier, 2*span))
     html += add_ctrl_button('Go forward %d min' % span, ctrl_url(client, iso_go_later, 2*span))
     html += '</tr></table><br/>\n'
 
-    # Add a summary table that describes some basic parameters
+    # Add a summary table that describes some basic parameters of the query
     html += '<table id="table_summary" class="table"></table><br/>\n'
 
     # Add an event table
-    html += '<table id="table_events" class="table">\n'
-    if len(obj_list) > 0:
-        html += '<tr><th id="date_cell" class="cell" onclick="updateDate()" title="Click to switch to local time">' \
-                'Date (UTC)</th>' \
-                '<th id="time_cell" class="cell" onclick="updateDate()" title="Click to switch to local time">' \
-                'Time (UTC)</th>' \
-                '<th class="cell">Event Type</th>' \
-                '<th class="cell">Field</th><th class="cell" align="left">Value</th></tr>\n'
-    html += '</table></body>\n'
+    html += '<table id="table_events" class="table"></table>\n'
+    html += '</body>\n'
 
     return HttpResponse(html)

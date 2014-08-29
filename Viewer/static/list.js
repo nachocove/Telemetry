@@ -1,36 +1,42 @@
 var isUtc = true;
+var SWITCH_TO_UTC = 'Click to switch to UTC time';
+var SWITCH_TO_LOCAL = 'Click to switch to local time';
+var DATE_UTC = 'Date (UTC)';
+var TIME_UTC = 'Time (UTC)';
+var DATE_LOCAL = 'Date (Local)';
+var TIME_LOCAL = 'Time (Local)';
 
 function zeroPad(s, width) {
-out = s.toString();
-while (out.length < width) {
-  out = '0' + out;
-}
-return out;
+    out = s.toString();
+    while (out.length < width) {
+        out = '0' + out;
+    }
+    return out;
 }
 
 function zeroPad2(s) {
-return zeroPad(s, 2);
+    return zeroPad(s, 2);
 }
 
 function dateUtc(date) {
-return date.getUTCFullYear() + '-' + zeroPad2(date.getUTCMonth()+1) + '-' + zeroPad2(date.getUTCDate());
+    return date.getUTCFullYear() + '-' + zeroPad2(date.getUTCMonth()+1) + '-' + zeroPad2(date.getUTCDate());
 }
 
 function timeUtc(date) {
-return (zeroPad2(date.getUTCHours()) + ':' + zeroPad2(date.getUTCMinutes()) + ':' +
-        zeroPad2(date.getUTCSeconds()) + '.' + zeroPad(date.getUTCMilliseconds(), 3));
+    return (zeroPad2(date.getUTCHours()) + ':' + zeroPad2(date.getUTCMinutes()) + ':' +
+            zeroPad2(date.getUTCSeconds()) + '.' + zeroPad(date.getUTCMilliseconds(), 3));
 }
 
 function dateLocal(date) {
-return date.getFullYear() + '-' + zeroPad2(date.getMonth()+1) + '-' + zeroPad2(date.getDate());
+    return date.getFullYear() + '-' + zeroPad2(date.getMonth()+1) + '-' + zeroPad2(date.getDate());
 }
 
 function timeLocal(date) {
-return (zeroPad2(date.getHours()) + ':' + zeroPad2(date.getMinutes()) + ':' +
-        zeroPad2(date.getSeconds()) + '.' + zeroPad(date.getMilliseconds(), 3));
+    return (zeroPad2(date.getHours()) + ':' + zeroPad2(date.getMinutes()) + ':' +
+            zeroPad2(date.getSeconds()) + '.' + zeroPad(date.getMilliseconds(), 3));
 }
 
-function getRow (event) {
+function getRow(event) {
     var tr = document.createElement('tr');
 
     // Set up the style for the row
@@ -48,7 +54,7 @@ function getRow (event) {
     return tr;
 }
 
-function getCell (html, rowSpan) {
+function getCell(html, rowSpan) {
     if (typeof rowSpan == 'undefined') {
         rowSpan = 1; // default is 1 row
     }
@@ -75,18 +81,18 @@ function getRowWithCommonFields (id, event, num_rows) {
     return tr;
 }
 
-function getPre (html) {
+function getPre(html) {
     return '<pre>' + html + '</pre>';
 }
 
-function addFieldToRow (row, field, value) {
+function addFieldToRow(row, field, value) {
     row.appendChild(getCell(field));
     valueCell = getCell(value);
     row.appendChild(valueCell);
     return valueCell;
 }
 
-function addSummaryRow (table, field, value) {
+function addSummaryRow(table, field, value) {
     var tr = document.createElement('tr');
     tr.appendChild(getCell(field));
     tr.appendChild(getCell(value));
@@ -148,8 +154,49 @@ function refreshSummary() {
     }
 }
 
+function createTitleBar() {
+    var tr = document.createElement('tr');
+
+    var date = document.createElement('th');
+    date.id = 'date_cell';
+    date.className = 'cell';
+    date.onclick = updateDate;
+    date.title = SWITCH_TO_LOCAL;
+    date.innerHTML = DATE_UTC;
+    tr.appendChild(date);
+
+    var time = document.createElement('th');
+    time.id = 'time_cell';
+    time.className = 'cell';
+    time.onclick = updateDate;
+    time.onclick = updateDate;
+    time.title = SWITCH_TO_UTC;
+    time.innerHTML = TIME_UTC;
+    tr.appendChild(time);
+
+    var eventType = document.createElement('th');
+    eventType.className = 'cell';
+    eventType.innerHTML = 'Event Type';
+    tr.appendChild(eventType);
+
+    var field = document.createElement('th');
+    field.className = 'cell';
+    field.innerHTML = 'Field';
+    tr.appendChild(field);
+
+    var value = document.createElement('th');
+    value.className = 'cell';
+    value.innerHTML = 'Value';
+    tr.appendChild(value);
+
+    return tr;
+}
+
 function refreshEvents() {
     var table = document.getElementById('table_events');
+    if (0 < events.length) {
+        table.appendChild(createTitleBar(table));
+    }
     for (var i = 0; i < events.length; i++) {
         var event = events[i];
         var row;
@@ -235,15 +282,15 @@ function updateDate() {
     var dateCell = document.getElementById('date_cell');
     var timeCell = document.getElementById('time_cell');
     if (isUtc) {
-        dateCell.innerHTML = 'Date (UTC)';
-        timeCell.innerHTML = 'Time (UTC)';
-        dateCell.title = 'Click to switch to local time';
-        timeCell.title = 'Click to switch to local time';
+        dateCell.innerHTML = DATE_UTC;
+        timeCell.innerHTML = TIME_UTC;
+        dateCell.title = SWITCH_TO_LOCAL;
+        timeCell.title = SWITCH_TO_LOCAL;
     } else {
-        dateCell.innerHTML = 'Date (Local)';
-        timeCell.innerHTML = 'Time (Local)';
-        dateCell.title = 'Click to switch to UTC time';
-        timeCell.title = 'Click to switch to UTC time';
+        dateCell.innerHTML = DATE_LOCAL;
+        timeCell.innerHTML = TIME_LOCAL;
+        dateCell.title = SWITCH_TO_UTC;
+        timeCell.title = SWITCH_TO_UTC;
     }
     for (var i = 0; i < events.length; i++) {
         var dateCell = document.getElementById('date_' + i);
