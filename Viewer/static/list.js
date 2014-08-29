@@ -5,6 +5,14 @@ var DATE_UTC = 'Date (UTC)';
 var TIME_UTC = 'Time (UTC)';
 var DATE_LOCAL = 'Date (Local)';
 var TIME_LOCAL = 'Time (Local)';
+var START_TIME_UTC = 'Start Time (UTC)';
+var STOP_TIME_UTC = 'Stop Time (UTC)';
+var START_TIME_LOCAL = 'Start Time (Local)';
+var STOP_TIME_LOCAL = 'Stop Time (Local)';
+var START_FIELD_ID = 'start_field';
+var START_VALUE_ID = 'start_value';
+var STOP_FIELD_ID = 'stop_field';
+var STOP_VALUE_ID = 'stop_value';
 
 function zeroPad(s, width) {
     out = s.toString();
@@ -34,6 +42,14 @@ function dateLocal(date) {
 function timeLocal(date) {
     return (zeroPad2(date.getHours()) + ':' + zeroPad2(date.getMinutes()) + ':' +
             zeroPad2(date.getSeconds()) + '.' + zeroPad(date.getMilliseconds(), 3));
+}
+
+function dateTimeUtc(date) {
+    return dateUtc(date) + ' ' + timeUtc(date);
+}
+
+function dateTimeLocal(date) {
+    return dateLocal(date) + ' ' + timeLocal(date);
 }
 
 function getRow(event) {
@@ -136,8 +152,25 @@ function beautifyBase64(b64) {
 
 function refreshSummary() {
     var table = document.getElementById('table_summary');
-    addSummaryRow(table, 'Start Time (UTC)', params.start);
-    addSummaryRow(table, 'Stop Time (UTC)', params.stop);
+
+    var tr = document.createElement('tr');;
+    var field = getCell(START_TIME_UTC);
+    var value = getCell(dateTimeUtc(new Date(params.start)));
+    field.id = START_FIELD_ID;
+    value.id = START_VALUE_ID;
+    tr.appendChild(field);
+    tr.appendChild(value);
+    table.appendChild(tr);
+
+    tr = document.createElement('tr');
+    field = getCell(STOP_TIME_UTC);
+    value = getCell(dateTimeUtc(new Date(params.stop)));
+    field.id = STOP_FIELD_ID;
+    value.id = STOP_VALUE_ID;
+    tr.appendChild(field);
+    tr.appendChild(value);
+    table.appendChild(tr);
+
     addSummaryRow(table, 'Client', params.client);
     addSummaryRow(table, '# Events', events.length);
     if (params.hasOwnProperty('os_type')) {
@@ -279,6 +312,8 @@ function refresh() {
 
 function updateDate() {
     isUtc = !isUtc;
+
+    // Update event table header
     var dateCell = document.getElementById('date_cell');
     var timeCell = document.getElementById('time_cell');
     if (isUtc) {
@@ -292,11 +327,35 @@ function updateDate() {
         dateCell.title = SWITCH_TO_UTC;
         timeCell.title = SWITCH_TO_UTC;
     }
+
+    // Update event table timestamp
     for (var i = 0; i < events.length; i++) {
         var dateCell = document.getElementById('date_' + i);
         var timeCell = document.getElementById('time_' + i);
         date = new Date(events[i].timestamp);
         dateCell.innerHTML = isUtc ? dateUtc(date) : dateLocal(date);
         timeCell.innerHTML = isUtc ? timeUtc(date) : timeLocal(date);
+    }
+
+    // Update summary table
+    var startField = document.getElementById(START_FIELD_ID);
+    var startValue = document.getElementById(START_VALUE_ID);
+    var stopField = document.getElementById(STOP_FIELD_ID);
+    var stopValue = document.getElementById(STOP_VALUE_ID);
+
+    var start = new Date(params.start);
+    var stop = new Date(params.stop);
+
+    if (isUtc) {
+        startField.innerHTML = START_TIME_UTC;
+        stopField.innerHTML = STOP_TIME_UTC;
+        date = new Date(params.start);
+        startValue.innerHTML = dateTimeUtc(start);
+        stopValue.innerHTML = dateTimeUtc(stop);
+    } else {
+        startField.innerHTML = START_TIME_LOCAL;
+        stopField.innerHTML = STOP_TIME_LOCAL;
+        startValue.innerHTML = dateTimeLocal(start);
+        stopValue.innerHTML = dateTimeLocal(stop);
     }
 }
