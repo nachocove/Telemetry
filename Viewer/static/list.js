@@ -46,7 +46,34 @@ function addFieldToRow (row, field, value) {
     return valueCell;
 }
 
-function refresh() {
+function addSummaryRow (table, field, value) {
+    var tr = document.createElement('tr');
+    tr.appendChild(getCell(field));
+    tr.appendChild(getCell(value));
+    table.appendChild(tr);
+}
+
+function refreshSummary() {
+    var table = document.getElementById('table_summary');
+    addSummaryRow(table, 'Start Time (UTC)', params.start);
+    addSummaryRow(table, 'Stop Time (UTC)', params.stop);
+    addSummaryRow(table, 'Client', params.client);
+    addSummaryRow(table, '# Events', events.length);
+    if (params.hasOwnProperty('os_type')) {
+        addSummaryRow(table, 'OS Type', params.os_type);
+    }
+    if (params.hasOwnProperty('os_version')) {
+        addSummaryRow(table, 'OS Version', params.os_version);
+    }
+    if (params.hasOwnProperty('device_model')) {
+        addSummaryRow(table, 'Device Model', params.device_model);
+    }
+    if (params.hasOwnProperty('build_version')) {
+        addSummaryRow(table, 'Build Version', params.build_version);
+    }
+}
+
+function refreshEvents() {
     var table = document.getElementById('table_events');
     for (var i = 0; i < events.length; i++) {
         var event = events[i];
@@ -111,4 +138,9 @@ function refresh() {
         }
         table.appendChild(row);
     }
+}
+
+function refresh() {
+    refreshSummary();
+    refreshEvents();
 }

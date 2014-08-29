@@ -185,21 +185,23 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     def ctrl_url(client_, time_, span_):
         return '/bugfix/logs/%s/%s/%s/' % (client_, time_, span_)
 
-    def add_summary_row(desc, value):
-        return '  <tr><td class="cell">%s</td><td class="cell">%s</td></tr>\n' % (desc, value)
-
     # Set up style sheet
-    html = '<link rel="stylesheet" type="text/css" href="/static/list.css">'
+    html = '<link rel="stylesheet" type="text/css" href="/static/list.css">\n'
 
-    # Save the client information for later
+    # Save some global parameters for summary table
+    html += '<script type="text/javascript">\n'
+    params = dict()
+    params['start'] = str(after)
+    params['stop'] = str(before)
+    params['client'] = client
     if len(obj_list) > 0:
-        os_type = obj_list[0]['os_type']
-        os_version = obj_list[0]['os_version']
-        device_model = obj_list[0]['device_model']
-        build_version = obj_list[0]['build_version']
+        params['os_type'] = obj_list[0]['os_type']
+        params['os_version'] = obj_list[0]['os_version']
+        params['device_model'] = obj_list[0]['device_model']
+        params['build_version'] = obj_list[0]['build_version']
+    html += 'var params = ' + json.dumps(params) + ';\n'
 
     # Generate the events JSON
-    html += '<script type="text/javascript">var events = '
     for event in obj_list:
         def beautify_iso8601(time):
             match = re.match('(?P<date>.+)T(?P<time>.+)Z', time)
@@ -229,7 +231,7 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
         if 'message' in event:
             event['message'] = cgi.escape(event['message'])
 
-    html += json.dumps(obj_list)
+    html += 'var events = ' + json.dumps(obj_list) + ';\n'
     html += '</script>\n'
     html += '<script type="text/javascript" src="/static/list.js"></script>\n'
 
@@ -243,24 +245,13 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     html += '</tr></table><br/>\n'
 
     # Add a summary table that describes some basic parameters
-    html += '<table class="table"><str>\n'
-    html += add_summary_row('Start Time (UTC)', after)
-    html += add_summary_row('Stop Time (UTC)', before)
-    html += add_summary_row('Client', client)
-    html += add_summary_row('# Events', len(obj_list))
+    html += '<table id="table_summary" class="table"></table><br/>\n'
+
+    # Add an event table
+    html += '<table id="table_events" class="table">\n'
     if len(obj_list) > 0:
-        html += add_summary_row('OS Type', os_type)
-        html += add_summary_row('OS Version', os_version)
-        html += add_summary_row('Device Model', device_model)
-        html += add_summary_row('Build Version', build_version)
-    html += '</table><br/>\n'
+        html += '<tr><th class="cell">Date (UTC)</th><th class="cell">Time (UTC)</th><th class="cell">Event Type</th>' \
+                '<th class="cell">Field</th><th class="cell" align="left">Value</th></tr>\n'
+    html += '</table></body>\n'
 
-    if len(obj_list) > 0:
-        # Add the events
-
-        html += '<table id="table_events" class="table">\n'
-        html += '<tr><th class="cell">Date (UTC)</th><th class="cell">Time (UTC)</th>' \
-                '<th class="cell">Event Type</th><th class="cell">Field</th><th class="cell">Value</th></tr>\n'
-
-        html += '</table></body>\n'
     return HttpResponse(html)
