@@ -75,6 +75,7 @@ def _parse_error_report(junk):
 
 
 def login(request):
+    message = ''
     logger = logging.getLogger('telemetry').getChild('login')
     if request.method == 'POST':
         form = LoginForm(request.POST)
@@ -89,10 +90,11 @@ def login(request):
                 return HttpResponseRedirect('/')
             except Parse.exception.ParseException, e:
                 logger.error('fail to get session token - %s' % str(e))
+                message = 'Cannot log in (%s). Please enter the password again.' % e.error
         else:
             logger.warn('invalid form data')
     form = LoginForm()
-    return render(request, 'login.html', {'form': form})
+    return render(request, 'login.html', {'form': form, 'message': message})
 
 
 def home(request):
@@ -188,8 +190,8 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     # Save some global parameters for summary table
     html += '<script type="text/javascript">\n'
     params = dict()
-    params['start'] = str(after)
-    params['stop'] = str(before)
+    params['start'] = after.isoformat('T')
+    params['stop'] = before.isoformat('T')
     params['client'] = client
     if len(obj_list) > 0:
         params['os_type'] = obj_list[0]['os_type']
@@ -231,10 +233,11 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     # Add 3 buttons
     html += '<body onload="refresh()">\n'
     html += '<table><tr>\n'
-    html += add_ctrl_button('Zoom in (%d min)' % (span/2), ctrl_url(client, iso_center, max(1, span/2)))
+    zoom_in_span = max(1, span/2)
+    html += add_ctrl_button('Zoom in (%d min)' % zoom_in_span, ctrl_url(client, iso_center, zoom_in_span))
     html += add_ctrl_button('Zoom out (%d min)' % (span*2), ctrl_url(client, iso_center, span*2))
-    html += add_ctrl_button('Go back %d min' % span, ctrl_url(client, iso_go_earlier, 2*span))
-    html += add_ctrl_button('Go forward %d min' % span, ctrl_url(client, iso_go_later, 2*span))
+    html += add_ctrl_button('Go back %d min' % (2*span), ctrl_url(client, iso_go_earlier, span))
+    html += add_ctrl_button('Go forward %d min' % (2*span), ctrl_url(client, iso_go_later, span))
     html += '</tr></table><br/>\n'
 
     # Add a summary table that describes some basic parameters of the query
