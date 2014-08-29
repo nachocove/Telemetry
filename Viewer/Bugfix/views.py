@@ -203,12 +203,8 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
     # Generate the events JSON
     for event in obj_list:
-        def beautify_iso8601(time):
-            match = re.match('(?P<date>.+)T(?P<time>.+)Z', time)
-            assert match
-            return match.group('date'), match.group('time')
-        event['date'], event['time'] = beautify_iso8601(event['timestamp']['iso'])
-        for field in ['timestamp', 'createdAt', 'updatedAt', 'os_type', 'os_version', 'device_model', 'build_version']:
+        event['timestamp'] = event['timestamp']['iso']
+        for field in ['createdAt', 'updatedAt', 'os_type', 'os_version', 'device_model', 'build_version']:
             del event[field]
 
         if event['event_type'] in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
@@ -250,7 +246,11 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     # Add an event table
     html += '<table id="table_events" class="table">\n'
     if len(obj_list) > 0:
-        html += '<tr><th class="cell">Date (UTC)</th><th class="cell">Time (UTC)</th><th class="cell">Event Type</th>' \
+        html += '<tr><th id="date_cell" class="cell" onclick="updateDate()" title="Click to switch to local time">' \
+                'Date (UTC)</th>' \
+                '<th id="time_cell" class="cell" onclick="updateDate()" title="Click to switch to local time">' \
+                'Time (UTC)</th>' \
+                '<th class="cell">Event Type</th>' \
                 '<th class="cell">Field</th><th class="cell" align="left">Value</th></tr>\n'
     html += '</table></body>\n'
 

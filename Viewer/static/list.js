@@ -1,3 +1,35 @@
+var isUtc = true;
+
+function zeroPad(s, width) {
+out = s.toString();
+while (out.length < width) {
+  out = '0' + out;
+}
+return out;
+}
+
+function zeroPad2(s) {
+return zeroPad(s, 2);
+}
+
+function dateUtc(date) {
+return date.getUTCFullYear() + '-' + zeroPad2(date.getUTCMonth()+1) + '-' + zeroPad2(date.getUTCDate());
+}
+
+function timeUtc(date) {
+return (zeroPad2(date.getUTCHours()) + ':' + zeroPad2(date.getUTCMinutes()) + ':' +
+        zeroPad2(date.getUTCSeconds()) + '.' + zeroPad(date.getUTCMilliseconds(), 3));
+}
+
+function dateLocal(date) {
+return date.getFullYear() + '-' + zeroPad2(date.getMonth()+1) + '-' + zeroPad2(date.getDate());
+}
+
+function timeLocal(date) {
+return (zeroPad2(date.getHours()) + ':' + zeroPad2(date.getMinutes()) + ':' +
+        zeroPad2(date.getSeconds()) + '.' + zeroPad(date.getMilliseconds(), 3));
+}
+
 function getRow (event) {
     var tr = document.createElement('tr');
 
@@ -27,10 +59,18 @@ function getCell (html, rowSpan) {
     return td;
 }
 
-function getRowWithCommonFields (event, num_rows) {
+function getRowWithCommonFields (id, event, num_rows) {
     var tr = getRow(event);
-    tr.appendChild(getCell(event.date, num_rows));
-    tr.appendChild(getCell(event.time, num_rows));
+    iso = new Date(event.timestamp);
+
+    date = getCell(dateUtc(iso), num_rows);
+    date.id = 'date_' + id;
+    tr.appendChild(date);
+
+    time = getCell(timeUtc(iso), num_rows);
+    time.id = 'time_' + id;
+    tr.appendChild(time);
+
     tr.appendChild(getCell(event.event_type.replace('_', ' '), num_rows));
     return tr;
 }
@@ -118,13 +158,13 @@ function refreshEvents() {
             case 'INFO':
             case 'WARN':
             case 'ERROR': {
-                row = getRowWithCommonFields(event, 1);
+                row = getRowWithCommonFields(i, event, 1);
                 addFieldToRow(row, 'message', event.message);
                 break;
             }
             case 'WBXML_REQUEST':
             case 'WBXML_RESPONSE': {
-                row = getRowWithCommonFields(event, 1);
+                row = getRowWithCommonFields(i, event, 1);
                 row.appendChild(getCell('wbxml'));
                 valueCell = getCell(beautifyBase64(event.wbxml_base64));
                 valueCell.id = i;
@@ -158,7 +198,7 @@ function refreshEvents() {
                     num_rows += 1;
                 }
 
-                row = getRowWithCommonFields(event, num_rows);
+                row = getRowWithCommonFields(i, event, num_rows);
                 addFieldToRow(row, 'ui_type', event.ui_type);
                 table.appendChild(row);
 
@@ -177,7 +217,7 @@ function refreshEvents() {
                 break;
             }
             default: {
-                row = getRowWithCommonFields(event, 1);
+                row = getRowWithCommonFields(i, event, 1);
                 break;
             }
         }
@@ -188,4 +228,28 @@ function refreshEvents() {
 function refresh() {
     refreshSummary();
     refreshEvents();
+}
+
+function updateDate() {
+    isUtc = !isUtc;
+    var dateCell = document.getElementById('date_cell');
+    var timeCell = document.getElementById('time_cell');
+    if (isUtc) {
+        dateCell.innerHTML = 'Date (UTC)';
+        timeCell.innerHTML = 'Time (UTC)';
+        dateCell.title = 'Click to switch to local time';
+        timeCell.title = 'Click to switch to local time';
+    } else {
+        dateCell.innerHTML = 'Date (Local)';
+        timeCell.innerHTML = 'Time (Local)';
+        dateCell.title = 'Click to switch to UTC time';
+        timeCell.title = 'Click to switch to UTC time';
+    }
+    for (var i = 0; i < events.length; i++) {
+        var dateCell = document.getElementById('date_' + i);
+        var timeCell = document.getElementById('time_' + i);
+        date = new Date(events[i].timestamp);
+        dateCell.innerHTML = isUtc ? dateUtc(date) : dateLocal(date);
+        timeCell.innerHTML = isUtc ? timeUtc(date) : timeLocal(date);
+    }
 }
