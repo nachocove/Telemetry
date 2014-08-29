@@ -8,6 +8,7 @@
     padding: 2px;
     align: left;
     vertical-align: top;
+    word-wrap: break-word;
 }
 
 .button_table {

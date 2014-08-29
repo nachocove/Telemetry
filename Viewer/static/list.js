@@ -66,6 +66,28 @@ function previewString(s) {
     return htmlUnescape(s.slice(0, N)) + '...';
 }
 
+function isElementInViewport(e) {
+     var rect = e.getBoundingClientRect();
+     return (rect.bottom > 0 &&
+             rect.right > 0 &&
+             rect.left < (window.innerWidth || document. documentElement.clientWidth) &&
+             rect.top < (window.innerHeight || document. documentElement.clientHeight));
+ }
+
+function beautifyBase64(b64) {
+    var N = 512;
+    var out = '';
+    var start = 0;
+    var stop = N;
+    while (b64.length > stop) {
+        out += b64.slice(start, stop) + '\n';
+        start += N;
+        stop += N;
+    }
+    out += b64.slice(start, stop);
+    return getPre(out);
+}
+
 function refreshSummary() {
     var table = document.getElementById('table_summary');
     addSummaryRow(table, 'Start Time (UTC)', params.start);
@@ -104,15 +126,24 @@ function refreshEvents() {
             case 'WBXML_RESPONSE': {
                 row = getRowWithCommonFields(event, 1);
                 row.appendChild(getCell('wbxml'));
-                valueCell = getCell(event.wbxml_base64);
+                valueCell = getCell(beautifyBase64(event.wbxml_base64));
                 valueCell.id = i;
                 valueCell.title = previewString(event.wbxml);
                 valueCell.onclick = function() {
                     var event = events[this.id];
-                    if (this.innerHTML == event.wbxml_base64) {
+                    if (this.innerHTML == beautifyBase64(event.wbxml_base64)) {
                         this.innerHTML = getPre(event.wbxml);
                     } else {
-                        this.innerHTML = event.wbxml_base64;
+                        this.innerHTML = beautifyBase64(event.wbxml_base64);
+                    }
+                    if (!isElementInViewport(this)) {
+                        // if after collapsing the WBXML the element is no longer visible,
+                        // we should scroll it back in view.
+                        this.scrollIntoView(true);
+                        // TODO - need a better way to scroll. Right now, it always
+                        // scroll to the left. It should track the amount of horizontal
+                        // shift and undo that.
+                        window.scrollBy(-10000, 0);
                     }
                 }
                 row.appendChild(valueCell);
