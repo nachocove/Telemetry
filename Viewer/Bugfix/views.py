@@ -64,7 +64,7 @@ def _parse_error_report(junk):
 
 
 def _parse_support_email(junk):
-    dict_ = _parse_junk(junk, {'email': 'email'})
+    dict_ = _parse_junk(junk, {'email': 'email', 'timestamp': 'timestamp'})
     if 'email' in dict_:
         return dict_
     return None
@@ -123,7 +123,8 @@ def home(request):
                 email_events = Support.get_sha256_email_address(events, loc['email'])[1]
                 if len(email_events) != 0:
                     loc['client'] = email_events[-1].client
-                    loc['timestamp'] = email_events[-1].timestamp
+                    if 'timestamp' not in loc:
+                        loc['timestamp'] = email_events[-1].timestamp
                     loc['span'] = str(default_span)
                     logger.debug('client=%(client)s, span=%(span)s', loc)
                     return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/%(span)s/" % loc)
