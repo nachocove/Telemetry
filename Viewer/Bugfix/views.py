@@ -69,7 +69,7 @@ def _parse_error_report(junk):
             timestamp = value.strip()
     if timestamp and client:
         logger = logging.getLogger('telemetry').getChild('_parse_error_report')
-        logger.debug('timestamp=%s, client=%d', timestamp, client)
+        logger.debug('timestamp=%s, client=%s', timestamp, client)
         return {'timestamp': timestamp, 'client': client}
     return None
 
@@ -111,7 +111,7 @@ def home(request):
             loc = _parse_error_report(form.cleaned_data['tele_paste'])
             if loc is not None:
                 loc['span'] = str(default_span)
-                return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/(span)s/" % loc)
+                return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/%(span)s/" % loc)
             loc = _parse_crash_report(form.cleaned_data['tele_paste'])
             if None != loc:
                 conn = Parse.connection.Connection(app_id=app_id, api_key=api_key,
