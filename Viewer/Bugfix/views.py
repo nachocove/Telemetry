@@ -16,6 +16,7 @@ sys.path.append('../Parse/scripts')
 
 import Parse
 from monitor_base import Monitor
+from support import Support
 
 
 username = 'monitor'
@@ -32,9 +33,8 @@ class VectorForm(forms.Form):
     tele_paste = forms.CharField(widget=forms.Textarea)
 
 
-def _parse_crash_report(junk):
-    timestamp = None
-    device_id = None
+def _parse_junk(junk, mapping):
+    retval = dict()
     lines = junk.splitlines()
     for line in lines:
         splitty = line.split(':', 1)
@@ -42,35 +42,31 @@ def _parse_crash_report(junk):
             continue
         key = splitty[0]
         value = splitty[1]
-        if 'Device ID' == key:
-            device_id = value.strip()
-        elif 'Date/Time' == key:
-            timestamp = value.strip()
-    if timestamp and device_id:
-        logger = logging.getLogger('telemetry').getChild('_parse_crash_report')
-        logger.debug('timestamp=%s, device_id=%s', timestamp, device_id)
-        return {'timestamp': timestamp, 'device_id': device_id}
+        if key in mapping:
+            retval[mapping[key]] = value.strip()
+    logger = logging.getLogger('telemetry').getChild('_parse_junk')
+    logger.debug('retval=%s', retval)
+    return retval
+
+
+def _parse_crash_report(junk):
+    dict_ = _parse_junk(junk, {'Device ID': 'device_id', 'Date/Time': 'timestamp'})
+    if 'device_id' in dict_ and 'timestamp' in dict_:
+        return dict_
     return None
 
 
 def _parse_error_report(junk):
-    timestamp = None
-    client = None
-    lines = junk.splitlines()
-    for line in lines:
-        splitty = line.split(':', 1)
-        if 2 != len(splitty):
-            continue
-        key = splitty[0]
-        value = splitty[1]
-        if 'client' == key:
-            client = value.strip()
-        elif 'timestamp' == key:
-            timestamp = value.strip()
-    if timestamp and client:
-        logger = logging.getLogger('telemetry').getChild('_parse_error_report')
-        logger.debug('timestamp=%s, client=%s', timestamp, client)
-        return {'timestamp': timestamp, 'client': client}
+    dict_ = _parse_junk(junk, {'timestamp': 'timestamp', 'client': 'client'})
+    if 'timestamp' in dict_ and 'client' in dict_:
+        return dict_
+    return None
+
+
+def _parse_support_email(junk):
+    dict_ = _parse_junk(junk, {'email': 'email'})
+    if 'email' in dict_:
+        return dict_
     return None
 
 # Create your views here.
@@ -104,6 +100,9 @@ def home(request):
     if not 'session_token' in request.session:
         logger.info('no session token. must log in first.')
         return HttpResponseRedirect('/login/')
+    # Any message set in 'message' will be displayed as a red error message.
+    # Used for reporting error in any POST.
+    message = ''
     if request.method == 'POST':
         form = VectorForm(request.POST)
         if form.is_valid():
@@ -112,8 +111,28 @@ def home(request):
             if loc is not None:
                 loc['span'] = str(default_span)
                 return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/%(span)s/" % loc)
+            loc = _parse_support_email(form.cleaned_data['tele_paste'])
+            if loc is not None:
+                loc['span'] = str(default_span)
+                # From the email, we need to find the Parse client ID
+                conn = Parse.connection.Connection(app_id=app_id, api_key=api_key,
+                                                   session_token=request.session['session_token'])
+                query = Parse.query.Query()
+                query.add('event_type', Parse.query.SelectorEqual('SUPPORT'))
+                events = Parse.query.Query.objects('Events', query, conn)[0]
+                email_events = Support.get_sha256_email_address(events, loc['email'])[1]
+                if len(email_events) != 0:
+                    loc['client'] = email_events[-1].client
+                    loc['timestamp'] = email_events[-1].timestamp
+                    loc['span'] = str(default_span)
+                    logger.debug('client=%(client)s, span=%(span)s', loc)
+                    return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/%(span)s/" % loc)
+                else:
+                    message = 'Cannot find client ID for email %s' % loc['email']
+                    logger.warn(message)
             loc = _parse_crash_report(form.cleaned_data['tele_paste'])
             if None != loc:
+                # From the crash log device ID, we need to find the Parse client ID
                 conn = Parse.connection.Connection(app_id=app_id, api_key=api_key,
                                                    session_token=request.session['session_token'])
                 query = Parse.query.Query()
@@ -122,18 +141,21 @@ def home(request):
                 query.add('message', Parse.query.SelectorStartsWith(search_key))
                 events = Parse.query.Query.objects('Events', query, conn)[0]
                 if len(events) != 0:
-                    assert 'client' in events[0]
-                    client = events[0]['client']
+                    assert 'client' in events[-1]
+                    client = events[-1]['client']
                     loc['client'] = client
                     loc['span'] = str(default_span)
                     logger.debug('client=%(client)s, span=%(span)s', loc)
                     return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/%(span)s/" % loc)
+                else:
+                    message = 'Cannot find client ID for device ID %s' % loc['device_id']
+                    logger.warn(message)
             else:
                 logger.warn('unable to parse pasted info.')
         else:
             logger.warn('invalid form data')
     form = VectorForm()
-    return render(request, 'home.html', {'form': form})
+    return render(request, 'home.html', {'form': form, 'message': message})
 
 
 def _iso_z_format(date):
