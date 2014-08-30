@@ -174,7 +174,10 @@ function refreshSummary() {
     table.appendChild(tr);
 
     addSummaryRow(table, 'Client', params.client);
-    addSummaryRow(table, '# Events', events.length);
+    addSummaryRow(table, '# Events', params.event_count);
+    if (params.event_count > events.length) {
+        alert(params.event_count + ' events exist but we are only able to retrieve the first ' + events.length + ' events. Please zoom in to reduce the time window.')
+    }
     if (params.hasOwnProperty('os_type')) {
         addSummaryRow(table, 'OS Type', params.os_type);
     }

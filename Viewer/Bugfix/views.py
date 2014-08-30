@@ -15,6 +15,8 @@ import json
 sys.path.append('../Parse/scripts')
 
 import Parse
+from monitor_base import Monitor
+
 
 username = 'monitor'
 api_key = 'FL6KXH6xFC2n4Y1pGQcpf0GWWX3FJ61GmdqZYY72'
@@ -166,8 +168,9 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     query.add('timestamp', Parse.query.SelectorLessThan(Parse.utc_datetime.UtcDateTime(str(before))))
     logger.debug('query=%s', str(query.where()))
     obj_list = list()
+    event_count = 0
     try:
-        obj_list = Parse.query.Query.objects('Events', query, conn)[0]
+        (obj_list, event_count) = Monitor.query_events(conn, query, False, logger)
         logger.info('%d objects found', len(obj_list))
     except Parse.exception.ParseException, e:
         logger.error('fail to query events - %s', str(e))
@@ -193,6 +196,7 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     params['start'] = after.isoformat('T')
     params['stop'] = before.isoformat('T')
     params['client'] = client
+    params['event_count'] = event_count
     if len(obj_list) > 0:
         params['os_type'] = obj_list[0]['os_type']
         params['os_version'] = obj_list[0]['os_version']

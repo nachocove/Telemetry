@@ -89,13 +89,14 @@ class Monitor:
         """
         raise NotImplementedError()
 
-    def query_all(self,  query, count_only=False):
+    @staticmethod
+    def query_events(conn, query, count_only=False, logger=None):
         events = list()
 
         # Get the count first
         query.limit = 0
         query.count = 1
-        event_count = Parse.query.Query.objects('Events', query, self.conn)[1]
+        event_count = Parse.query.Query.objects('Events', query, conn)[1]
         if count_only:
             return events, event_count
 
@@ -104,17 +105,21 @@ class Monitor:
 
         # Keep querying until the list is less than 1000
         # TODO - we need a robust way to pull more than 11,000 events
-        results = Parse.query.Query.objects('Events', query, self.conn)[0]
+        results = Parse.query.Query.objects('Events', query, conn)[0]
         events.extend(results)
         while len(results) == query.limit and query.skip < 10000:
             query.skip += query.limit
-            self.logger.debug('  Querying additional objects (skip=%d)', query.skip)
-            results = Parse.query.Query.objects('Events', query, self.conn)[0]
+            if logger is not None:
+                logger.debug('  Querying additional objects (skip=%d)', query.skip)
+            results = Parse.query.Query.objects('Events', query, conn)[0]
             events.extend(results)
         if event_count < len(events):
             event_count = len(events)
 
         return events, event_count
+
+    def query_all(self, query, count_only=False):
+        return self.query_events(self.conn, query, count_only, self.logger)
 
     @staticmethod
     def compute_rate(count, start, end, unit):
