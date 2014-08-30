@@ -48,7 +48,14 @@
 }
 
 .counter {
+    background-color: #eeffff;
 }
 
 .capture {
+    background-color: #eeffff;
+}
+
+.support {
+    background-color: #ff6633;
+    color: white;
 }

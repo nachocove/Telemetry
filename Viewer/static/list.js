@@ -44,11 +44,13 @@ function timeLocal(date) {
             zeroPad2(date.getSeconds()) + '.' + zeroPad(date.getMilliseconds(), 3));
 }
 
-function dateTimeUtc(date) {
+function dateTimeUtc(iso) {
+    date = new Date(iso);
     return dateUtc(date) + ' ' + timeUtc(date);
 }
 
-function dateTimeLocal(date) {
+function dateTimeLocal(iso) {
+    date = new Date(iso);
     return dateLocal(date) + ' ' + timeLocal(date);
 }
 
@@ -155,7 +157,7 @@ function refreshSummary() {
 
     var tr = document.createElement('tr');;
     var field = getCell(START_TIME_UTC);
-    var value = getCell(dateTimeUtc(new Date(params.start)));
+    var value = getCell(dateTimeUtc(params.start));
     field.id = START_FIELD_ID;
     value.id = START_VALUE_ID;
     tr.appendChild(field);
@@ -164,7 +166,7 @@ function refreshSummary() {
 
     tr = document.createElement('tr');
     field = getCell(STOP_TIME_UTC);
-    value = getCell(dateTimeUtc(new Date(params.stop)));
+    value = getCell(dateTimeUtc(params.stop));
     field.id = STOP_FIELD_ID;
     value.id = STOP_VALUE_ID;
     tr.appendChild(field);
@@ -296,6 +298,70 @@ function refreshEvents() {
                 }
                 break;
             }
+            case 'COUNTER': {
+                row = getRowWithCommonFields(i, event, 4);
+                addFieldToRow(row, 'counter_name', event.counter_name)
+                table.appendChild(row);
+
+                row = getRow(event);
+                addFieldToRow(row, 'count', event.count);
+                table.appendChild(row);
+
+                row = getRow(event);
+                addFieldToRow(row, 'counter_start (UTC)', dateTimeUtc(event.counter_start.iso));
+                table.appendChild(row)
+
+                row = getRow(event)
+                addFieldToRow(row, 'counter_end (UTC)', dateTimeUtc(event.counter_end.iso));
+                break;
+            }
+            case 'CAPTURE': {
+                row = getRowWithCommonFields(i, event, 6);
+                addFieldToRow(row, 'capture_name', event.capture_name);
+                table.appendChild(row);
+
+                row = getRow(event);
+                addFieldToRow(row, 'count', event.count);
+                table.appendChild(row);
+
+                row = getRow(event);
+                addFieldToRow(row, 'min', event.min);
+                table.appendChild(row);
+
+                row = getRow(event);
+                addFieldToRow(row,'average', event.average);
+                table.appendChild(row);
+
+                row = getRow(event);
+                addFieldToRow(row, 'max', event.max);
+                table.appendChild(row);
+
+                row = getRow(event);
+                addFieldToRow(row, 'stddev', event.stddev);
+                break;
+            }
+            case 'SUPPORT': {
+                try {
+                    json = JSON.parse(event.support);
+                    var keys = Object.keys(json);
+                    var isFirst = true;
+                    for (var j = 0; j < keys.length; j++) {
+                        if (isFirst) {
+                            row = getRowWithCommonFields(i, event, keys.length);
+                            isFirst = false;
+                        } else {
+                            table.appendChild(row);
+                            row = getRow(event);
+                        }
+                        addFieldToRow(row, keys[j], json[keys[j]]);
+                    }
+                }
+                catch (ex) {
+                    row = getRowWithCommonFields(i, event, 1);
+                    addFieldToRow(row, 'support', event.support);
+                }
+                break;
+            }
             default: {
                 row = getRowWithCommonFields(i, event, 1);
                 break;
@@ -343,19 +409,15 @@ function updateDate() {
     var stopField = document.getElementById(STOP_FIELD_ID);
     var stopValue = document.getElementById(STOP_VALUE_ID);
 
-    var start = new Date(params.start);
-    var stop = new Date(params.stop);
-
     if (isUtc) {
         startField.innerHTML = START_TIME_UTC;
         stopField.innerHTML = STOP_TIME_UTC;
-        date = new Date(params.start);
-        startValue.innerHTML = dateTimeUtc(start);
-        stopValue.innerHTML = dateTimeUtc(stop);
+        startValue.innerHTML = dateTimeUtc(params.start);
+        stopValue.innerHTML = dateTimeUtc(params.stop);
     } else {
         startField.innerHTML = START_TIME_LOCAL;
         stopField.innerHTML = STOP_TIME_LOCAL;
-        startValue.innerHTML = dateTimeLocal(start);
-        stopValue.innerHTML = dateTimeLocal(stop);
+        startValue.innerHTML = dateTimeLocal(params.start);
+        stopValue.innerHTML = dateTimeLocal(params.stop);
     }
 }
