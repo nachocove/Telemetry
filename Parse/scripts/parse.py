@@ -375,8 +375,8 @@ class SelectorAction(argparse.Action):
                 sel = Parse.query.SelectorLessThan(Parse.utc_datetime.UtcDateTime.now())
             else:
                 sel = Parse.query.SelectorLessThan(Parse.utc_datetime.UtcDateTime(value))
-        elif option_string == '--contains':
-            sel = Parse.query.SelectorContains(value)
+        elif option_string == '--startswith':
+            sel = Parse.query.SelectorStartsWith(value)
         else:
             raise ValueError('unknown option %s' % option_string)
         getattr(namespace, self.dest).append(sel)
@@ -460,7 +460,7 @@ def main():
     query_group.add_argument('--field', help='A field for query (%s)' % ', ' .join(events.VALID_FIELDS),
                              action='append', metavar='FIELD',
                              choices=events.VALID_FIELDS, default=[])
-    query_group.add_argument('--contains', help='Match a field that contains this string',
+    query_group.add_argument('--startswith', help='Match a field that starts with this string',
                              action=SelectorAction, dest='selectors', default=[])
 
     # Query shorthands

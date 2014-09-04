@@ -78,11 +78,14 @@ class SelectorExists(Selector):
         self.op = '$exists'
 
 
+# Beware that this should be deprecated. It does seem to work somewhat.
+# But many times it will not return matches that are in telemetry.
+# Use at your own risk
 class SelectorContains(Selector):
     def __init__(self, value):
         if not isinstance(value, str):
             raise TypeError('value must be str')
-        Selector.__init__(self, re.escape(value))
+        Selector.__init__(self, value)
         self.op = '$regex'
 
 
@@ -90,7 +93,7 @@ class SelectorStartsWith(Selector):
     def __init__(self, value):
         if not isinstance(value, str):
             raise TypeError('value must be str')
-        Selector.__init__(self, '^' + re.escape(value))
+        Selector.__init__(self, '^\Q' + value + '\E')
         self.op = '$regex'
 
 
