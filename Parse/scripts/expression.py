@@ -85,7 +85,7 @@ class SimpleExpression(Expression):
         # Strip the operator
         operators = {'==': Parse.query.SelectorEqual,
                      '!=': Parse.query.SelectorNotEqual,
-                     '<=': Parse.query.SelectorLessThan,
+                     '<=': Parse.query.SelectorLessThanEqual,
                      '>=': Parse.query.SelectorGreaterThanEqual,
                      '<': Parse.query.SelectorLessThan,
                      '>': Parse.query.SelectorGreaterThan,
@@ -144,7 +144,9 @@ class CompoundExpression(Expression):
     def query(self):
         query_ = Parse.query.Query()
         for expr in self.expressions:
-            query_.selectors.update(expr.query().selectors)
+            for (field, sel_list) in expr.query().selectors.items():
+                for sel in sel_list:
+                    query_.add(field, sel)
         return query_
 
     def __str__(self):
