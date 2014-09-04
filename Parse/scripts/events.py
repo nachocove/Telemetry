@@ -53,3 +53,12 @@ INFO_FIELDS = ['message',  # for logs
                ]
 
 VALID_FIELDS = ['timestamp', 'event_type'] + IDENT_FIELDS + INFO_FIELDS + INTERNAL_FIELDS
+
+QUERY_FIELDS = {'client': 'string',
+                'createdAt': 'iso8601',
+                'event_type': 'string',
+                'message': 'string',
+                'objectId': 'string',
+                'support': 'string',
+                'timestamp': 'iso8601',
+                }

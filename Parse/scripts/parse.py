@@ -21,6 +21,7 @@ import event_formatter
 import time
 import events
 import support
+import expression
 
 
 def abort(mesg):
@@ -29,6 +30,9 @@ def abort(mesg):
 
 
 def get_query(options):
+    if len(options.field) == 0 and len(options.selectors) == 0 and options.query:
+        expr = expression.Expression.parse(options.query)
+        return expr.query()
     query = Parse.query.Query()
     assert len(options.field) == len(options.selectors)
     for n in range(len(options.field)):
@@ -462,6 +466,7 @@ def main():
                              choices=events.VALID_FIELDS, default=[])
     query_group.add_argument('--startswith', help='Match a field that starts with this string',
                              action=SelectorAction, dest='selectors', default=[])
+    query_group.add_argument('--query', help='Match expression')
 
     # Query shorthands
     query_shorthand_group = parser.add_argument_group(title='Query Shorthands')
