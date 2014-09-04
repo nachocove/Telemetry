@@ -14,6 +14,7 @@ from config_unit_tests import *
 from number_formatter_unit_tests import *
 from analytics.statistics_unit_tests import *
 from Parse.unit_tests import *
+from expression_unit_tests import *
 
 if __name__ == '__main__':
     unittest.main()

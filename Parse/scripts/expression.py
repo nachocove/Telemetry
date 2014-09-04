@@ -101,13 +101,17 @@ class SimpleExpression(Expression):
         # Extract the value
         value = match.group('value').strip()
         if self.is_bounded(value, '\'', '\'') or self.is_bounded(value, '"', '"'):
-            value = value[1:-1].strip()
+            value = value[1:-1]
 
         # Check value's type
-        if self.operator == Parse.query.SelectorExists:
+        if self.selector == Parse.query.SelectorExists:
             # This is a special case. The only valid value is true, True, false, False
             value = value.lower()
-            if value not in ['true', 'false']:
+            if value == 'true':
+                value = True
+            elif value == 'false':
+                value = False
+            else:
                 raise ValueError('Exist operator (~) must have value of true or false')
         else:
             if QUERY_FIELDS[self.field] == 'integer':
