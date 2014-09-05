@@ -50,10 +50,11 @@ class MonitorUi(Monitor):
     @staticmethod
     def _report_one_transition_row(table, vc_type, vc_event, stats):
         if stats.count > 0:
-            min_str = commafy('%.4f' % stats.min)
-            avg_str = commafy('%.4f' % stats.mean())
-            max_str = commafy('%.4f' % stats.max)
-            sdev_str = commafy('%.4f' % stats.stddev())
+            # Multiple by 1000 to convert to msec
+            min_str = commafy('%.2f' % (1000.0 * stats.min))
+            avg_str = commafy('%.2f' % (1000.0 * stats.mean()))
+            max_str = commafy('%.2f' % (1000.0 * stats.max))
+            sdev_str = commafy('%.2f' % (1000.0 * stats.stddev()))
         else:
             min_str = '-'
             avg_str = '-'
@@ -95,10 +96,10 @@ class MonitorUi(Monitor):
         table_transition.add_row(TableRow([TableHeader(Bold('View Controller')),
                                            TableHeader(Bold('Event')),
                                            TableHeader(Bold('Count')),
-                                           TableHeader(Bold('Min (sec)')),
-                                           TableHeader(Bold('Average (sec)')),
-                                           TableHeader(Bold('Max (sec)')),
-                                           TableHeader(Bold('Std.Dev. (sec)'))]))
+                                           TableHeader(Bold('Min. (msec)')),
+                                           TableHeader(Bold('Average (msec)')),
+                                           TableHeader(Bold('Max. (msec)')),
+                                           TableHeader(Bold('Std.Dev. (msec)'))]))
         for vc_type in sorted(self.view_controller_sets.keys()):
             vc = self.view_controller_sets[vc_type]
             for vc_event in ('WILL_APPEAR', 'DID_APPEAR', 'WILL_DISAPPEAR', 'DID_DISAPPEAR'):
@@ -108,9 +109,9 @@ class MonitorUi(Monitor):
         table_usage = Table()
         table_usage.add_row(TableRow([TableHeader(Bold('View Controller')),
                                       TableHeader(Bold('Count')),
-                                      TableHeader(Bold('Min (sec)')),
+                                      TableHeader(Bold('Min. (sec)')),
                                       TableHeader(Bold('Average (sec)')),
-                                      TableHeader(Bold('Max (sec)')),
+                                      TableHeader(Bold('Max. (sec)')),
                                       TableHeader(Bold('Std.Dev. (sec)'))]))
         for vc_type in sorted(self.view_controller_sets.keys()):
             stats = self.view_controller_sets[vc_type].samples['IN_USE'].statistics
