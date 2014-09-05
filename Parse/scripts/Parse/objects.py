@@ -101,3 +101,7 @@ class Object(dict):
         else:
             objs.class_name = class_name
         return objs
+
+    @staticmethod
+    def sort_chronologically(objects):
+        return sorted(objects, key=lambda x: x['timestamp']['iso'])

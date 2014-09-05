@@ -1,6 +1,5 @@
 import json
 import urllib
-import re
 from objects import Object
 from users import User
 from utc_datetime import UtcDateTime
@@ -167,7 +166,7 @@ class Query:
                 obj = cls(class_name=class_name)
             obj.parse(data)
             obj_list.append(obj)
-        return obj_list, count
+        return Object.sort_chronologically(obj_list), count
 
     @staticmethod
     def objects(cls, query, conn):
