@@ -32,11 +32,12 @@ def abort(mesg):
 def get_query(options):
     if len(options.field) == 0 and len(options.selectors) == 0 and options.query:
         expr = expression.Expression.parse(options.query)
-        return expr.query()
-    query = Parse.query.Query()
-    assert len(options.field) == len(options.selectors)
-    for n in range(len(options.field)):
-        query.add(options.field[n], options.selectors[n])
+        query = expr.query()
+    else:
+        query = Parse.query.Query()
+        assert len(options.field) == len(options.selectors)
+        for n in range(len(options.field)):
+            query.add(options.field[n], options.selectors[n])
     if options.limit is None:
         query.limit = 1000
     else:

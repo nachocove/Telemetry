@@ -1,6 +1,6 @@
 import Parse
 from monitor_base import Monitor
-from viewcontroller import ViewController
+from viewcontroller import ViewControllerSet
 from number_formatter import *
 from html_elements import *
 
@@ -9,7 +9,7 @@ class MonitorUi(Monitor):
     def __init__(self, conn, start, end):
         Monitor.__init__(self, conn=conn, desc='UI', start=start, end=end)
         self.events = []
-        self.view_controllers = dict()
+        self.view_controller_sets = dict()
         self.num_vc_events = 0
         self.clients = set()
 
@@ -21,10 +21,10 @@ class MonitorUi(Monitor):
         if self.end is not None:
             query.add('createdAt', Parse.query.SelectorLessThan(self.end))
 
-        self.events = self.query_all(query)[0]
+        self.events = Parse.objects.Object.sort_chronologically(self.query_all(query)[0])
 
     def _analyze(self):
-        self.view_controllers = dict()
+        self.view_controller_sets = dict()
         self.num_vc_events = 0
         self.clients = set()
         for event in self.events:
@@ -34,13 +34,14 @@ class MonitorUi(Monitor):
             self.num_vc_events += 1
             self.clients.add(event['client'])
             vc_type = event['ui_object']
-            if vc_type not in self.view_controllers:
-                vc = ViewController(description=vc_type)
-                self.view_controllers[vc_type] = vc
-            else:
-                vc = self.view_controllers[vc_type]
+            client = event['client']
+            if vc_type not in self.view_controller_sets:
+                self.view_controller_sets[vc_type] = ViewControllerSet(description=vc_type)
+            vc = self.view_controller_sets[vc_type].get(client)
             timestamp = Parse.utc_datetime.UtcDateTime(event['timestamp']['iso'])
             vc.parse(timestamp, event['ui_string'])
+        for (vc_type, vc_set) in self.view_controller_sets.items():
+            vc_set.aggregate_samples()
 
     def run(self):
         self._query()
@@ -94,12 +95,12 @@ class MonitorUi(Monitor):
         table_transition.add_row(TableRow([TableHeader(Bold('View Controller')),
                                            TableHeader(Bold('Event')),
                                            TableHeader(Bold('Count')),
-                                           TableHeader(Bold('Min (msec)')),
-                                           TableHeader(Bold('Average (msec)')),
-                                           TableHeader(Bold('Max (msec)')),
-                                           TableHeader(Bold('Std.Dev. (msec)'))]))
-        for vc_type in sorted(self.view_controllers.keys()):
-            vc = self.view_controllers[vc_type]
+                                           TableHeader(Bold('Min (sec)')),
+                                           TableHeader(Bold('Average (sec)')),
+                                           TableHeader(Bold('Max (sec)')),
+                                           TableHeader(Bold('Std.Dev. (sec)'))]))
+        for vc_type in sorted(self.view_controller_sets.keys()):
+            vc = self.view_controller_sets[vc_type]
             for vc_event in ('WILL_APPEAR', 'DID_APPEAR', 'WILL_DISAPPEAR', 'DID_DISAPPEAR'):
                 stats = vc.samples[vc_event].statistics
                 self._report_one_transition_row(table_transition, vc_type, vc_event, stats)
@@ -107,12 +108,12 @@ class MonitorUi(Monitor):
         table_usage = Table()
         table_usage.add_row(TableRow([TableHeader(Bold('View Controller')),
                                       TableHeader(Bold('Count')),
-                                      TableHeader(Bold('Min (msec)')),
-                                      TableHeader(Bold('Average (msec)')),
-                                      TableHeader(Bold('Max (msec)')),
-                                      TableHeader(Bold('Std.Dev. (msec)'))]))
-        for vc_type in sorted(self.view_controllers.keys()):
-            stats = self.view_controllers[vc_type].samples['IN_USE'].statistics
+                                      TableHeader(Bold('Min (sec)')),
+                                      TableHeader(Bold('Average (sec)')),
+                                      TableHeader(Bold('Max (sec)')),
+                                      TableHeader(Bold('Std.Dev. (sec)'))]))
+        for vc_type in sorted(self.view_controller_sets.keys()):
+            stats = self.view_controller_sets[vc_type].samples['IN_USE'].statistics
             self._report_one_inuse_row(table_usage, vc_type, stats)
 
         paragraphs = [Paragraph([Bold('UI View Controller Usage'),

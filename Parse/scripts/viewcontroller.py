@@ -4,8 +4,9 @@ import analytics
 class ViewController:
     VC_EVENTS = ('WILL_APPEAR', 'DID_APPEAR', 'WILL_DISAPPEAR', 'DID_DISAPPEAR', 'IN_USE')
 
-    def __init__(self, description, logger=None):
+    def __init__(self, description, client, logger=None):
         self.description = description
+        self.client = client
         self.logger = logger
         self.intervals = dict()
         self.samples = dict()
@@ -68,3 +69,24 @@ class ViewController:
     def reset_interval(self):
         for vc_event in ViewController.VC_EVENTS:
             self.intervals[vc_event] = analytics.interval.Interval()
+
+
+class ViewControllerSet:
+    def __init__(self, description):
+        self.description = description
+        self.view_controllers = dict()
+        self.samples = dict()
+        for vc_event in ViewController.VC_EVENTS:
+            self.samples[vc_event] = analytics.samples.Samples(description=vc_event)
+
+    def get(self, client):
+        if client in self.view_controllers:
+            return self.view_controllers[client]
+        vc = ViewController(description=self.description, client=client)
+        self.view_controllers[client] = vc
+        return vc
+
+    def aggregate_samples(self):
+        for (client, vc) in self.view_controllers.items():
+            for vc_event in ViewController.VC_EVENTS:
+                self.samples[vc_event] += vc.samples[vc_event]

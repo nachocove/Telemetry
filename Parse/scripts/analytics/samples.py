@@ -18,6 +18,23 @@ class Samples:
         self.__samples = None
         self.statistics = Statistics()
 
+    def __add__(self, other):
+        samples = Samples()
+        if self.description == other.description:
+            samples.description = self.description
+
+        samples.statistics = self.statistics + other.statistics
+        if self.__samples is None and other.__samples is None:
+            return samples
+        samples.__samples = list()
+        if self.__samples is None:
+            samples.__samples = other.__samples[:]
+        elif other.__samples is None:
+            samples.__samples = self.__samples[:]
+        else:
+            samples.__samples = self.__samples + other.__samples
+        return samples
+
     def enable_median(self):
         assert self.statistics.count == 0  # must do this before any sample is added
         self.__samples = list()
