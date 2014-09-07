@@ -102,6 +102,9 @@ class Element:
             return ''  # (base) Text class has no HTML tag at all.
         return '</%s>' % self.tag
 
+    def attribute(self, attr_name):
+        return self.attrs.get(attr_name, None)
+
 
 class Html(Element):
     def __init__(self, content=None):
@@ -240,20 +243,52 @@ class Table(Element):
 
         num_cols = 0
         max_widths = []
+        rowspan = []
         for row in rows:
             if num_cols == 0:
                 num_cols = len(row.elements())
                 max_widths = [0] * num_cols
+                rowspan = [0] * num_cols
             else:
                 # Check all rows to have the same # of columns
-                if num_cols != len(row.elements()):
+                if num_cols != (len(row.elements()) + sum([x > 0 and 1 or 0 for x in rowspan])):
                     raise ValueError('all rows must have the same number of columns')
+
+            # Insert filler elements
+            for n in range(num_cols):
+                if rowspan[n] != 0:
+                    row.content.insert(n, TableRowSpan())
+
+            # Get the width of all columns (filler has 0 width)
             widths = row.get_widths()
             max_widths = [max(a, b) for (a, b) in zip(widths, max_widths)]
+
+            # Update rowspan count
+            for n in range(num_cols):
+                # Add new rowspan
+                rs = row.element(n).attribute('rowspan')
+                if rs is not None:
+                    assert isinstance(rs, int)
+                    rowspan[n] += rs
+                # Decrement for the current row
+                if rowspan[n] != 0:
+                    rowspan[n] -= 1
+
         # Second, record the width for each table element
         for row in rows:
             row.set_widths(max_widths)
-        return Element.plain_text(self)
+
+        # The problem with adding filler element is that it changes the Table object.
+        # (The good is that this approach simplies the layout code a lot.)
+        # So, we need to delete all the fillers
+        plain_text = Element.plain_text(self)
+
+        for row in rows:
+            for n in reversed(range(len(row.content))):
+                if isinstance(row.element(n), TableRowSpan):
+                    row.content.pop(n)
+
+        return plain_text
 
     def row(self, index):
         return self.content[index]
@@ -292,7 +327,7 @@ class TableRow(Element):
         self.content.extend(elements)
 
     def get_widths(self):
-        return [len(e.plain_text()) for e in self.elements()]
+        return [len(e.plain_text()) - 1 for e in self.elements()]
 
     def set_widths(self, widths):
         assert len(widths) == len(self.content)
@@ -310,7 +345,7 @@ class TableHeader(Element):
         self.width = 0
 
     def plain_text(self):
-        return ('%%-%ds' % (self.width + 1)) % self.content.plain_text()
+        return ('%%-%ds ' % self.width) % self.content.plain_text()
 
 
 class TableElement(Element):
@@ -321,4 +356,20 @@ class TableElement(Element):
         self.attrs = attrs
 
     def plain_text(self):
-        return ('%%-%ds' % (self.width + 1)) % self.content.plain_text()
+        return ('%%-%ds ' % self.width) % self.content.plain_text()
+
+
+class TableRowSpan(TableElement):
+    """
+    TableRowSpan is not a real HTML element. It is a space filler for implementing
+    rowspan for plain text. It is an element that emits no HTML and only white
+    spaces
+    """
+    def __init__(self):
+        TableElement.__init__(self, '')
+
+    def html(self):
+        return ''
+
+    def plain_text(self):
+        return ' ' * (self.width + 1)

@@ -76,7 +76,7 @@ class TestTable(unittest.TestCase):
         content = 'Header'
         header = TableHeader(Bold(content))
         self.assertEqual(header.html(), '<th><b>%s</b></th>' % content)
-        self.assertEqual(header.plain_text(), content)
+        self.assertEqual(header.plain_text(), content + ' ')
 
     def test_2x2(self):
         headers = TableRow([TableHeader(Bold('First column')), TableHeader(Bold('2nd col.'))])
@@ -84,15 +84,45 @@ class TestTable(unittest.TestCase):
         row2 = TableRow([TableElement(Text('abc')), TableElement(Italic('0123456789'))])
         table = Table([headers, row1, row2])
         print table.html()
-        print table.plain_text()
+
         self.assertEqual(table.html(), '<table cellpadding="2" style="border-collapse: collapse" border="1">'
                                        '<tr><th><b>First column</b></th><th><b>2nd col.</b></th></tr>'
                                        '<tr><td>a</td><td><b>xyz</b></td></tr>'
                                        '<tr><td>abc</td><td><i>0123456789</i></td></tr>'
                                        '</table>')
-        self.assertEqual(table.plain_text(), 'First column  2nd col.    \n'
-                                             'a             xyz         \n'
-                                             'abc           0123456789  \n')
+        self.assertEqual(table.plain_text(), 'First column 2nd col.   \n'
+                                             'a            xyz        \n'
+                                             'abc          0123456789 \n')
+
+    def test_3x3(self):
+        header = TableRow([TableHeader(Bold('Class')),
+                           TableHeader(Bold('Method')),
+                           TableHeader(Bold('Parameters'))])
+        row1 = TableRow([TableElement(Text('Math'), rowspan=3),
+                         TableElement(Text('Add'), rowspan=2),
+                         TableElement(Text('(int a, int b)'))])
+        row2 = TableRow([TableElement(Text('(float a, float b)'), rowspan=1)])
+        row3 = TableRow([TableElement(Text('Subtract')), TableElement(Text('(int a, int b)'))])
+        table = Table([header, row1, row2, row3])
+        print table.html()
+        print table.plain_text()
+
+        print len(table.plain_text())
+        print len(table.plain_text())
+        print len(table.plain_text())
+
+        self.assertEqual(table.html(),
+                         '<table cellpadding="2" style="border-collapse: collapse" border="1">'
+                         '<tr><th><b>Class</b></th><th><b>Method</b></th><th><b>Parameters</b></th></tr>'
+                         '<tr><td rowspan="3">Math</td><td rowspan="2">Add</td><td>(int a, int b)</td></tr>'
+                         '<tr><td rowspan="1">(float a, float b)</td></tr>'
+                         '<tr><td>Subtract</td><td>(int a, int b)</td></tr>'
+                         '</table>')
+        self.assertEqual(table.plain_text(),
+                         'Class Method   Parameters         \n'
+                         'Math  Add      (int a, int b)     \n'
+                         '               (float a, float b) \n'
+                         '      Subtract (int a, int b)     \n')
 
 
 if __name__ == '__main__':

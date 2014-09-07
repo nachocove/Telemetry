@@ -60,13 +60,15 @@ class MonitorUi(Monitor):
             avg_str = '-'
             max_str = '-'
             sdev_str = '-'
-        table.add_row(TableRow([TableElement(Text(vc_type)),
-                                TableElement(Text(vc_event)),
-                                TableElement(Text(pretty_number(stats.count)), align='right'),
-                                TableElement(Text(min_str), align='right'),
-                                TableElement(Text(avg_str), align='right'),
-                                TableElement(Text(max_str), align='right'),
-                                TableElement(Text(sdev_str), align='right')]))
+        row_elements = [TableElement(Text(vc_event)),
+                        TableElement(Text(pretty_number(stats.count)), align='right'),
+                        TableElement(Text(min_str), align='right'),
+                        TableElement(Text(avg_str), align='right'),
+                        TableElement(Text(max_str), align='right'),
+                        TableElement(Text(sdev_str), align='right')]
+        if vc_type is not None:
+            row_elements = [TableElement(Text(vc_type), rowspan=4, valign='top')] + row_elements
+        table.add_row(TableRow(row_elements))
 
     @staticmethod
     def _report_one_inuse_row(table, vc_type, stats):
@@ -104,7 +106,11 @@ class MonitorUi(Monitor):
             vc = self.view_controller_sets[vc_type]
             for vc_event in ('WILL_APPEAR', 'DID_APPEAR', 'WILL_DISAPPEAR', 'DID_DISAPPEAR'):
                 stats = vc.samples[vc_event].statistics
-                self._report_one_transition_row(table_transition, vc_type, vc_event, stats)
+                if vc_event == 'WILL_APPEAR':
+                    tmp_vc_type = vc_type
+                else:
+                    tmp_vc_type = None
+                self._report_one_transition_row(table_transition, tmp_vc_type, vc_event, stats)
 
         table_usage = Table()
         table_usage.add_row(TableRow([TableHeader(Bold('View Controller')),
