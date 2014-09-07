@@ -5,6 +5,6 @@ python -c "
 import keyring
 try:
     keyring.delete_password('NachoCove Telemetry', '$username')
-pass:
-    pass
+except:
+    print 'ERROR: fail to remove the password.'
 "
