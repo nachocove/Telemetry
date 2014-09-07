@@ -6,6 +6,7 @@ import ConfigParser
 import emails
 import getpass
 import logging
+from datetime import timedelta
 from html_elements import *
 from monitor_base import Summary, Monitor
 from monitor_log import MonitorErrors, MonitorWarnings
@@ -154,6 +155,10 @@ def main():
                               action=DateTimeAction,
                               dest='end',
                               default=None)
+    filter_group.add_argument('--daily',
+                              help='Set the ending time to exactly one day after the starting time',
+                              action='store_true',
+                              default=False)
 
     misc_group = parser.add_argument_group(title='Miscellaneous Option')
     misc_group.add_argument('-h', '--help', help='Print this help message', action='store_true', dest='help')
@@ -196,6 +201,9 @@ def main():
     if isinstance(options.end, str) and options.end == 'now':
         options.end = Parse.utc_datetime.UtcDateTime.now()
         do_update_timestamp = True
+    if options.daily:
+        options.end = Parse.utc_datetime.UtcDateTime(str(options.start))
+        options.end.datetime += timedelta(days=1)
 
     # If send email, we want to make sure that the email credential is there
     summary_table = Summary()
