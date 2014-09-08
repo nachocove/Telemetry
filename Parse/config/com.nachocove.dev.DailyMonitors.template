@@ -8,7 +8,7 @@ http://www.apple.com/DTDs/PropertyList-1.0.dtd >
 
     <key>ProgramArguments</key>
     <array>
-        <string>python</string>
+        <string>python2.7</string>
         <string>monitor.py</string>
         <string>--config</string>
         <string>monitor_dev.cfg</string>
