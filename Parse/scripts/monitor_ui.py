@@ -68,7 +68,7 @@ class MonitorUi(Monitor):
                         TableElement(Text(sdev_str), align='right')]
         if vc_type is not None:
             row_elements = [TableElement(Text(vc_type), rowspan=4, valign='top')] + row_elements
-        table.add_row(TableRow(row_elements))
+        table.add_row(TableRow(row_elements), advance_color=False)
 
     @staticmethod
     def _report_one_inuse_row(table, vc_type, stats):
@@ -95,6 +95,7 @@ class MonitorUi(Monitor):
         summary.add_entry('UI client count', pretty_number(len(self.clients)))
 
         table_transition = Table()
+        table_transition.color_list.configure(colors=[None, '#faffff'])
         table_transition.add_row(TableRow([TableHeader(Bold('View Controller')),
                                            TableHeader(Bold('Event')),
                                            TableHeader(Bold('Count')),
@@ -111,8 +112,10 @@ class MonitorUi(Monitor):
                 else:
                     tmp_vc_type = None
                 self._report_one_transition_row(table_transition, tmp_vc_type, vc_event, stats)
+            table_transition.color_list.advance()
 
         table_usage = Table()
+        table_usage.color_list.configure(colors=[None, '#faffff'])
         table_usage.add_row(TableRow([TableHeader(Bold('View Controller')),
                                       TableHeader(Bold('Count')),
                                       TableHeader(Bold('Min. (sec)')),

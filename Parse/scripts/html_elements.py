@@ -11,6 +11,47 @@ import cgi
 import re
 
 
+class ColorList:
+    def __init__(self, colors=None, counts=None):
+        self.cur_color = 0  # point to the next color selector
+        self.cur_count = 0
+        self.colors = list()
+        self.counts = list()
+        self.configure(colors, counts)
+
+    def color(self):
+        if len(self.colors) == 0:
+            return None
+        return self.colors[self.cur_color]
+
+    def advance(self):
+        if len(self.colors) == 0:
+            return None
+        self.cur_count += 1
+        if self.cur_count == self.counts[self.cur_color]:
+            self.cur_count = 0
+            self.cur_color = (self.cur_color + 1) % len(self.colors)
+
+    def configure(self, colors=None, counts=None):
+        if colors is None:
+            self.colors = list()
+        else:
+            assert isinstance(colors, list)
+            self.colors = colors
+
+        if counts is None:
+            self.counts = [1] * len(self.colors)
+        elif isinstance(counts, int):
+            self.counts = [counts] * len(self.colors)
+        else:
+            assert isinstance(counts, list)
+            assert len(counts) == len(self.colors)
+            self.counts = counts
+
+        self.cur_color = 0
+        self.cur_count = 0
+
+
 class Element:
     @staticmethod
     def assert_type(obj, class_):
@@ -233,6 +274,7 @@ class Table(Element):
         self.attrs = {'style': 'border-collapse: collapse',
                       'border': 1,
                       'cellpadding': 2}
+        self.color_list = ColorList()
 
     def plain_text(self):
         # We need to size the widths of table elements / headers
@@ -296,13 +338,19 @@ class Table(Element):
     def rows(self):
         return self.content
 
-    def add_row(self, row):
+    def add_row(self, row, advance_color=True):
         Element.assert_type(row, TableRow)
+        color = self.color_list.color()
+        if color is not None:
+            row.attrs['bgcolor'] = color
         self.content.append(row)
+        if advance_color:
+            self.color_list.advance()
 
-    def add_rows(self, rows):
+    def add_rows(self, rows, advanced_color=True):
         Element.assert_list_objects(rows, Table, TableRow)
-        self.content.extend(rows)
+        for row in rows:
+            self.add_row(row, advanced_color)
 
 
 class TableRow(Element):

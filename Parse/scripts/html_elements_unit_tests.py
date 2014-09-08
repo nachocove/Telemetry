@@ -125,5 +125,48 @@ class TestTable(unittest.TestCase):
                          '      Subtract (int a, int b)     \n')
 
 
+class TestColorList(unittest.TestCase):
+    def setUp(self):
+        self.colors = ['red', 'white', 'blue']
+        self.color_list = ColorList()
+
+    def test_no_colors(self):
+        self.assertEqual(None, self.color_list.color())
+        self.color_list.advance()
+        self.assertEqual(None, self.color_list.color())
+
+    def test_alternate(self):
+        self.color_list.configure(colors=self.colors)
+        for n in range(2):
+            for color in self.colors:
+                self.assertEqual(color, self.color_list.color())
+                self.color_list.advance()
+
+    def test_every_n(self):
+        """
+        Test that every N advance results in a new colors
+        """
+        N = 3
+        self.color_list.configure(colors=self.colors, counts=N)
+        for n in range(2):
+            for color in self.colors:
+                for m in range(N):
+                    self.assertEqual(color, self.color_list.color())
+                    self.color_list.advance()
+
+    def test_one_of_n(self):
+        """
+        By setting count correctly, we can get a line of highlight every N lines
+        """
+        N = 5
+        colors = ['white', 'gray']
+        self.color_list.configure(colors=colors, counts=[N-1, 1])
+        for n in range(2):
+            for i in range(N-1):
+                self.assertEqual('white', self.color_list.color())
+                self.color_list.advance()
+            self.assertEqual('gray', self.color_list.color())
+            self.color_list.advance()
+
 if __name__ == '__main__':
     unittest.main()
