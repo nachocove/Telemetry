@@ -204,7 +204,8 @@ def main():
     if options.daily:
         options.end = Parse.utc_datetime.UtcDateTime(str(options.start))
         options.end.datetime += timedelta(days=1)
-
+        do_update_timestamp = True
+        
     # If send email, we want to make sure that the email credential is there
     summary_table = Summary()
     summary_table.colors = [None, '#f0f0f0']
