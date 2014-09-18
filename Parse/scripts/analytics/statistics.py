@@ -25,12 +25,22 @@ class Statistics:
             self.second_moment = float(second_moment)
 
             # Sanity check the values
+            def less_than_beyond_numerical_uncertainty(a, b):
+                """
+                Check if a < b; rejecting cases when a and b are numerically very close.
+                """
+                if a >= b:
+                    return False
+                # a < b but make sure they are not very close
+                return math.fabs((a - b) / max(a,b)) > 1.0e-8
+
             mean = self.mean()
-            if min_ > mean:
+
+            if less_than_beyond_numerical_uncertainty(mean, min_):
                 raise ValueError('1st moment results in mean less than min.')
-            if max_ < mean:
+            if less_than_beyond_numerical_uncertainty(max_, mean):
                 raise ValueError('1st moment results in mean less than max.')
-            if self.second_moment < (self.mean() ** 2):
+            if less_than_beyond_numerical_uncertainty(self.second_moment, self.mean() ** 2):
                 raise ValueError('2nd moment results in negative variance.')
 
     def __add__(self, other):
@@ -83,4 +93,9 @@ class Statistics:
         return (self.second_moment / float(self.count)) - (self.mean() ** 2)
 
     def stddev(self):
+        # FIXME - The only way to this kind of exception due to numerical uncertainty
+        # is to send first moment from client. Need to implement that eventually
+        variance = self.variance()
+        if 0 > variance and math.fabs(variance) < 1.0e-15:
+            return 0.0
         return math.sqrt(self.variance())
