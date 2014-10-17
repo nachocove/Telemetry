@@ -39,7 +39,7 @@ class TokenList:
         return sum([(lambda a, b: a != b and 1 or 0)(x, y) for (x, y) in zip(self.tokens, other.tokens)])
 
     def __str__(self):
-        return ' '.join([str(x) for x in self.tokens])
+        return ' '.join([unicode(x) for x in self.tokens])
 
 
 class Tokenizer:

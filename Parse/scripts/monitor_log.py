@@ -69,7 +69,7 @@ class MonitorLog(Monitor):
         # Generate the report dictionary
         self.report_ = dict()
         for cluster in clusterer.clusters:
-            self.report_[str(cluster.pattern)] = len(cluster)
+            self.report_[unicode(cluster.pattern)] = len(cluster)
 
     def _get_trace(self, event):
         assert 'client' in event and 'timestamp' in event
