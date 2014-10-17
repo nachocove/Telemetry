@@ -160,7 +160,10 @@ class MonitorHockeyApp(Monitor):
         for crash in self.crashes:
             crash_obj = crash.ha_crash_obj
             # Limit reason to 5 lines
-            reason = crash_obj.crash_group_obj.reason.encode('utf-8')
+            if crash_obj.crash_group_obj.reason is not None:
+                reason = crash_obj.crash_group_obj.reason.encode('utf-8')
+            else:
+                reason = ''
             lines = reason.split('\n')
             max_lines = 3
             if len(lines) > max_lines:
