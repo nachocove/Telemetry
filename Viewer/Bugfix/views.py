@@ -39,10 +39,10 @@ else:
             api_key = projects.get(p, 'api_key')
             app_id = projects.get(p, 'app_id')
 assert api_key and app_id
-logger = logging.getLogger('telemetry')
-logger.info('project = %s', project)
-logger.info('api_key = %s', api_key)
-logger.info('app_id = %s', app_id)
+tmp_logger = logging.getLogger('telemetry')
+tmp_logger.info('project = %s', project)
+tmp_logger.info('api_key = %s', api_key)
+tmp_logger.info('app_id = %s', app_id)
 
 default_span = 15
 
@@ -184,6 +184,8 @@ def home(request):
 def _iso_z_format(date):
     raw = date.isoformat()
     keep = raw.split('+', 1)[0]
+    if date.microsecond == 0:
+        return keep + '.000Z'
     return keep[:-3] + 'Z'
 
 
