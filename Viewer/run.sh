@@ -1,2 +1,2 @@
 #!/bin/sh
-python manage.py runserver
+PROJECT=$1 python manage.py runserver

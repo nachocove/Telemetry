@@ -10,7 +10,7 @@ import cgi
 import os
 import tempfile
 import json
-
+import ConfigParser
 
 sys.path.append('../Parse/scripts')
 
@@ -20,8 +20,30 @@ from support import Support
 
 
 username = 'monitor'
-api_key = 'FL6KXH6xFC2n4Y1pGQcpf0GWWX3FJ61GmdqZYY72'
-app_id = 'uRVtTGj8WhhK4OJNRqKmSVg5FyS5gYXtQGIRRlqs'
+
+# Get the list of project
+projects = ConfigParser.ConfigParser()
+projects.read('projects.cfg')
+
+# Get the project name from the environment variable
+project = os.getenv('PROJECT')
+api_key = None
+app_id = None
+if not project:
+    project = projects.sections()[0]
+    api_key = projects.get(project, 'api_key')
+    app_id = projects.get(project, 'app_id')
+else:
+    for p in projects.sections():
+        if p == project:
+            api_key = projects.get(p, 'api_key')
+            app_id = projects.get(p, 'app_id')
+assert api_key and app_id
+logger = logging.getLogger('telemetry')
+logger.info('project = %s', project)
+logger.info('api_key = %s', api_key)
+logger.info('app_id = %s', app_id)
+
 default_span = 15
 
 
@@ -92,7 +114,7 @@ def login(request):
         else:
             logger.warn('invalid form data')
     form = LoginForm()
-    return render(request, 'login.html', {'form': form, 'message': message})
+    return render(request, 'login.html', {'form': form, 'message': message, 'project': project})
 
 
 def home(request):
@@ -156,13 +178,13 @@ def home(request):
         else:
             logger.warn('invalid form data')
     form = VectorForm()
-    return render(request, 'home.html', {'form': form, 'message': message})
+    return render(request, 'home.html', {'form': form, 'message': message, 'project': project})
 
 
 def _iso_z_format(date):
     raw = date.isoformat()
     keep = raw.split('+', 1)[0]
-    return keep + 'Z'
+    return keep[:-3] + 'Z'
 
 
 def entry_page(request, client='', timestamp='', span=str(default_span)):
@@ -259,6 +281,7 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
     # Add 3 buttons
     html += '<body onload="refresh()">\n'
+    html += '<h1>%s</h1><hr>' % project
     html += '<table><tr>\n'
     zoom_in_span = max(1, span/2)
     html += add_ctrl_button('Zoom in (%d min)' % zoom_in_span, ctrl_url(client, iso_center, zoom_in_span))
