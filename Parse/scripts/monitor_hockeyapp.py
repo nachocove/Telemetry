@@ -85,6 +85,8 @@ class CrashInfo:
         return self.trace.write_file()
 
     def save_log(self):
+        if self.crash_utc is None:
+            return None
         log_path = 'crash_log.%s.%s.txt' % (self.ha_crash_obj.crash_id,
                                             UtcDateTime(self.crash_utc).file_suffix())
         with open(log_path, 'w') as f:
@@ -163,13 +165,13 @@ class MonitorHockeyApp(Monitor):
             if crash_obj.crash_group_obj.reason is not None:
                 reason = crash_obj.crash_group_obj.reason.encode('utf-8')
             else:
-                reason = ''
+                reason = '<unknown>'
             lines = reason.split('\n')
             max_lines = 3
             if len(lines) > max_lines:
                 lines = lines[:max_lines]
             reason = '\n'.join(lines)
-            client = '-'
+            client = '<unknown>'
             if crash.client:
                 client = crash.client
             link = 'https://rink.hockeyapp.net/manage/apps/%s/app_versions/1/crash_reasons/%s?type=crashes' % \
@@ -192,6 +194,8 @@ class MonitorHockeyApp(Monitor):
 
         for crash in self.crashes:
             crash_log_path = crash.save_log()
+            if crash_log_path is None:
+                continue
             zipped_file.write(crash_log_path)
             os.unlink(crash_log_path)
             crash_trace_path = crash.save_trace()
