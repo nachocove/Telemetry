@@ -1,21 +1,21 @@
 import argparse
 import Parse
 import HockeyApp
-import config
+from misc import config
 import ConfigParser
-import emails
+from misc import emails
 import getpass
 import logging
 from datetime import timedelta
-from html_elements import *
-from monitor_base import Summary, Monitor
-from monitor_log import MonitorErrors, MonitorWarnings
-from monitor_count import MonitorUsers, MonitorEvents
-from monitor_captures import MonitorCaptures
-from monitor_counters import MonitorCounters
-from monitor_hockeyapp import MonitorHockeyApp
-from monitor_ui import MonitorUi
-from monitor_support import MonitorSupport
+from misc.html_elements import *
+from monitors.monitor_base import Summary, Monitor
+from monitors.monitor_log import MonitorErrors, MonitorWarnings
+from monitors.monitor_count import MonitorUsers, MonitorEvents
+from monitors.monitor_captures import MonitorCaptures
+from monitors.monitor_counters import MonitorCounters
+from monitors.monitor_hockeyapp import MonitorHockeyApp
+from monitors.monitor_ui import MonitorUi
+from monitors.monitor_support import MonitorSupport
 
 
 class MonitorConfig(config.Config):

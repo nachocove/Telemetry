@@ -14,14 +14,14 @@ import Parse
 import getpass
 import os
 import pprint
-import config
+from misc import config
 import threading
 import Queue
-import event_formatter
+from misc import event_formatter
 import time
-import events
-import support
-import expression
+from misc import events
+from misc import support
+from misc import expression
 
 
 def abort(mesg):
