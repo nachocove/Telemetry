@@ -1,7 +1,7 @@
 import Parse
 from monitor_base import Monitor
-from html_elements import *
-from number_formatter import pretty_number
+from misc.html_elements import *
+from misc.number_formatter import pretty_number
 
 
 class CounterInfo:

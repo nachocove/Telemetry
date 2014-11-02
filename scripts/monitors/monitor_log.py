@@ -1,15 +1,15 @@
 import Parse
 import pprint
 import zipfile
-import event_formatter
+from misc import event_formatter
 import os
 from monitor_base import Monitor
-from number_formatter import pretty_number
-from html_elements import *
+from misc.number_formatter import pretty_number
+from misc.html_elements import *
 from logtrace import LogTrace
 from analytics.token import TokenList, WhiteSpaceTokenizer
 from analytics.cluster import Clusterer
-from threadpool import *
+from misc.threadpool import *
 
 
 class MonitorLogTraceThread(ThreadPoolThread):

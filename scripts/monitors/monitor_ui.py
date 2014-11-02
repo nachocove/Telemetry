@@ -1,8 +1,8 @@
 import Parse
 from monitor_base import Monitor
 from viewcontroller import ViewControllerSet
-from number_formatter import *
-from html_elements import *
+from misc.number_formatter import *
+from misc.html_elements import *
 
 
 class MonitorUi(Monitor):

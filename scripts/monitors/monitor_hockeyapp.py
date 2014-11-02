@@ -6,7 +6,7 @@ import logging
 from monitor_base import Monitor
 from Parse.utc_datetime import UtcDateTime
 from logtrace import LogTrace
-from html_elements import *
+from misc.html_elements import *
 
 
 class CrashInfo:

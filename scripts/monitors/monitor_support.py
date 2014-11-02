@@ -1,8 +1,8 @@
 import Parse
 from monitor_base import Monitor
-from support import *
-from number_formatter import pretty_number
-from html_elements import *
+from misc.support import *
+from misc.number_formatter import pretty_number
+from misc.html_elements import *
 
 
 class MonitorSupport(Monitor):

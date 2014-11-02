@@ -1,6 +1,6 @@
 import Parse
 from monitor_base import Monitor
-from number_formatter import pretty_number
+from misc.number_formatter import pretty_number
 
 
 class MonitorCount(Monitor):
