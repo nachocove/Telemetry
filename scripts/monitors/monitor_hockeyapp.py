@@ -1,10 +1,11 @@
 import os
 import zipfile
+import logging
+
 import HockeyApp
 import Parse
-import logging
 from monitor_base import Monitor
-from Parse.utc_datetime import UtcDateTime
+from misc.utc_datetime import UtcDateTime
 from logtrace import LogTrace
 from misc.html_elements import *
 

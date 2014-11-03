@@ -10,15 +10,16 @@ except ImportError:
     print ''
     exit(1)
 import argparse
-import Parse
 import getpass
 import os
 import pprint
-from misc import config
 import threading
 import Queue
-from misc import event_formatter
 import time
+
+import Parse
+from misc import config
+from misc import event_formatter
 from misc import events
 from misc import support
 from misc import expression
@@ -213,7 +214,7 @@ def query_(options):
 
 def console(options):
     # Set up current time
-    current = Parse.utc_datetime.UtcDateTime.now()
+    current = misc.utc_datetime.UtcDateTime.now()
 
     formatter = setup_event_formatter(event_formatter.LogStyleEventFormatter, options)
 
@@ -232,7 +233,7 @@ def console(options):
                 continue
 
             # Update time
-            current = Parse.utc_datetime.UtcDateTime(obj_list[-1]['createdAt'])
+            current = misc.utc_datetime.UtcDateTime(obj_list[-1]['createdAt'])
 
             # Print out the event
             for obj in obj_list:
@@ -374,12 +375,12 @@ class SelectorAction(argparse.Action):
             else:
                 raise ValueError('invalid boolean value %s' % value)
         elif option_string == '--after':
-            sel = Parse.query.SelectorGreaterThanEqual(Parse.utc_datetime.UtcDateTime(value))
+            sel = Parse.query.SelectorGreaterThanEqual(misc.utc_datetime.UtcDateTime(value))
         elif option_string == '--before':
             if value == 'now':
-                sel = Parse.query.SelectorLessThan(Parse.utc_datetime.UtcDateTime.now())
+                sel = Parse.query.SelectorLessThan(misc.utc_datetime.UtcDateTime.now())
             else:
-                sel = Parse.query.SelectorLessThan(Parse.utc_datetime.UtcDateTime(value))
+                sel = Parse.query.SelectorLessThan(misc.utc_datetime.UtcDateTime(value))
         elif option_string == '--startswith':
             sel = Parse.query.SelectorStartsWith(value)
         else:
@@ -525,7 +526,7 @@ def main():
     for (field, sel) in zip(options.field, options.selectors):
         if field in ['timestamp', 'createdAt', 'updatedAt', 'counter_start', 'counter_end']:
             if issubclass(sel.__class__, Parse.query.SelectorCompare) and isinstance(sel.value, str):
-                sel.value = Parse.utc_datetime.UtcDateTime(sel.value)
+                sel.value = misc.utc_datetime.UtcDateTime(sel.value)
         elif field in ['count', 'min', 'max', 'average', 'stddev']:
             if issubclass(sel.__class__, Parse.query.SelectorCompare):
                 sel.value = int(sel.value)

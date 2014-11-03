@@ -1,6 +1,8 @@
+from datetime import timedelta
+
 import Parse
 from misc import event_formatter
-from datetime import timedelta
+from misc import utc_datetime
 
 
 class LogTrace:
@@ -12,11 +14,11 @@ class LogTrace:
         to the nearest minute is applied to the datetime.
         """
         if isinstance(utc, str):
-            start = Parse.utc_datetime.UtcDateTime(utc)
-            end = Parse.utc_datetime.UtcDateTime(utc)
+            start = utc_datetime.UtcDateTime(utc)
+            end = utc_datetime.UtcDateTime(utc)
         else:
-            start = Parse.utc_datetime.UtcDateTime(str(utc))
-            end = Parse.utc_datetime.UtcDateTime(str(utc))
+            start = utc_datetime.UtcDateTime(str(utc))
+            end = utc_datetime.UtcDateTime(str(utc))
         start.datetime += timedelta(minutes=-before)
         end.datetime += timedelta(minutes=+after)
 

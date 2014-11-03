@@ -1,10 +1,12 @@
 import unittest
+
 from connection import Connection
 from exception import ParseException
 from acl import Acl
 from objects import Object
 from users import User
-from utc_datetime import UtcDateTime
+from misc.utc_datetime import UtcDateTime
+
 
 
 # For PythonUnitTest app

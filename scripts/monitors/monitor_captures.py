@@ -3,6 +3,7 @@ import analytics
 from monitor_base import Monitor
 from misc.html_elements import *
 from misc.number_formatter import *
+from misc.utc_datetime import UtcDateTime
 
 
 class Capture:
@@ -18,7 +19,7 @@ class Capture:
                                                           max_=event['max'],
                                                           first_moment=first_moment,
                                                           second_moment=second_moment)
-        self.timestamp = Parse.utc_datetime.UtcDateTime(event['timestamp']['iso'])
+        self.timestamp = UtcDateTime(event['timestamp']['iso'])
 
     def _same_client(self, other):
         if self.client != other.client:

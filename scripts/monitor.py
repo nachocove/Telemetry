@@ -1,12 +1,13 @@
 import argparse
-import Parse
-import HockeyApp
-from misc import config
 import ConfigParser
-from misc import emails
 import getpass
 import logging
 from datetime import timedelta
+
+import Parse
+import HockeyApp
+from misc import config
+from misc import emails
 from misc.html_elements import *
 from monitors.monitor_base import Summary, Monitor
 from monitors.monitor_log import MonitorErrors, MonitorWarnings
@@ -27,7 +28,7 @@ class MonitorConfig(config.Config):
             timestamp = self.config.get('timestamps', 'last')
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             return None
-        return Parse.utc_datetime.UtcDateTime(timestamp)
+        return misc.utc_datetime.UtcDateTime(timestamp)
 
     def write_timestamp(self, utc_now):
         if not self.config.has_section('timestamps'):
@@ -100,7 +101,7 @@ class DateTimeAction(argparse.Action):
         elif (option_string == '--before') and ('now' == value):
             setattr(namespace, self.dest, 'now')
         else:
-            setattr(namespace, self.dest, Parse.utc_datetime.UtcDateTime(value))
+            setattr(namespace, self.dest, misc.utc_datetime.UtcDateTime(value))
 
 
 def datetime_tostr(iso_datetime):
@@ -199,10 +200,10 @@ def main():
     if isinstance(options.start, str) and options.start == 'last':
         options.start = config_.read_timestamp()
     if isinstance(options.end, str) and options.end == 'now':
-        options.end = Parse.utc_datetime.UtcDateTime.now()
+        options.end = misc.utc_datetime.UtcDateTime.now()
         do_update_timestamp = True
     if options.daily:
-        options.end = Parse.utc_datetime.UtcDateTime(str(options.start))
+        options.end = misc.utc_datetime.UtcDateTime(str(options.start))
         options.end.datetime += timedelta(days=1)
         do_update_timestamp = True
         
