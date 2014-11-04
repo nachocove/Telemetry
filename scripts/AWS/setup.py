@@ -2,6 +2,7 @@
 
 import pprint
 from argparse import ArgumentParser
+from boto import dynamodb2
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from model import *
 from boto.exception import JSONResponseError
@@ -56,13 +57,13 @@ def main():
                         default=8000)
     parser.add_argument('--secret-key',
                         help='AWS secret access key',
-                        default='local_db')
+                        default='dynamodb_local')
     parser.add_argument('--access-key',
                         help='AWS access key id',
-                        default='local_db')
+                        default='dynamodb_local')
     parser.add_argument('--prefix',
                         help='Prefix of the table names',
-                        default='test')
+                        default='dev')
     parser.add_argument('action',
                         metavar='ACTION',
                         nargs='+',
@@ -76,11 +77,18 @@ def main():
 
     TelemetryTable.PREFIX = options.prefix
 
-    conn = DynamoDBConnection(host=options.host,
-                              port=options.port,
-                              aws_secret_access_key=options.secret_key,
-                              aws_access_key_id=options.access_key,
-                              is_secure=is_secure)
+    if True:
+        conn = DynamoDBConnection(host=options.host,
+                                  port=options.port,
+                                  aws_secret_access_key=options.secret_key,
+                                  aws_access_key_id=options.access_key,
+                                  region='us-east-1',
+                                  is_secure=is_secure)
+        conn.region = 'us-east-1'
+    else:
+        conn = dynamodb2.connect_to_region('us-east-1',
+                                           aws_access_key_id='dynamodb_local',
+                                           aws_secret_access_key='dynamodb_local')
 
     action_table = {
         'list': list_tables,
@@ -93,6 +101,7 @@ def main():
         if action_fn is None:
             print 'Ignore unknown action %s' % action
             continue
+        assert callable(action_fn)
         action_fn(conn)
 
 if __name__ == '__main__':
