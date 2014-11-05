@@ -4,8 +4,25 @@ import datetime
 
 
 class UtcDateTime:
-    def __init__(self, iso8601):
-        self.datetime = dateutil.parser.parse(iso8601)
+    def __init__(self, value=None):
+        if isinstance(value, str):
+            self.datetime = dateutil.parser.parse(value)
+        elif isinstance(value, datetime.datetime):
+            self.datetime = value
+        elif isinstance(value, int):
+            milliseconds = value / 10000
+            (days, milliseconds) = divmod(milliseconds, 86400 * 1000)
+            date = datetime.date.fromordinal(days + 1)
+            (hours, milliseconds) = divmod(milliseconds, 3600 * 1000)
+            (minutes, milliseconds) = divmod(milliseconds, 60 * 1000)
+            (seconds, milliseconds) = divmod(milliseconds, 1000)
+
+            self.datetime = datetime.datetime(year=date.year,
+                                              month=date.month,
+                                              day=date.day,
+                                              hour=hours,
+                                              minute=minutes,
+                                              second=seconds)
 
     def __repr__(self):
         s = self.datetime.strftime('%Y-%m-%dT%H:%M:%S')
@@ -26,7 +43,25 @@ class UtcDateTime:
     def file_suffix(self):
         return str(self).replace(':', '_').replace('-', '_').replace('.', '_')
 
+    def toticks(self):
+        days = datetime.date.toordinal(self.datetime.date()) - 1
+        ticks = days * 86400
+        ticks += self.datetime.hour * 3600
+        ticks += self.datetime.minute * 60
+        ticks += self.datetime.second
+        ticks = (ticks * 1000000) + UtcDateTime._round_to_millisecond(self.datetime.microsecond)
+        return ticks * 10  # convert to ticks
+
+    @staticmethod
+    def _round_to_millisecond(microsecond):
+        return microsecond - (microsecond % 1000)
+
     @staticmethod
     def now():
         dt = datetime.datetime.utcnow()
         return UtcDateTime(dt.strftime('%Y-%m-%dT%H:%M:%S.%fZ'))
+
+    @staticmethod
+    def from_ticks(ticks):
+        assert isinstance(ticks, int)
+        return UtcDateTime(ticks)

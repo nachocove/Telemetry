@@ -2,9 +2,8 @@
 
 import pprint
 from argparse import ArgumentParser
-from boto import dynamodb2
 from boto.dynamodb2.layer1 import DynamoDBConnection
-from model import *
+from tables import *
 from boto.exception import JSONResponseError
 
 
@@ -28,12 +27,12 @@ def delete_tables(connection):
 
 def create_tables(connection):
     table_classes = [
-        Log,
-        Wbxml,
-        Counter,
-        Capture,
-        Support,
-        Ui
+        LogTable,
+        WbxmlTable,
+        CounterTable,
+        CaptureTable,
+        SupportTable,
+        UiTable
     ]
 
     for cls in table_classes:
@@ -77,18 +76,13 @@ def main():
 
     TelemetryTable.PREFIX = options.prefix
 
-    if True:
-        conn = DynamoDBConnection(host=options.host,
-                                  port=options.port,
-                                  aws_secret_access_key=options.secret_key,
-                                  aws_access_key_id=options.access_key,
-                                  region='us-east-1',
-                                  is_secure=is_secure)
-        conn.region = 'us-east-1'
-    else:
-        conn = dynamodb2.connect_to_region('us-east-1',
-                                           aws_access_key_id='dynamodb_local',
-                                           aws_secret_access_key='dynamodb_local')
+    conn = DynamoDBConnection(host=options.host,
+                              port=options.port,
+                              aws_secret_access_key=options.secret_key,
+                              aws_access_key_id=options.access_key,
+                              region='us-east-1',
+                              is_secure=is_secure)
+    conn.region = 'us-east-1'
 
     action_table = {
         'list': list_tables,
