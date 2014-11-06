@@ -1,15 +1,16 @@
-from tables import LogTable, WbxmlTable, CounterTable, CaptureTable, SupportTable, UiTable
+from events import LogEvent, WbxmlEvent, CounterEvent, CaptureEvent, SupportEvent, UiEvent
 from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan
-
+from boto.dynamodb2.table import Table
+from misc.utc_datetime import UtcDateTime
 
 class Query:
-    TABLES = [
-        LogTable,
-        WbxmlTable,
-        CounterTable,
-        CaptureTable,
-        SupportTable,
-        UiTable
+    EVENT_CLASSES = [
+        LogEvent,
+        WbxmlEvent,
+        CounterEvent,
+        CaptureEvent,
+        SupportEvent,
+        UiEvent
     ]
 
     def __init__(self):
@@ -23,6 +24,7 @@ class Query:
             self.selectors[field].append(selector)
         else:
             self.selectors[field] = [selector]
+        self._split_query()
 
     def add_range(self, field, start, stop):
         if start is None and stop is None:
@@ -32,6 +34,7 @@ class Query:
                 self.add(field, SelectorGreaterThanEqual(start))
             if stop is not None:
                 self.add(field, SelectorLessThan(stop))
+        self._split_query()
 
     def has_field(self, field):
         return field in self.selectors
@@ -41,12 +44,13 @@ class Query:
         Split a query into a set of table queries.
         :return:
         """
-        self.table_query = list()
-        for table in Query.TABLES:
-            self.table_query[table] = table.should_return(self)
+        self.table_query = dict()
+        for event_cls in Query.EVENT_CLASSES:
+            assert event_cls.TABLE_CLASS is not None
+            self.table_query[event_cls] = event_cls.TABLE_CLASS.should_handle(self)
 
     @staticmethod
-    def objects(cls, query, conn):
+    def events(query, connection):
         """
         This method performs query to multiple tables and combines events (chronologically)
         and return a single list of events
@@ -55,22 +59,37 @@ class Query:
         # 'cls' is not used at all. it is only there for backward compatibility. Once
         # the transition to AWS is complete, we can get rid of it
         events = list()
-        for (table, table_query) in query.table_query.items():
+        for (event_cls, table_query) in query.table_query.items():
+            table_cls = event_cls.TABLE_CLASS
+            assert table_cls is not None
+
+            table = table_cls(connection)
             if table_query.has_primary_keys():
                 results = table.query_2(limit=query.limit,
                                         reverse=False,
                                         consistent=False,  # FIXME - revisit this later
                                         query_filter=table_query.query_filter.data(),
-                                        *table_query.primary_key.data())
+                                        **table_query.primary_keys.data())
             elif table_query.has_secondary_keys():
                 results = table.query_2(limit=query.limit,
                                         reverse=False,
                                         consistent=False,  # FIXME - revisit this later
                                         index=table_query.index,
                                         query_filter=table_query.query_filter.data(),
-                                        *table_query.secondary_key.data())
+                                        **table_query.secondary_keys.data())
             else:
                 # No keys in any of the indexes. Fall back to scan
                 results = table.scan(table_query.query_filter.data())
-            events.extend(results)
-        return events
+            table_events = event_cls.from_db_results(connection, results)
+            events.extend(table_events)
+
+        # We apply the limit to each table. The combined length could exceed the query limit. If so, trim again
+        if len(events) > query.limit:
+            events = events[:query.limit]
+
+        # Sort the chronologically.
+        return Query.sort_chronologically(events)
+
+    @staticmethod
+    def sort_chronologically(events):
+        return sorted(events, key=lambda x: x['timestamp'])

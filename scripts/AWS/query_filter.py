@@ -9,6 +9,8 @@ class QueryFilter:
         self.dict_[field + '__' + sel.op] = sel.value
 
     def data(self):
+        if len(self.dict_) == 0:
+            return None
         return self.dict_
 
     def add_range(self, field, start, stop):

@@ -70,16 +70,15 @@ class TelemetryTable(Table):
     @classmethod
     def should_handle(cls, query):
         result = TelemetryTableQuery()
-        for (field, sel) in query.selectors.items():
+        for (field, selectors) in query.selectors.items():
             if cls.is_for_us(field):
                 result.for_us = True
-            result.may_add_primary_hashkey(field, 'id', sel)
-            result.may_add_secondary_hashkey(field, 'client', TelemetryTable.CLIENT_TIMESTAMP_INDEX, sel)
-            result.may_add_secondary_rangekey(field, 'timestamp',
-                                              index_name=[
-                                                  TelemetryTable.CLIENT_TIMESTAMP_INDEX,
-                                              ],
-                                              sel=sel)
+        result.may_add_primary_hashkey(query.selectors, 'id')
+        result.may_add_secondary_hashkey(query.selectors, 'client', TelemetryTable.CLIENT_TIMESTAMP_INDEX)
+        result.may_add_secondary_rangekey(query.selectors, 'timestamp',
+                                          index_name=[
+                                              TelemetryTable.CLIENT_TIMESTAMP_INDEX,
+                                          ])
         return result
 
 
@@ -120,9 +119,8 @@ class LogTable(TelemetryTable):
     @classmethod
     def should_handle(cls, query):
         result = TelemetryTable.should_handle(query)
-        for (field, sel) in query.selectors.items():
-            result.may_add_secondary_hashkey(field, 'event', cls.EVENT_TYPE_TIMESTAMP_INDEX, sel)
-            result.may_add_secondary_rangekey(field, 'timestamp', [cls.EVENT_TYPE_TIMESTAMP_INDEX], sel)
+        result.may_add_secondary_hashkey(query.selectors, 'event', cls.EVENT_TYPE_TIMESTAMP_INDEX)
+        result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.EVENT_TYPE_TIMESTAMP_INDEX])
         return result
 
 
@@ -157,9 +155,8 @@ class WbxmlTable(TelemetryTable):
     @classmethod
     def should_handle(cls, query):
         result = TelemetryTable.should_handle(query)
-        for (field, sel) in query.selectors.items():
-            result.may_add_secondary_hashkey(field, 'event', cls.EVENT_TYPE_TIMESTAMP_INDEX, sel)
-            result.may_add_secondary_rangekey(field, 'timestamp', [cls.EVENT_TYPE_TIMESTAMP_INDEX], sel)
+        result.may_add_secondary_hashkey(query.selectors, 'event', cls.EVENT_TYPE_TIMESTAMP_INDEX)
+        result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.EVENT_TYPE_TIMESTAMP_INDEX])
         return result
 
 
@@ -187,9 +184,9 @@ class CounterTable(TelemetryTable):
     @classmethod
     def should_handle(cls, query):
         result = TelemetryTable.should_handle(query)
-        for (field, sel) in query.selectors.items():
-            result.may_add_secondary_hashkey(field, 'counter_name', cls.COUNTER_NAME_TIMESTAMP_INDEX, sel)
-            result.may_add_secondary_rangekey(field, 'timestamp', [cls.COUNTER_NAME_TIMESTAMP_INDEX], sel)
+        result.may_add_secondary_hashkey(query.selectors, 'counter_name', cls.COUNTER_NAME_TIMESTAMP_INDEX)
+        result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.COUNTER_NAME_TIMESTAMP_INDEX])
+        return result
 
 
 class CaptureTable(TelemetryTable):
@@ -216,9 +213,9 @@ class CaptureTable(TelemetryTable):
     @classmethod
     def should_handle(cls, query):
         result = TelemetryTable.should_handle(query)
-        for (field, sel) in query.selectors.items():
-            result.may_add_secondary_hashkey(field, 'counter_name', cls.CAPTURE_NAME_TIMESTAMP_INDEX, sel)
-            result.may_add_secondary_rangekey(field, 'timestamp', [cls.CAPTURE_NAME_TIMESTAMP_INDEX], sel)
+        result.may_add_secondary_hashkey(query.selectors, 'counter_name', cls.CAPTURE_NAME_TIMESTAMP_INDEX)
+        result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.CAPTURE_NAME_TIMESTAMP_INDEX])
+        return result
 
 
 class SupportTable(TelemetryTable):

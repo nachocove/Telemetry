@@ -1,6 +1,7 @@
 import dateutil.parser
 import dateutil.tz
 import datetime
+import pytz
 
 
 class UtcDateTime:
@@ -22,7 +23,8 @@ class UtcDateTime:
                                               day=date.day,
                                               hour=hours,
                                               minute=minutes,
-                                              second=seconds)
+                                              second=seconds,
+                                              tzinfo=pytz.utc)
 
     def __repr__(self):
         s = self.datetime.strftime('%Y-%m-%dT%H:%M:%S')

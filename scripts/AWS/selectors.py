@@ -26,37 +26,37 @@ class SelectorCompare(Selector):
 class SelectorEqual(SelectorCompare):
     def __init__(self, value):
         SelectorCompare.__init__(self, value)
-        self.op = 'EQ'
+        self.op = 'eq'
 
 
 class SelectorNotEqual(SelectorCompare):
     def __init__(self, value):
         SelectorCompare.__init__(self, value)
-        self.op = 'NE'
+        self.op = 'ne'
 
 
 class SelectorLessThan(SelectorCompare):
     def __init__(self, value):
         SelectorCompare.__init__(self, value)
-        self.op = 'LT'
+        self.op = 'lt'
 
 
 class SelectorLessThanEqual(SelectorCompare):
     def __init__(self, value):
         SelectorCompare.__init__(self, value)
-        self.op = 'LE'
+        self.op = 'le'
 
 
 class SelectorGreaterThan(SelectorCompare):
     def __init__(self, value):
         SelectorCompare.__init__(self, value)
-        self.op = 'GT'
+        self.op = 'gt'
 
 
 class SelectorGreaterThanEqual(SelectorCompare):
     def __init__(self, value):
         SelectorCompare.__init__(self, value)
-        self.op = 'GE'
+        self.op = 'ge'
 
 
 class SelectorExists(Selector):
@@ -65,9 +65,9 @@ class SelectorExists(Selector):
             raise TypeError('value must be bool')
         Selector.__init__(self, value)
         if value:
-            self.op = 'NOT_NULL'
+            self.op = 'not_null'
         else:
-            self.op = 'NULL'
+            self.op = 'null'
 
 
 class SelectorContains(Selector):
@@ -75,7 +75,7 @@ class SelectorContains(Selector):
         if not isinstance(value, str):
             raise TypeError('value must be str')
         Selector.__init__(self, value)
-        self.op = 'CONTAINS'
+        self.op = 'contains'
 
 
 class SelectorNotContains(Selector):
@@ -83,7 +83,7 @@ class SelectorNotContains(Selector):
         if not isinstance(value, str):
             raise TypeError('value must be str')
         Selector.__init__(self, value)
-        self.op = 'NOT_CONTAINS'
+        self.op = 'not_contains'
 
 
 class SelectorStartsWith(Selector):
@@ -91,4 +91,4 @@ class SelectorStartsWith(Selector):
         if not isinstance(value, str):
             raise TypeError('value must be str')
         Selector.__init__(self, '^\Q' + value + '\E')
-        self.op = 'BEGINS_WITH'
+        self.op = 'beginswith'
