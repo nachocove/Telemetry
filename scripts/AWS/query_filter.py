@@ -4,9 +4,11 @@ from selectors import SelectorGreaterThanEqual, SelectorLessThan
 class QueryFilter:
     def __init__(self):
         self.dict_ = dict()
+        self.fields = list()
 
     def add(self, field, sel):
         self.dict_[field + '__' + sel.op] = sel.value
+        self.fields.append(field)
 
     def data(self):
         if len(self.dict_) == 0:

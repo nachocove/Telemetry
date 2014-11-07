@@ -12,6 +12,11 @@ class Selector:
                 self.__dict__[key] = value
             elif isinstance(value, UtcDateTime):
                 self.__dict__[key] = value.toticks()
+            elif isinstance(value, list) and isinstance(self, SelectorBetween):
+                if isinstance(value[0], UtcDateTime):
+                    self.__dict__[key] = [x.toticks() for x in value]
+                else:
+                    self.__dict__[key] = value
             else:
                 raise TypeError('unsupported type %s' % value.__class__.__name__)
         else:
@@ -44,7 +49,7 @@ class SelectorLessThan(SelectorCompare):
 class SelectorLessThanEqual(SelectorCompare):
     def __init__(self, value):
         SelectorCompare.__init__(self, value)
-        self.op = 'le'
+        self.op = 'lte'
 
 
 class SelectorGreaterThan(SelectorCompare):
@@ -56,7 +61,7 @@ class SelectorGreaterThan(SelectorCompare):
 class SelectorGreaterThanEqual(SelectorCompare):
     def __init__(self, value):
         SelectorCompare.__init__(self, value)
-        self.op = 'ge'
+        self.op = 'gte'
 
 
 class SelectorExists(Selector):
@@ -90,5 +95,11 @@ class SelectorStartsWith(Selector):
     def __init__(self, value):
         if not isinstance(value, str):
             raise TypeError('value must be str')
-        Selector.__init__(self, '^\Q' + value + '\E')
+        Selector.__init__(self, value)
         self.op = 'beginswith'
+
+
+class SelectorBetween(SelectorCompare):
+    def __init__(self, lo, hi):
+        Selector.__init__(self, [lo, hi])
+        self.op = 'between'

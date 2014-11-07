@@ -6,6 +6,10 @@ from tables import *
 from query import Query
 
 
+def sublist(list_, indexes):
+    return [list_[x] for x in indexes]
+
+
 class TestQueryFilter(unittest.TestCase):
     def setUp(self):
         self.query_filter = QueryFilter()
@@ -42,14 +46,14 @@ class TestQueryFilter(unittest.TestCase):
         self.query_filter.add('timestamp', SelectorLessThanEqual(500))
         self.assertDictEqual(self.query_filter.data(),
                              {
-                                 'timestamp__le': 500
+                                 'timestamp__lte': 500
                              })
 
     def test_greaterthanequal(self):
         self.query_filter.add('timestamp', SelectorGreaterThanEqual(600))
         self.assertDictEqual(self.query_filter.data(),
                              {
-                                 'timestamp__ge': 600
+                                 'timestamp__gte': 600
                              })
 
 
@@ -74,10 +78,21 @@ class TestTables(unittest.TestCase):
             table_cls.create_table(self.connection)
 
     def compare_events(self, expected, got):
+        # Make sure the set of keys are the same. Note that we need to strip the trailing '_'
+        # in the expected values
+        expected_keys = sorted([x.rstrip('_') for x in expected.keys()])
+        got_keys = sorted(got.keys())
+        self.assertListEqual(expected_keys, got_keys)
+
+        # Make sure the values are the same
         for (field, value) in expected.items():
-            if field[-1] == '_':
-                field = field[:-1]  # remove trailing '_' (used to avoid python keyword conflict)
-            self.assertEquals(got[field], value, field)
+            field = field.rstrip('_')  # remove trailing '_' (used to avoid python keyword conflicts)
+            self.assertEqual(got[field], value, field)
+
+    def compare_events_list(self, expected, got):
+        self.assertEqual(len(expected), len(got))
+        for n in range(len(expected)):
+            self.compare_events(expected[n], got[n])
 
     def generic_tests(self, items, event_cls):
         """
@@ -113,7 +128,7 @@ class TestTables(unittest.TestCase):
             {
                 'id_': '1',
                 'client': 'bob',
-                'timestamp': UtcDateTime('2014-11-01T08:00:00Z'),
+                'timestamp': UtcDateTime('2014-11-01T07:00:00Z'),
                 'event_type': 'INFO',
                 'message': 'info log #1'
             },
@@ -144,6 +159,13 @@ class TestTables(unittest.TestCase):
                 'timestamp': UtcDateTime('2014-11-01T09:00:11Z'),
                 'event_type': 'INFO',
                 'message': 'info log #5'
+            },
+            {
+                'id_': '6',
+                'client': 'john',
+                'timestamp': UtcDateTime('2014-11-01T10:00:12Z'),
+                'event_type': 'DEBUG',
+                'message': 'debug log #6'
             }
         ]
         self.generic_tests(logs, LogEvent)
@@ -152,17 +174,12 @@ class TestTables(unittest.TestCase):
         query = Query()
         query.add('client', SelectorEqual('bob'))
         events = Query.events(query, self.connection)
-        self.assertEqual(3, len(events))
-        self.compare_events(logs[0], events[0])
-        self.compare_events(logs[1], events[1])
-        self.compare_events(logs[2], events[2])
+        self.compare_events_list(logs[0:3], events)
 
         query = Query()
         query.add('client', SelectorEqual('john'))
         events = Query.events(query, self.connection)
-        self.assertEqual(2, len(events))
-        self.compare_events(logs[3], events[0])
-        self.compare_events(logs[4], events[1])
+        self.compare_events_list(logs[3:6], events)
 
         # Query by client id + timestamp
         query = Query()
@@ -175,26 +192,83 @@ class TestTables(unittest.TestCase):
         # Query by client id + timestamp range
         query = Query()
         query.add('client', SelectorEqual('john'))
-        query.add('timestamp', SelectorLessThan(UtcDateTime('2014-11-01T08:30:00Z')))
+        query.add('timestamp', SelectorLessThan(UtcDateTime('2014-11-01T09:30:00Z')))
         events = Query.events(query, self.connection)
-        self.assertEqual(1, len(events))
-        self.compare_events(logs[3], events[0])
+        self.compare_events_list(logs[3:5], events)
 
         query = Query()
         query.add('client', SelectorEqual('john'))
         query.add('timestamp', SelectorGreaterThan(UtcDateTime('2014-11-01T08:30:00Z')))
         events = Query.events(query, self.connection)
+        self.compare_events_list(logs[4:6], events)
+
+        query = Query()
+        query.add('client', SelectorEqual('john'))
+        query.add('timestamp', SelectorGreaterThanEqual(UtcDateTime('2014-11-01T08:30:00Z')))
+        query.add('timestamp', SelectorLessThan(UtcDateTime('2014-11-01T09:30:00Z')))
+        events = Query.events(query, self.connection)
         self.assertEqual(1, len(events))
         self.compare_events(logs[4], events[0])
 
         # Query by event_type
+        query = Query()
+        query.add('event_type', SelectorEqual('INFO'))
+        events = Query.events(query, self.connection)
+        self.compare_events_list(sublist(logs, [0, 1, 4]), events)
+
+        query = Query()
+        query.add('event_type', SelectorEqual('ERROR'))
+        events = Query.events(query, self.connection)
+        self.assertEqual(1, len(events))
+        self.compare_events(logs[3], events[0])
+
+        query = Query()
+        query.add('event_type', SelectorEqual('WARN'))
+        events = Query.events(query, self.connection)
+        self.assertEqual(1, len(events))
+        self.compare_events(logs[2], events[0])
+
+        query = Query()
+        query.add('event_type', SelectorEqual('DEBUG'))
+        events = Query.events(query, self.connection)
+        self.assertEqual(1, len(events))
+        self.compare_events(logs[5], events[0])
 
         # Query by event_type + timestamp
+        query = Query()
+        query.add('event_type', SelectorEqual('INFO'))
+        query.add('timestamp', SelectorEqual(UtcDateTime('2014-11-01T09:00:11Z')))
+        events = Query.events(query, self.connection)
+        self.assertEqual(1, len(events))
+        self.compare_events(logs[4], events[0])
 
         # Query by event_type + timestamp range
+        query = Query()
+        query.add('event_type', SelectorEqual('INFO'))
+        query.add('timestamp', SelectorLessThan(UtcDateTime('2014-11-01T08:30:00Z')))
+        events = Query.events(query, self.connection)
+        self.compare_events_list(logs[:2], events)
+
+        query = Query()
+        query.add('event_type', SelectorEqual('INFO'))
+        query.add('timestamp', SelectorGreaterThanEqual(UtcDateTime('2014-11-01T07:30:00Z')))
+        events = Query.events(query, self.connection)
+        self.compare_events_list(sublist(logs, [1, 4]), events)
+
+        query = Query()
+        query.add('event_type', SelectorEqual('INFO'))
+        query.add_range('timestamp', UtcDateTime('2014-11-01T07:30:00Z'), UtcDateTime('2014-11-01T08:30:00Z'))
+        events = Query.events(query, self.connection)
+        self.assertEqual(1, len(events))
+        self.compare_events(logs[1], events[0])
 
         # Query by timestamp range (should fall back to a scan)
-
+        query = Query()
+        #query.add_range('timestamp', UtcDateTime('2014-11-01T07:30:00Z'), UtcDateTime('2014-11-01T08:30:00Z'))
+        query.add_range('timestamp', UtcDateTime('2014-11-01T07:30:00Z'), UtcDateTime('2014-11-01T08:30:00Z'))
+        events = Query.events(query, self.connection)
+        self.assertEqual(3, len(events))
+        self.compare_events_list(logs[1:4], events)
 
     def test_wbxml_table(self):
         pass
@@ -272,10 +346,73 @@ class TestTables(unittest.TestCase):
         self.generic_tests(captures, CaptureEvent)
 
     def test_support_table(self):
-        pass
+        supports = [
+            {
+                'id_': '1',
+                'client': 'bob',
+                'timestamp': UtcDateTime('2014-10-01T07:00:00Z'),
+                'support': '{"email": "bob@company.com"}'
+            },
+            {
+                'id_': '2',
+                'client': 'john',
+                'timestamp': UtcDateTime('2014-10-01T07:01:00Z'),
+                'support': '{"email": "john@company.com"}'
+            }
+        ]
+        self.generic_tests(supports, SupportEvent)
 
     def test_ui_table(self):
-        pass
+        ui_events = [
+            {
+                'id_': '1',
+                'client': 'bob',
+                'timestamp': UtcDateTime('2014-10-01T07:05:00.001Z'),
+                'ui_type': 'UIViewController',
+                'ui_object': 'AttachmentViewController',
+                'ui_string': 'will appear begin'
+            },
+            {
+                'id_': '2',
+                'client': 'bob',
+                'timestamp': UtcDateTime('2014-10-01T07:05:00.052Z'),
+                'ui_type': 'UIViewController',
+                'ui_object': 'AttachmentViewController',
+                'ui_string': 'will appear end'
+            },
+            {
+                'id_': '3',
+                'client': 'bob',
+                'timestamp': UtcDateTime('2014-10-01T07:05:10.113Z'),
+                'ui_type': 'UISegmentedControl',
+                'ui_object': 'By file, date, contact',
+                'ui_integer': 2
+            },
+            {
+                'id_': '4',
+                'client': 'bob',
+                'timestamp': UtcDateTime('2014-10-01T07:05:20.204Z'),
+                'ui_type': 'UIButton',
+                'ui_object': 'Dismiss',
+            },
+            {
+                'id_': '5',
+                'client': 'bob',
+                'timestamp': UtcDateTime('2014-10-01T07:05:20.255Z'),
+                'ui_type': 'UIViewController',
+                'ui_object': 'AttachmentViewController',
+                'ui_string': 'will disappear begin'
+            },
+            {
+                'id_': '6',
+                'client': 'bob',
+                'timestamp': UtcDateTime('2014-10-01T07:05:20.255Z'),
+                'ui_type': 'UIViewController',
+                'ui_object': 'AttachmentViewController',
+                'ui_string': 'will disappear end'
+            },
+        ]
+        self.generic_tests(ui_events, UiEvent)
 
 
 if __name__ == '__main__':

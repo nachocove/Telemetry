@@ -1,5 +1,5 @@
 from query_filter import QueryFilter
-from selectors import SelectorEqual, SelectorCompare
+from selectors import SelectorEqual, SelectorCompare, SelectorGreaterThanEqual, SelectorLessThan, SelectorBetween
 
 
 class TelemetryTableQuery:
@@ -41,6 +41,17 @@ class TelemetryTableQuery:
         self.secondary_keys.add(field_name, sel)
         return True
 
+    @staticmethod
+    def optimize_range(sels):
+        lo = None
+        hi = None
+        if len(sels) == 2:
+            if isinstance(sels[0], SelectorGreaterThanEqual) and isinstance(sels[1], SelectorLessThan):
+                (lo, hi) = sels
+            if isinstance(sels[1], SelectorGreaterThanEqual) and isinstance(sels[0], SelectorLessThan):
+                (hi, lo) = sels
+        return lo, hi
+
     def may_add_secondary_rangekey(self, selectors, field_name, index_name):
         if field_name not in selectors:
             return False
@@ -52,9 +63,32 @@ class TelemetryTableQuery:
         if isinstance(index_name, str) or isinstance(index_name, unicode):
             if self.index != index_name:
                 return False
-        for sel in selectors[field_name]:
+        sels = selectors[field_name]
+        (lo, hi) = TelemetryTableQuery.optimize_range(sels)
+        if lo is not None and hi is not None:
+            self.secondary_keys.add(field_name, SelectorBetween(lo.value, hi.value))
+            return
+        for sel in sels:
             TelemetryTableQuery.check_rangekey_selector(sel)
             self.secondary_keys.add(field_name, sel)
+
+    def set_query_filter(self, query):
+        self.query_filter = QueryFilter()
+        fields = set(query.selectors.keys())
+        for field in self.primary_keys.fields:
+            if field in fields:
+                fields.remove(field)
+        for field in self.secondary_keys.fields:
+            if field in fields:
+                fields.remove(field)
+        for field in fields:
+            sels = query.selectors[field]
+            (lo, hi) = TelemetryTableQuery.optimize_range(sels)
+            if lo is not None and hi is not None:
+                self.secondary_keys.add(field, SelectorBetween(lo.value, hi.value))
+                continue
+            for sel in sels:
+                self.query_filter.add(field, sel)
 
     @staticmethod
     def check_hashkey_selector_list(sels):

@@ -5,7 +5,7 @@ from decimal import Decimal
 
 
 class Event(Item):
-    # All dervied classes must set this to the companion telemetry table class.
+    # All derived classes must set this to the companion telemetry table class.
     TABLE_CLASS = None
     # Some fields happen to be python reserved words. For those fields,
     # we append a trailing '_' to the input parameter of the class constructor.

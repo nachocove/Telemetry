@@ -1,7 +1,6 @@
 from events import LogEvent, WbxmlEvent, CounterEvent, CaptureEvent, SupportEvent, UiEvent
-from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan
-from boto.dynamodb2.table import Table
-from misc.utc_datetime import UtcDateTime
+from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan, SelectorBetween
+
 
 class Query:
     EVENT_CLASSES = [
@@ -29,6 +28,8 @@ class Query:
     def add_range(self, field, start, stop):
         if start is None and stop is None:
             self.add(field, SelectorGreaterThanEqual(0))
+        elif start is not None and stop is not None:
+            self.add(field, SelectorBetween(start, stop))
         else:
             if start is not None:
                 self.add(field, SelectorGreaterThanEqual(start))
@@ -60,6 +61,9 @@ class Query:
         # the transition to AWS is complete, we can get rid of it
         events = list()
         for (event_cls, table_query) in query.table_query.items():
+            if not table_query.for_us:
+                continue
+
             table_cls = event_cls.TABLE_CLASS
             assert table_cls is not None
 
@@ -79,7 +83,7 @@ class Query:
                                         **table_query.secondary_keys.data())
             else:
                 # No keys in any of the indexes. Fall back to scan
-                results = table.scan(table_query.query_filter.data())
+                results = table.scan(**table_query.query_filter.data())
             table_events = event_cls.from_db_results(connection, results)
             events.extend(table_events)
 

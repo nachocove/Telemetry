@@ -24,6 +24,7 @@ class UtcDateTime:
                                               hour=hours,
                                               minute=minutes,
                                               second=seconds,
+                                              microsecond=milliseconds * 1000,
                                               tzinfo=pytz.utc)
 
     def __repr__(self):
