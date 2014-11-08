@@ -1,9 +1,7 @@
 from boto.dynamodb2.table import Table
 from boto.dynamodb2.fields import HashKey, RangeKey, GlobalAllIndex
 from boto.dynamodb2.types import NUMBER, STRING
-from query_filter import QueryFilter
 from table_query import TelemetryTableQuery
-from selectors import SelectorEqual
 
 
 class TelemetryTable(Table):
@@ -53,6 +51,7 @@ class TelemetryTable(Table):
                      indexes=local_secondary_indexes,
                      global_indexes=global_secondary_indexes,
                      connection=connection)
+        return cls(connection)
 
     @classmethod
     def is_for_us(cls, fields):
@@ -73,6 +72,10 @@ class TelemetryTable(Table):
                                           ])
         result.set_query_filter(query)
         return result
+
+    def is_active(self):
+        info = self.describe()
+        return info[u'Table'][u'TableStatus'] == u'ACTIVE'
 
 
 class LogTable(TelemetryTable):
@@ -95,7 +98,7 @@ class LogTable(TelemetryTable):
                                                         'read': 5,
                                                         'write': 5
                                                     })
-        cls.create(connection, global_secondary_indexes=[event_type_timestamp_index])
+        return cls.create(connection, global_secondary_indexes=[event_type_timestamp_index])
 
     @classmethod
     def should_handle(cls, query):
@@ -127,7 +130,7 @@ class WbxmlTable(TelemetryTable):
                                                         'read': 5,
                                                         'write': 5
                                                     })
-        cls.create(connection, global_secondary_indexes=[event_type_timestamp_index])
+        return cls.create(connection, global_secondary_indexes=[event_type_timestamp_index])
 
     @classmethod
     def should_handle(cls, query):
@@ -158,7 +161,7 @@ class CounterTable(TelemetryTable):
                                                           'read': 5,
                                                           'write': 5
                                                       })
-        cls.create(connection, global_secondary_indexes=[counter_name_timestamp_index])
+        return cls.create(connection, global_secondary_indexes=[counter_name_timestamp_index])
 
     @classmethod
     def should_handle(cls, query):
@@ -189,7 +192,7 @@ class CaptureTable(TelemetryTable):
                                                           'read': 5,
                                                           'write': 5
                                                       })
-        cls.create(connection, global_secondary_indexes=[capture_name_timestamp_index])
+        return cls.create(connection, global_secondary_indexes=[capture_name_timestamp_index])
 
     @classmethod
     def should_handle(cls, query):
@@ -210,7 +213,7 @@ class SupportTable(TelemetryTable):
 
     @classmethod
     def create_table(cls, connection):
-        cls.create(connection, global_secondary_indexes=None)
+        return cls.create(connection, global_secondary_indexes=None)
 
 
 class UiTable(TelemetryTable):
@@ -222,4 +225,4 @@ class UiTable(TelemetryTable):
 
     @classmethod
     def create_table(cls, connection):
-        cls.create(connection, global_secondary_indexes=None)
+        return cls.create(connection, global_secondary_indexes=None)
