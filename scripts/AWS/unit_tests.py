@@ -4,6 +4,7 @@ from events import *
 from selectors import *
 from tables import *
 from query import Query
+from query_filter import QueryFilter
 
 
 def sublist(list_, indexes):

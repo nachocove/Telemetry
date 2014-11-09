@@ -2,6 +2,7 @@ from boto.dynamodb2.table import Table
 from boto.dynamodb2.fields import HashKey, RangeKey, GlobalAllIndex
 from boto.dynamodb2.types import NUMBER, STRING
 from table_query import TelemetryTableQuery
+from misc.dict_formatter import DictFormatter
 
 
 class TelemetryTable(Table):
@@ -38,8 +39,8 @@ class TelemetryTable(Table):
                                                     RangeKey('timestamp', data_type=NUMBER)
                                                 ],
                                                 throughput={
-                                                    'read': 5,
-                                                    'write': 5
+                                                    'read': 1,
+                                                    'write': 1
                                                 })
         global_secondary_indexes.append(client_timestamp_index)
 
@@ -77,6 +78,99 @@ class TelemetryTable(Table):
         info = self.describe()
         return info[u'Table'][u'TableStatus'] == u'ACTIVE'
 
+    @staticmethod
+    def _format(info, field, indent):
+        assert field in info
+        return indent + field + ': ' + str(info[field]) + '\n'
+
+    @staticmethod
+    def _format_key_schema(index, formatter):
+        schema = index[u'KeySchema']
+        n = 0
+        for attribute in schema:
+            formatter.line(u'KeySchema[%d]: %s (%s)' % (n, attribute[u'AttributeName'], attribute[u'KeyType']))
+            n += 1
+
+    @staticmethod
+    def _format_attributes(index, formatter):
+        if u'AttributeDefinitions' not in index:
+            return
+        attributes = index[u'AttributeDefinitions']
+        n = 0
+        for attribute in attributes:
+            formatter.line(u'AttributeDefinitons[%d]: %s (%s)' % (n, attribute[u'AttributeName'], attribute[u'AttributeType']))
+            n += 1
+
+
+    @staticmethod
+    def _format_provisioned_throughput(index, formatter):
+        formatter.push_dict(index[u'ProvisionedThroughput'])
+        formatter.line('')
+        formatter.field_dict(u'ReadCapacityUnits')
+        formatter.field_dict(u'WriteCapacityUnits')
+        formatter.field_dict(u'NumberOfDecreasesToday')
+        formatter.pop_dict()
+
+    @staticmethod
+    def _format_projection(index, formatter):
+        throughput = index.get(u'Projection', None)
+        if throughput is None:
+            return
+        formatter.push_dict(throughput)
+        formatter.field_dict(u'ProjectionType')
+        formatter.pop_dict()
+
+    @staticmethod
+    def _format_index(states_only, index, prefix, prefix_desc, formatter):
+        assert prefix in [u'Table', u'Index']
+
+        formatter.line(u'[%s: %s]' % (prefix_desc, index[prefix + u'Name']))
+        formatter.push_dict(index)
+        formatter.field_dict(prefix + u'Status')
+        formatter.field_dict(u'ItemCount')
+        formatter.field_dict(prefix + u'SizeBytes')
+        formatter.pop_dict()
+        if states_only:
+            return formatter.output
+
+        TelemetryTable._format_key_schema(index, formatter)
+        TelemetryTable._format_attributes(index, formatter)
+        TelemetryTable._format_projection(index, formatter)
+        TelemetryTable._format_provisioned_throughput(index, formatter)
+        formatter.line('')
+        return formatter.output
+
+    def __str__(self):
+        return self.display(False)
+
+    def display(self, states_only):
+        info = self.describe()[u'Table']
+        formatter = DictFormatter()
+        TelemetryTable._format_index(states_only, info, u'Table', u'Table', formatter)
+
+        # Global Indexes
+        if u'GlobalSecondaryIndexes' in info:
+            formatter.increase_indent()
+            for index in info[u'GlobalSecondaryIndexes']:
+                TelemetryTable._format_index(states_only, index, u'Index', u'GlobalSecondaryIndex', formatter)
+            formatter.decrease_indent()
+
+        # Local Indexes
+        if u'LocalSecondaryIndexes' in info:
+            formatter.increase_indent()
+            for index in info[u'LocalSecondaryIndexes']:
+                TelemetryTable._format_index(states_only, index, u'Index', u'LocalSecondaryIndex', formatter)
+            formatter.decrease_indent()
+
+        return formatter.output
+
+    @staticmethod
+    def find_table_class(full_table_name):
+        for cls in TABLE_CLASSES:
+            if full_table_name.endswith(u'.telemetry.' + cls.TABLE_NAME):
+                return cls
+        return TelemetryTable
+
 
 class LogTable(TelemetryTable):
     TABLE_NAME = 'log'
@@ -95,8 +189,8 @@ class LogTable(TelemetryTable):
                                                         RangeKey('timestamp', data_type=NUMBER)
                                                     ],
                                                     throughput={
-                                                        'read': 5,
-                                                        'write': 5
+                                                        'read': 1,
+                                                        'write': 1
                                                     })
         return cls.create(connection, global_secondary_indexes=[event_type_timestamp_index])
 
@@ -127,8 +221,8 @@ class WbxmlTable(TelemetryTable):
                                                         RangeKey('timestamp', data_type=NUMBER)
                                                     ],
                                                     throughput={
-                                                        'read': 5,
-                                                        'write': 5
+                                                        'read': 1,
+                                                        'write': 1
                                                     })
         return cls.create(connection, global_secondary_indexes=[event_type_timestamp_index])
 
@@ -158,8 +252,8 @@ class CounterTable(TelemetryTable):
                                                           RangeKey('timestamp', data_type=NUMBER)
                                                       ],
                                                       throughput={
-                                                          'read': 5,
-                                                          'write': 5
+                                                          'read': 1,
+                                                          'write': 1
                                                       })
         return cls.create(connection, global_secondary_indexes=[counter_name_timestamp_index])
 
@@ -189,8 +283,8 @@ class CaptureTable(TelemetryTable):
                                                           RangeKey('timestamp', data_type=NUMBER)
                                                       ],
                                                       throughput={
-                                                          'read': 5,
-                                                          'write': 5
+                                                          'read': 1,
+                                                          'write': 1
                                                       })
         return cls.create(connection, global_secondary_indexes=[capture_name_timestamp_index])
 
@@ -226,3 +320,12 @@ class UiTable(TelemetryTable):
     @classmethod
     def create_table(cls, connection):
         return cls.create(connection, global_secondary_indexes=None)
+
+TABLE_CLASSES = [
+    LogTable,
+    WbxmlTable,
+    CounterTable,
+    CaptureTable,
+    SupportTable,
+    UiTable
+]

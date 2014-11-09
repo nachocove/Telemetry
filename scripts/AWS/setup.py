@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
 import sys
-import pprint
 from datetime import datetime, timedelta
 from argparse import ArgumentParser
 from boto.dynamodb2.layer1 import DynamoDBConnection
-from tables import *
+from tables import TelemetryTable
 from boto.exception import JSONResponseError
 
 
@@ -31,13 +30,11 @@ def get_table_names(connection):
 
 def list_tables(connection):
     tables = connection.list_tables()[u'TableNames']
-    pretty = pprint.PrettyPrinter(indent=2)
     for table_name in tables:
-        table = Table(table_name=table_name, connection=connection)
-        info = table.describe()
-        info[u'Name'] = table_name
-        info[u'Rows'] = table.count()
-        pretty.pprint(info)
+        table_cls = TelemetryTable.find_table_class(table_name)
+        print '-' * 72
+        table = table_cls(connection)
+        print table
 
 
 def delete_tables(connection):
@@ -60,16 +57,7 @@ def delete_tables(connection):
 
 
 def create_tables(connection):
-    table_classes = [
-        LogTable,
-        WbxmlTable,
-        CounterTable,
-        CaptureTable,
-        SupportTable,
-        UiTable
-    ]
-
-    for cls in table_classes:
+    for cls in TelemetryTable.TABLE_CLASSES:
         try:
             table_name = TelemetryTable.full_table_name(cls.TABLE_NAME)
             write('Creating %s...' % table_name)
@@ -78,6 +66,7 @@ def create_tables(connection):
             if ((u'Message' in e.body and e.body[u'Message'] == u'Cannot create preexisting table') or
                 (u'message' in e.body and e.body[u'message'].startswith(u'Table already exists:'))):
                 print 'Table %s already exists.' % cls.TABLE_NAME
+                table = cls(connection)
             else:
                 raise e
         poll(table.is_active, 1)
