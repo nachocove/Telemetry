@@ -76,7 +76,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('--host',
                         help='Host of AWS DynamoDB instance (Default: dynamodb.us-west-2.amazonaws.com)',
-                        default='localhost')
+                        default='dynamodb.us-west-2.amazonaws.com')
     parser.add_argument('--port',
                         help='Port of AWS DynamoDB instance (Default: 443)',
                         default=443)

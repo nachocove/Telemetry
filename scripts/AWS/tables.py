@@ -98,9 +98,9 @@ class TelemetryTable(Table):
         attributes = index[u'AttributeDefinitions']
         n = 0
         for attribute in attributes:
-            formatter.line(u'AttributeDefinitons[%d]: %s (%s)' % (n, attribute[u'AttributeName'], attribute[u'AttributeType']))
+            formatter.line(u'AttributeDefinitons[%d]: %s (%s)' % (n, attribute[u'AttributeName'],
+                                                                  attribute[u'AttributeType']))
             n += 1
-
 
     @staticmethod
     def _format_provisioned_throughput(index, formatter):
