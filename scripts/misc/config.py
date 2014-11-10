@@ -20,37 +20,19 @@ class Config:
         if os.path.exists(self.cfg_file):
             self.config.read(self.cfg_file)
 
-    def get(self, section, key, options):
+    def get(self, section, key):
         if not self.config.has_section(section):
-            return
+            return None
         if not self.config.has_option(section, key):
-            return
-        setattr(options, key, self.config.get(section, key))
+            return None
+        return self.config.get(section, key)
 
-    def set(self, section, key, options):
-        value = getattr(options, key)
+    def set(self, section, key, value):
         if value is None:
             return
         if not self.config.has_section(section):
             self.config.add_section(section)
         self.config.set(section, key, value)
-
-    def read_keys(self, options):
-        """
-        Read the Parse keys and set them back to the options object.
-        """
-        self.get('keys', 'app_id', options)
-        self.get('keys', 'api_key', options)
-        self.get('keys', 'session_token', options)
-
-    def write_keys(self, options):
-        """
-        Write the keys back to the configuration file.
-        """
-        self.set('keys', 'app_id', options)
-        self.set('keys', 'api_key', options)
-        self.set('keys', 'session_token', options)
-        self.write()
 
     def write(self):
         with open(self.cfg_file, 'w') as f:
@@ -60,11 +42,53 @@ class Config:
         """
         Read the path to WbxmlTool
         """
-        self.get('wbxml_tool', 'wbxml_tool_path', options)
+        options.wbxml_tool_path = self.get('wbxml_tool', 'wbxml_tool_path')
 
     def write_wbxml_tool(self, options):
         """
         Write the path to WbxmlTool
         """
-        self.set('wbxml_tool', 'wbxml_tool_path', options)
+        self.set('wbxml_tool', 'wbxml_tool_path', options.wbxml_tool_path)
         self.write()
+
+
+class SectionConfig:
+    SECTION = None
+    KEYS = None
+
+    def __init__(self, config_file):
+        assert isinstance(config_file, Config)
+        self.config_file = config_file
+
+    def __getattr__(self, key):
+        cls = type(self)
+        if key not in cls.KEYS:
+            raise AttributeError('Unknown attribute %s' % key)
+        return self.config_file.get(cls.SECTION, key)
+
+    def __setattr__(self, key, value):
+        cls = type(self)
+        if key not in cls.KEYS:
+            raise AttributeError('Unknown attribute %s' % key)
+        self.config_file.set(cls.SECITON, key, value)
+
+    def read(self, options):
+        cls = type(self)
+        for key in cls.KEYS:
+            value = getattr(self, key)
+            if value is not None:
+                setattr(options, key, value)
+
+
+class EmailConfig(SectionConfig):
+    SECTION = "email"
+    KEYS = (
+        'smtp_server',
+        'port',
+        'start_tls',
+        'username',
+        'recipient'
+    )
+
+    def __init__(self, config_file):
+        SectionConfig.__init__(self, config_file)
