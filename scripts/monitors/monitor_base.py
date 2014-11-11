@@ -87,27 +87,16 @@ class Monitor:
         events = list()
 
         # Get the count first
-        query.limit = 0
+        query.limit = None
         query.count = 1
-        event_count = Query.events(query, conn)[1]
+        event_count = Query.events(query, conn)
         if count_only:
             return events, event_count
 
-        query.limit = 1000
-        query.skip = 0
+        query.limit = None
+        query.count = False
 
-        # Keep querying until the list is less than 1000
-        # TODO - we need a robust way to pull more than 11,000 events
-        results = Query.events(query, conn)[0]
-        events.extend(results)
-        while len(results) == query.limit and query.skip < 10000:
-            query.skip += query.limit
-            if logger is not None:
-                logger.debug('  Querying additional objects (skip=%d)', query.skip)
-            results = Query.events(query, conn)[0]
-            events.extend(results)
-        if event_count < len(events):
-            event_count = len(events)
+        events = Query.events(query, conn)
 
         return events, event_count
 
@@ -143,7 +132,7 @@ class Monitor:
                 break
             except DynamoDBError, e:
                 logger = logging.getLogger('monitor')
-                logger.error('fail to run %s (DynamoDb:%s:%s)' % (desc, e.code, e.message))
+                logger.error('fail to run %s (DynamoDb:%s)' % (desc, e.message))
                 num_retries += 1
                 if exception_func is not None:
                     exception_func()

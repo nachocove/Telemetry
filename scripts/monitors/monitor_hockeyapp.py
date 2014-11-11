@@ -55,7 +55,7 @@ class CrashInfo:
         query = Query()
         query.add('event_type', SelectorEqual('INFO'))
         query.add('message', SelectorStartsWith('Device ID: ' + ha_desc_obj.device_id))
-        events = Query.events(query, self.conn)[0]
+        events = Query.events(query, self.conn)
         if len(events) == 0:
             self.logger.warning('    cannot find build info log for crash %s', self.ha_crash_obj.crash_id)
             return None

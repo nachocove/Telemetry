@@ -8,7 +8,7 @@ class Selector:
 
     def __setattr__(self, key, value):
         if key == 'value':
-            if isinstance(value, str) or isinstance(value, int):
+            if isinstance(value, str) or isinstance(value, unicode) or isinstance(value, int):
                 self.__dict__[key] = value
             elif isinstance(value, UtcDateTime):
                 self.__dict__[key] = value.toticks()

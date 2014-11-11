@@ -1,4 +1,4 @@
-from AWS.selectors import SelectorEqual, SelectorGreaterThanEqual, SelectorLessThan
+from AWS.selectors import SelectorEqual
 from AWS.query import Query
 from AWS.events import Event
 from monitor_base import Monitor

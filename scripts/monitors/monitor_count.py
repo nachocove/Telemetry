@@ -1,5 +1,4 @@
 from AWS.query import Query
-from AWS.selectors import SelectorGreaterThanEqual, SelectorLessThan
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
 
@@ -12,7 +11,7 @@ class MonitorCount(Monitor):
 
         # Create the query
         self.query = Query()
-        self.add_range('uploaded', start, end)
+        self.query.add_range('uploaded_at', start, end)
         self.query.limit = 0
         self.query.count = 1
 

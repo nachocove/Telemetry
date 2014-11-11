@@ -1,14 +1,19 @@
+#!/usr/bin/env python
+
 import argparse
 import ConfigParser
 import logging
 from datetime import timedelta
 
 from boto.dynamodb2.layer1 import DynamoDBConnection
+from AWS.config import AwsConfig
+from AWS.tables import TelemetryTable
 import HockeyApp
 from HockeyApp.config import HockeyAppConfig
 from misc import config
 from misc.html_elements import *
 from misc.utc_datetime import UtcDateTime
+from misc.config import Config
 from monitors.monitor_base import Summary, Monitor
 from monitors.monitor_log import MonitorErrors, MonitorWarnings
 from monitors.monitor_count import MonitorUsers, MonitorEvents
@@ -36,14 +41,6 @@ class MonitorConfig(config.Config):
             self.config.add_section('timestamps')
         self.config.set('timestamps', 'last', str(utc_now))
         self.write()
-
-    def read_monitors(self, options):
-        monitors = self.get('profile', 'monitors')
-        if isinstance(options.monitors, str):
-            options.monitors = monitors.split(',')
-
-    def read_profile_name(self, options):
-        options.name = self.get('profile', 'name')
 
 
 class DateTimeAction(argparse.Action):
@@ -125,16 +122,23 @@ def main():
         exit(0)
 
     # If no key is provided in command line, get them from config.
-    config_ = MonitorConfig(options.config)
-    HockeyAppConfig(config_).read(options)
-    MonitorProfileConfig(config_).read(options)
-    if 'name' in dir(options):
-        logger.info('Running profile "%s"', options.name)
+    config_file = Config(options.config)
+    AwsConfig(config_file).read(options)
+    HockeyAppConfig(config_file).read(options)
+    MonitorProfileConfig(config_file).read(options)
+    if 'profile_name' in dir(options):
+        logger.info('Running profile "%s"', options.profile_name)
+
+    if options.aws_prefix is None:
+        logger.error('Missing "prefix" in "aws" section')
+        exit(1)
+    TelemetryTable.PREFIX = options.aws_prefix
 
     # Must have 1+ monitor from command-line or config
     if len(options.monitors) == 0:
-        config_.read_monitors(options)
-        if len(options.monitors) == 0:
+        if 'profile_monitors' in dir(options) and len(options.profile_monitors) > 0:
+            options.monitors = options.profile_monitors
+        else:
             parser.print_help()
             exit(0)
 
@@ -142,7 +146,7 @@ def main():
     # from config and current time
     do_update_timestamp = False
     if isinstance(options.start, str) and options.start == 'last':
-        options.start = config_.read_timestamp()
+        options.start = config_file.read_timestamp()
     if isinstance(options.end, str) and options.end == 'now':
         options.end = UtcDateTime.now()
         do_update_timestamp = True
@@ -155,7 +159,7 @@ def main():
     summary_table = Summary()
     summary_table.colors = [None, '#f0f0f0']
     if options.email:
-        (smtp_server, email) = EmailConfig(config_).configure_server_and_email()
+        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email()
         if smtp_server is None:
             logger.error('no email configuration')
             exit(1)
@@ -231,7 +235,7 @@ def main():
         with open('monitor-email.%s.txt' % end_time_suffix, 'w') as f:
             print >>f, email.content.plain_text()
         # Add title
-        email.subject = '%s [%s]' % (options.name, str(options.end))
+        email.subject = '%s [%s]' % (options.profile_name, str(options.end))
         num_retries = 0
         while num_retries < 5:
             try:
@@ -246,7 +250,7 @@ def main():
     # Update timestamp in config if necessary after we have successfully
     # send the notification email
     if do_update_timestamp:
-        config_.write_timestamp(options.end)
+        config_file.write_timestamp(options.end)
 
 if __name__ == '__main__':
     main()
