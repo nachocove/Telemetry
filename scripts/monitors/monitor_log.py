@@ -50,10 +50,7 @@ class MonitorLog(Monitor):
     def _query(self):
         query = Query()
         query.add('event_type', SelectorEqual(self.event_type))
-        if self.start is not None:
-            query.add('uploaded_at', SelectorGreaterThanEqual(self.start))
-        if self.end is not None:
-            query.add('uploaded_at', SelectorLessThan(self.end))
+        query.add_range('uploaded_at', self.start, self.end)
 
         self.events, self.event_count = self.query_all(query)
 
@@ -74,7 +71,7 @@ class MonitorLog(Monitor):
 
     def _get_trace(self, event):
         assert 'client' in event and 'timestamp' in event
-        (start, end) = LogTrace.get_time_window(event['timestamp']['iso'], 2, 0)
+        (start, end) = LogTrace.get_time_window(event['timestamp'], 2, 0)
         trace = LogTrace(desc=self.desc, client=event['client'], start=start, end=end)
         return trace
 

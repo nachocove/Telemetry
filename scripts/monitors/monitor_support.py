@@ -13,10 +13,7 @@ class MonitorSupport(Monitor):
     def _query(self):
         query = Query()
         query.add('event_type', SelectorEqual('SUPPORT'))
-        if self.start is not None:
-            query.add('uploaded_at', SelectorGreaterThanEqual(self.start))
-        if self.end is not None:
-            query.add('uploaded_at', SelectorLessThan(self.end))
+        query.add_range('uploaded_at', self.start, self.end)
 
         self.events = self.query_all(query)[0]
 

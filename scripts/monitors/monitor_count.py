@@ -12,10 +12,7 @@ class MonitorCount(Monitor):
 
         # Create the query
         self.query = Query()
-        if self.start is not None:
-            self.query.add('uploaded_at', SelectorGreaterThanEqual(start))
-        if self.end is not None:
-            self.query.add('uploaded_at', SelectorLessThan(end))
+        self.add_range('uploaded', start, end)
         self.query.limit = 0
         self.query.count = 1
 
