@@ -7,6 +7,7 @@ class AwsConfig(SectionConfig):
         'access_key_id',
         'account_id',
         'identity_pool_id',
+        'prefix',
         'secret_access_key'
     )
 

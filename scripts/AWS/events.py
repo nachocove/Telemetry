@@ -15,19 +15,20 @@ class Event(Item):
     # CONFLICT_FIELDS.
     CONFLICT_FIELDS = []
 
-    def __init__(self, connection, id_, client, timestamp):
+    def __init__(self, connection, id_, client, timestamp, uploaded_at):
         self.table = type(self)._get_table(connection)
         Item.__init__(self, self.table)
         self['id'] = id_
         self['client'] = client
         self['timestamp'] = Event.parse_datetime(timestamp)
+        self['uploaded_at'] = Event.parse_datetime(uploaded_at)
 
     # Some field requires a translation between human-readable format to the
     # format used in DynamoDb. Translation from humna-readable format to DynamoDB
     # format is done in the constructors. The other direction is done by overloading
     # __getitem__ and handle them as exception cases
     def __getitem__(self, key):
-        if key == 'timestamp':
+        if key in ['timestamp', 'uploaded_at']:
             return UtcDateTime(Item.__getitem__(self, key))
         else:
             return Item.__getitem__(self, key)
@@ -35,7 +36,7 @@ class Event(Item):
     def __str__(self):
         s = self._header_str()
         for field in sorted(self.keys()):
-            if field in ['id', 'client', 'timestamp']:
+            if field in ['id', 'client', 'timestamp', 'uploaded_at']:
                 continue
             s += '\n%s: %s' % (field, self[field])
         return s
@@ -44,6 +45,7 @@ class Event(Item):
         s = 'id: %s' % self['id']
         s += '\nclient: %s' % self['client']
         s += '\ntimestamp: %s' % self['timestamp']
+        s += '\nuploaded_at: %s' % self['uploaded_at']
         return s
 
     def _field_str(self, field):
@@ -98,11 +100,12 @@ class Event(Item):
     def sort_chronologically(objects):
         return sorted(objects, key=lambda x: x['timestamp'])
 
+
 class LogEvent(Event):
     TABLE_CLASS = LogTable
 
-    def __init__(self, connection, id_, client, timestamp, event_type, message):
-        Event.__init__(self, connection, id_, client, timestamp)
+    def __init__(self, connection, id_, client, timestamp, uploaded_at, event_type, message):
+        Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         if event_type not in LogTable.EVENT_TYPES:
             raise ValueError('Unknown log event type %s' % event_type)
         self['event_type'] = event_type
@@ -115,8 +118,8 @@ class LogEvent(Event):
 class WbxmlEvent(Event):
     TABLE_CLASS = WbxmlTable
 
-    def __init__(self, connection, id_, client, timestamp, event_type, wbxml):
-        Event.__init__(self, connection, id_, client, timestamp)
+    def __init__(self, connection, id_, client, timestamp, uploaded_at, event_type, wbxml):
+        Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         if event_type not in WbxmlTable.EVENT_TYPES:
             raise ValueError('Unknown wbxml event type %s' % event_type)
         self['event_type'] = event_type
@@ -129,8 +132,9 @@ class WbxmlEvent(Event):
 class CounterEvent(Event):
     TABLE_CLASS = CounterTable
 
-    def __init__(self, connection, id_, client, timestamp, counter_name, count, counter_start, counter_end):
-        Event.__init__(self, connection, id_, client, timestamp)
+    def __init__(self, connection, id_, client, timestamp, uploaded_at,
+                 counter_name, count, counter_start, counter_end):
+        Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         self['counter_name'] = counter_name
         self['count'] = count
         self['counter_start'] = Event.parse_datetime(counter_start)
@@ -155,8 +159,9 @@ class CaptureEvent(Event):
     TABLE_CLASS = CaptureTable
     CONFLICT_FIELDS = ['min', 'max']
 
-    def __init__(self, connection, id_, client, timestamp, capture_name, count, min_, max_, average, stddev):
-        Event.__init__(self, connection, id_, client, timestamp)
+    def __init__(self, connection, id_, client, timestamp, uploaded_at,
+                 capture_name, count, min_, max_, average, stddev):
+        Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         self['capture_name'] = capture_name
         self['count'] = count
         self['min'] = min_
@@ -178,8 +183,8 @@ class CaptureEvent(Event):
 class SupportEvent(Event):
     TABLE_CLASS = SupportTable
 
-    def __init__(self, connection, id_, client, timestamp, support):
-        Event.__init__(self, connection, id_, client, timestamp)
+    def __init__(self, connection, id_, client, timestamp, uploaded_at, support):
+        Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         self['support'] = support
 
     def __str__(self):
@@ -189,8 +194,9 @@ class SupportEvent(Event):
 class UiEvent(Event):
     TABLE_CLASS = UiTable
 
-    def __init__(self, connection, id_, client, timestamp, ui_type, ui_object, ui_string=None, ui_integer=None):
-        Event.__init__(self, connection, id_, client, timestamp)
+    def __init__(self, connection, id_, client, timestamp, uploaded_at,
+                 ui_type, ui_object, ui_string=None, ui_integer=None):
+        Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         self['ui_type'] = ui_type
         self['ui_object'] = ui_object
         if ui_string is not None:

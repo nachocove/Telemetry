@@ -138,6 +138,7 @@ class TestTables(unittest.TestCase):
                 'id_': '1',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-11-01T07:00:00Z'),
+                'uploaded_at': UtcDateTime('2014-11-01T07:00:00.001Z'),
                 'event_type': 'INFO',
                 'message': 'info log #1'
             },
@@ -145,6 +146,7 @@ class TestTables(unittest.TestCase):
                 'id_': '2',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-11-01T08:00:00Z'),
+                'uploaded_at': UtcDateTime('2014-11-01T08:00:00.001Z'),
                 'event_type': 'INFO',
                 'message': 'info log #2'
             },
@@ -152,6 +154,7 @@ class TestTables(unittest.TestCase):
                 'id_': '3',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-11-01T08:00:05Z'),
+                'uploaded_at': UtcDateTime('2014-11-01T08:00:05.001Z'),
                 'event_type': 'WARN',
                 'message': 'warn log #3'
             },
@@ -159,6 +162,7 @@ class TestTables(unittest.TestCase):
                 'id_': '4',
                 'client': 'john',
                 'timestamp': UtcDateTime('2014-11-01T08:00:10Z'),
+                'uploaded_at': UtcDateTime('2014-11-01T08:00:10.001Z'),
                 'event_type': 'ERROR',
                 'message': 'error log #4'
             },
@@ -166,6 +170,7 @@ class TestTables(unittest.TestCase):
                 'id_': '5',
                 'client': 'john',
                 'timestamp': UtcDateTime('2014-11-01T09:00:11Z'),
+                'uploaded_at': UtcDateTime('2014-11-01T09:00:11.001Z'),
                 'event_type': 'INFO',
                 'message': 'info log #5'
             },
@@ -173,6 +178,7 @@ class TestTables(unittest.TestCase):
                 'id_': '6',
                 'client': 'john',
                 'timestamp': UtcDateTime('2014-11-01T10:00:12Z'),
+                'uploaded_at': UtcDateTime('2014-11-01T10:00:12.001Z'),
                 'event_type': 'DEBUG',
                 'message': 'debug log #6'
             }
@@ -281,6 +287,7 @@ class TestTables(unittest.TestCase):
                 'id_': '1',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-10-17T01:00:00Z'),
+                'uploaded_at': UtcDateTime('2014-10-17T01:00:00.001Z'),
                 'counter_name': 'counter B',
                 'count': 101,
                 'counter_start': UtcDateTime('2014-10-17T01:00:00Z'),
@@ -290,6 +297,7 @@ class TestTables(unittest.TestCase):
                 'id_': '2',
                 'client': 'john',
                 'timestamp': UtcDateTime('2014-10-17T02:00:00Z'),
+                'uploaded_at': UtcDateTime('2014-10-17T02:00:00.001Z'),
                 'counter_name': u'counter A',
                 'count': 1001,
                 'counter_start': UtcDateTime('2014-10-17T02:00:00Z'),
@@ -299,6 +307,7 @@ class TestTables(unittest.TestCase):
                 'id_': '3',
                 'client': 'john',
                 'timestamp': UtcDateTime('2014-10-17T03:00:00Z'),
+                'uploaded_at': UtcDateTime('2014-10-17T03:00:00.001Z'),
                 'counter_name': 'counter B',
                 'count': 201,
                 'counter_start': UtcDateTime('2014-10-17T03:00:00Z'),
@@ -340,6 +349,7 @@ class TestTables(unittest.TestCase):
                 'id_': '1',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-09-01T00:00:00Z'),
+                'uploaded_at': UtcDateTime('2014-09-01T00:00:00.001Z'),
                 'capture_name': 'capture A',
                 'count': 100,
                 'min_': 100,
@@ -351,6 +361,7 @@ class TestTables(unittest.TestCase):
                 'id_': '2',
                 'client': 'john',
                 'timestamp': UtcDateTime('2014-09-01T01:00:00Z'),
+                'uploaded_at': UtcDateTime('2014-09-01T01:00:00.001Z'),
                 'capture_name': 'capture B',
                 'count': 50,
                 'min_': 1000,
@@ -362,6 +373,7 @@ class TestTables(unittest.TestCase):
                 'id_': '3',
                 'client': 'john',
                 'timestamp': UtcDateTime('2014-09-01T02:00:00Z'),
+                'uploaded_at': UtcDateTime('2014-09-01T02:00:00.001Z'),
                 'capture_name': 'capture A',
                 'count': 500,
                 'min_': 10000,
@@ -404,12 +416,14 @@ class TestTables(unittest.TestCase):
                 'id_': '1',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-10-01T07:00:00Z'),
+                'uploaded_at': UtcDateTime('2014-10-01T07:00:00.001Z'),
                 'support': '{"email": "bob@company.com"}'
             },
             {
                 'id_': '2',
                 'client': 'john',
                 'timestamp': UtcDateTime('2014-10-01T07:01:00Z'),
+                'uploaded_at': UtcDateTime('2014-10-01T07:01:00.001Z'),
                 'support': '{"email": "john@company.com"}'
             }
         ]
@@ -421,6 +435,7 @@ class TestTables(unittest.TestCase):
                 'id_': '1',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-10-01T07:05:00.001Z'),
+                'uploaded_at': UtcDateTime('2014-10-01T07:05:00.002Z'),
                 'ui_type': 'UIViewController',
                 'ui_object': 'AttachmentViewController',
                 'ui_string': 'will appear begin'
@@ -429,6 +444,7 @@ class TestTables(unittest.TestCase):
                 'id_': '2',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-10-01T07:05:00.052Z'),
+                'uploaded_at': UtcDateTime('2014-10-01T07:05:00.053Z'),
                 'ui_type': 'UIViewController',
                 'ui_object': 'AttachmentViewController',
                 'ui_string': 'will appear end'
@@ -437,6 +453,7 @@ class TestTables(unittest.TestCase):
                 'id_': '3',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-10-01T07:05:10.113Z'),
+                'uploaded_at': UtcDateTime('2014-10-01T07:05:10.114Z'),
                 'ui_type': 'UISegmentedControl',
                 'ui_object': 'By file, date, contact',
                 'ui_integer': 2
@@ -445,6 +462,7 @@ class TestTables(unittest.TestCase):
                 'id_': '4',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-10-01T07:05:20.204Z'),
+                'uploaded_at': UtcDateTime('2014-10-01T07:05:20.205Z'),
                 'ui_type': 'UIButton',
                 'ui_object': 'Dismiss',
             },
@@ -452,6 +470,7 @@ class TestTables(unittest.TestCase):
                 'id_': '5',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-10-01T07:05:20.255Z'),
+                'uploaded_at': UtcDateTime('2014-10-01T07:05:20.256Z'),
                 'ui_type': 'UIViewController',
                 'ui_object': 'AttachmentViewController',
                 'ui_string': 'will disappear begin'
@@ -460,6 +479,7 @@ class TestTables(unittest.TestCase):
                 'id_': '6',
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-10-01T07:05:20.255Z'),
+                'uploaded_at': UtcDateTime('2014-10-01T07:05:20.256Z'),
                 'ui_type': 'UIViewController',
                 'ui_object': 'AttachmentViewController',
                 'ui_string': 'will disappear end'

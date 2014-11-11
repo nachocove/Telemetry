@@ -11,7 +11,7 @@ class TelemetryTable(Table):
     FIELD_NAMES = list()
     # These are fields that exist in all telemetry event tables
     # (but not in device info table)
-    COMMON_FIELD_NAMES = ['id', 'client', 'timestamp']
+    COMMON_FIELD_NAMES = ['id', 'client', 'timestamp', 'uploaded_at']
     CLIENT_TIMESTAMP_INDEX = 'index.client-timestamp'
 
     def __init__(self, connection, table_name):

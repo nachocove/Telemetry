@@ -14,8 +14,8 @@ class MonitorProfileConfig(SectionConfig):
 
     def read(self, options):
         SectionConfig.read(self, options)
-        if 'recipient' in dir(options):
-            options.recipient = options.recipient.split(',')
+        if 'profile_monitors' in dir(options):
+            options.monitors = options.profile_monitors.split(',')
 
 
 class EmailConfig(SectionConfig):
@@ -24,7 +24,9 @@ class EmailConfig(SectionConfig):
         'smtp_server',
         'port',
         'start_tls',
+        'tls',
         'username',
+        'password',
         'recipient'
     )
 
@@ -33,14 +35,13 @@ class EmailConfig(SectionConfig):
 
     def configure_server_and_email(self):
         email = Email()
-        email_config = EmailConfig(self)
-        server = email_config.server
-        port = email_config.port
-        username = email_config.username
+        server = self.smtp_server
+        port = self.port
+        username = self.username
         # We need to get the email account password
-        if email_config.password is not None:
+        if self.password is not None:
             # Option 1 - hardcoded into the file. highly not recommended.
-            password = email_config.password
+            password = self.password
         else:
             # Option 2 - try to get it from keychain
             try:
@@ -54,15 +55,15 @@ class EmailConfig(SectionConfig):
                 logging.getLogger('monitor').info('Got email account password from keychain.')
 
         start_tls = False
-        if email_config.start_tls is None:
-            start_tls = email_config.start_tls
+        if self.start_tls is None:
+            start_tls = self.start_tls
 
         tls = False
-        if email_config.tls is not None:
-            tls = email_config.tls
+        if self.tls is not None:
+            tls = self.tls
 
         email.from_address = username
-        email.to_addresses = email_config.recipient.split(',')
+        email.to_addresses = self.recipient.split(',')
 
         smtp_server = EmailServer(server=server,
                                   port=port,

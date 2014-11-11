@@ -53,7 +53,7 @@ class LogTrace:
         query = Query()
         query.add('client', SelectorEqual(self.client))
         query.add_range('timestamp', self.start, self.end)
-        self.events = Query.events(query, conn)[0]
+        self.events = Query.events(query, conn)
 
     def _filename(self):
         return '%s.client_%s.%s.%s.trace.txt' % (self.desc, self.client,

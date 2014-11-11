@@ -15,6 +15,7 @@ class Query:
     def __init__(self):
         self.selectors = dict()
         self.limit = None
+        self.count = False
         self.table_query = dict()
 
     def add(self, field, selector):
@@ -60,6 +61,7 @@ class Query:
         # 'cls' is not used at all. it is only there for backward compatibility. Once
         # the transition to AWS is complete, we can get rid of it
         events = list()
+        count = 0
         for (event_cls, table_query) in query.table_query.items():
             if not table_query.for_us:
                 continue
@@ -69,25 +71,44 @@ class Query:
 
             table = table_cls(connection)
             if table_query.has_primary_keys():
-                results = table.query_2(limit=query.limit,
-                                        reverse=False,
-                                        consistent=False,  # FIXME - revisit this later
-                                        query_filter=table_query.query_filter.data(),
-                                        **table_query.primary_keys.data())
+                if query.count:
+                    count += table.query_count(limit=query.limit,
+                                               consistent=False,  # FIXME - revisit this later
+                                               query_filter=table_query.query_filter.data(),
+                                               **table_query.primary_keys.data())
+                else:
+                    results = table.query_2(limit=query.limit,
+                                            reverse=False,
+                                            consistent=False,  # FIXME - revisit this later
+                                            query_filter=table_query.query_filter.data(),
+                                            **table_query.primary_keys.data())
             elif table_query.has_secondary_keys():
-                results = table.query_2(limit=query.limit,
-                                        reverse=False,
-                                        consistent=False,  # FIXME - revisit this later
-                                        index=table_query.index,
-                                        query_filter=table_query.query_filter.data(),
-                                        **table_query.secondary_keys.data())
+                if query.count:
+                    count += table.query_count(limit=query.limit,
+                                               consistent=False,  # FIXME - revisit this later
+                                               index=table_query.index,
+                                               query_filter=table_query.query_filter.data(),
+                                               **table_query.secondary_keys.data())
+                else:
+                    results = table.query_2(limit=query.limit,
+                                            reverse=False,
+                                            consistent=False,  # FIXME - revisit this later
+                                            index=table_query.index,
+                                            query_filter=table_query.query_filter.data(),
+                                            **table_query.secondary_keys.data())
             else:
                 # No keys in any of the indexes. Fall back to scan
-                results = table.scan(**table_query.query_filter.data())
-            table_events = event_cls.from_db_results(connection, results)
-            events.extend(table_events)
+                if query.count:
+                    results = table.query_count(**table_query.query_filter.data())
+                else:
+                    results = table.scan(**table_query.query_filter.data())
+            if not query.count:
+                table_events = event_cls.from_db_results(connection, results)
+                events.extend(table_events)
 
         # We apply the limit to each table. The combined length could exceed the query limit. If so, trim again
+        if query.count:
+            return max(count, query.limit)
         if len(events) > query.limit:
             events = events[:query.limit]
 
