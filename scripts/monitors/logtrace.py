@@ -1,6 +1,7 @@
 from datetime import timedelta
 
-import Parse
+from AWS.query import Query
+from AWS.selectors import SelectorEqual
 from misc import event_formatter
 from misc import utc_datetime
 
@@ -49,11 +50,10 @@ class LogTrace:
         return not (self == other)
 
     def query(self, conn):
-        query = Parse.query.Query()
-        query.add('client', Parse.query.SelectorEqual(self.client))
-        query.add('timestamp', Parse.query.SelectorGreaterThanEqual(self.start))
-        query.add('timestamp', Parse.query.SelectorLessThan(self.end))
-        self.events = Parse.query.Query.objects('Events', query, conn)[0]
+        query = Query()
+        query.add('client', SelectorEqual(self.client))
+        query.add_range('timestamp', self.start, self.end)
+        self.events = Query.events(query, conn)[0]
 
     def _filename(self):
         return '%s.client_%s.%s.%s.trace.txt' % (self.desc, self.client,

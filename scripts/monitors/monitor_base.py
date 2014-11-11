@@ -1,5 +1,7 @@
 import logging
-import Parse
+from boto.dynamodb2.layer1 import DynamoDBConnection
+from boto.dynamodb2.exceptions import DynamoDBError
+from AWS.query import Query
 from misc.html_elements import *
 from misc.number_formatter import pretty_number
 
@@ -87,7 +89,7 @@ class Monitor:
         # Get the count first
         query.limit = 0
         query.count = 1
-        event_count = Parse.query.Query.objects('Events', query, conn)[1]
+        event_count = Query.events(query, conn)[1]
         if count_only:
             return events, event_count
 
@@ -96,13 +98,13 @@ class Monitor:
 
         # Keep querying until the list is less than 1000
         # TODO - we need a robust way to pull more than 11,000 events
-        results = Parse.query.Query.objects('Events', query, conn)[0]
+        results = Query.events(query, conn)[0]
         events.extend(results)
         while len(results) == query.limit and query.skip < 10000:
             query.skip += query.limit
             if logger is not None:
                 logger.debug('  Querying additional objects (skip=%d)', query.skip)
-            results = Parse.query.Query.objects('Events', query, conn)[0]
+            results = Query.events(query, conn)[0]
             events.extend(results)
         if event_count < len(events):
             event_count = len(events)
@@ -128,9 +130,9 @@ class Monitor:
 
     @staticmethod
     def clone_connection(conn):
-        return Parse.connection.Connection.create(app_id=conn.app_id,
-                                                  api_key=conn.api_key,
-                                                  session_token=conn.session_token)
+        assert isinstance(conn, DynamoDBConnection)
+        # FIXME - Maybe AWS connection has retry built in????
+        return conn
 
     @staticmethod
     def run_with_retries(func, desc, max_retries, exception_func=None):
@@ -139,9 +141,9 @@ class Monitor:
             try:
                 retval = func()
                 break
-            except Parse.exception.ParseException, e:
+            except DynamoDBError, e:
                 logger = logging.getLogger('monitor')
-                logger.error('fail to run %s (Parse:%s:%s)' % (desc, e.code, e.message))
+                logger.error('fail to run %s (DynamoDb:%s:%s)' % (desc, e.code, e.message))
                 num_retries += 1
                 if exception_func is not None:
                     exception_func()

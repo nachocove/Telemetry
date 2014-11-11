@@ -85,9 +85,11 @@ def main():
                         default=443)
     parser.add_argument('--secret-access-key', '-s',
                         help='AWS secret access key',
+                        dest='aws_secret_access_key',
                         default=None)
     parser.add_argument('--access-key-id', '-a',
                         help='AWS access key id',
+                        dest='aws_access_key_id',
                         default=None)
     parser.add_argument('--prefix', '-p',
                         help='Prefix of the table names',
@@ -108,8 +110,8 @@ def main():
     options = parser.parse_args()
 
     if options.local:
-        options.access_key = 'dynamodb_local'
-        options.secret_key = 'dynamodb_local'
+        options.aws_access_key_id = 'dynamodb_local'
+        options.aws_secret_access_key = 'dynamodb_local'
         options.host = 'localhost'
         options.port = 8000
     if options.config:
@@ -124,8 +126,8 @@ def main():
 
     conn = DynamoDBConnection(host=options.host,
                               port=options.port,
-                              aws_secret_access_key=options.secret_access_key,
-                              aws_access_key_id=options.access_key_id,
+                              aws_secret_access_key=options.aws_secret_access_key,
+                              aws_access_key_id=options.aws_access_key_id,
                               region='us-west-2',
                               is_secure=is_secure)
 

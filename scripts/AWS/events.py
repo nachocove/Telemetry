@@ -94,6 +94,9 @@ class Event(Item):
     def from_db_results(cls, connection, results):
         return [cls.from_item(connection, r) for r in results]
 
+    @staticmethod
+    def sort_chronologically(objects):
+        return sorted(objects, key=lambda x: x['timestamp'])
 
 class LogEvent(Event):
     TABLE_CLASS = LogTable

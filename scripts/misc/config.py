@@ -82,18 +82,4 @@ class SectionConfig:
         for key in cls.KEYS:
             value = getattr(self, key)
             if value is not None:
-                setattr(options, key, value)
-
-
-class EmailConfig(SectionConfig):
-    SECTION = "email"
-    KEYS = (
-        'smtp_server',
-        'port',
-        'start_tls',
-        'username',
-        'recipient'
-    )
-
-    def __init__(self, config_file):
-        SectionConfig.__init__(self, config_file)
+                setattr(options, cls.SECTION + '_' + key, value)

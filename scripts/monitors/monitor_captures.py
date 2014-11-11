@@ -1,5 +1,6 @@
-import Parse
 import analytics
+from AWS.query import Query
+from AWS.selectors import SelectorEqual, SelectorGreaterThanEqual, SelectorLessThan
 from monitor_base import Monitor
 from misc.html_elements import *
 from misc.number_formatter import *
@@ -53,12 +54,12 @@ class MonitorCaptures(Monitor):
         self.events = []
 
     def _query(self):
-        query = Parse.query.Query()
-        query.add('event_type', Parse.query.SelectorEqual('CAPTURE'))
+        query = Query()
+        query.add('event_type', SelectorEqual('CAPTURE'))
         if self.start is not None:
-            query.add('createdAt', Parse.query.SelectorGreaterThanEqual(self.start))
+            query.add('uploaded_at', SelectorGreaterThanEqual(self.start))
         if self.end is not None:
-            query.add('createdAt', Parse.query.SelectorLessThan(self.end))
+            query.add('uploaded_at', SelectorLessThan(self.end))
 
         self.events = self.query_all(query)[0]
 

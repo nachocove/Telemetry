@@ -1,4 +1,5 @@
-import Parse
+from AWS.query import Query
+from AWS.selectors import SelectorGreaterThanEqual, SelectorLessThan
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
 
@@ -10,11 +11,11 @@ class MonitorCount(Monitor):
         self.rate_desc = rate_desc
 
         # Create the query
-        self.query = Parse.query.Query()
+        self.query = Query()
         if self.start is not None:
-            self.query.add('createdAt', Parse.query.SelectorGreaterThanEqual(start))
+            self.query.add('uploaded_at', SelectorGreaterThanEqual(start))
         if self.end is not None:
-            self.query.add('createdAt', Parse.query.SelectorLessThan(end))
+            self.query.add('uploaded_at', SelectorLessThan(end))
         self.query.limit = 0
         self.query.count = 1
 
@@ -43,7 +44,7 @@ class MonitorUsers(MonitorCount):
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self.count = Parse.query.Query.users(self.query, self.conn)[1]
+        self.count = Query.users(self.query, self.conn)[1]
 
 
 class MonitorEvents(MonitorCount):
@@ -52,4 +53,4 @@ class MonitorEvents(MonitorCount):
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self.count = Parse.query.Query.objects('Events', self.query, self.conn)[1]
+        self.count = Query.events(self.query, self.conn)[1]

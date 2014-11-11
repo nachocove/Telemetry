@@ -1,8 +1,9 @@
-import Parse
 import pprint
 import zipfile
 from misc import event_formatter
 import os
+from AWS.query import Query
+from AWS.selectors import SelectorEqual, SelectorGreaterThanEqual, SelectorLessThan
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
 from misc.html_elements import *
@@ -47,12 +48,12 @@ class MonitorLog(Monitor):
         self.trace_enabled = False
 
     def _query(self):
-        query = Parse.query.Query()
-        query.add('event_type', Parse.query.SelectorEqual(self.event_type))
+        query = Query()
+        query.add('event_type', SelectorEqual(self.event_type))
         if self.start is not None:
-            query.add('createdAt', Parse.query.SelectorGreaterThanEqual(self.start))
+            query.add('uploaded_at', SelectorGreaterThanEqual(self.start))
         if self.end is not None:
-            query.add('createdAt', Parse.query.SelectorLessThan(self.end))
+            query.add('uploaded_at', SelectorLessThan(self.end))
 
         self.events, self.event_count = self.query_all(query)
 
