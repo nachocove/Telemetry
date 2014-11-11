@@ -61,19 +61,24 @@ class SectionConfig:
         self.config_file = config_file
 
     def __getattr__(self, key):
-        cls = type(self)
+        if key == 'config_file':
+            return self.__dict__[key]
+        cls = self.__class__
         if key not in cls.KEYS:
             raise AttributeError('Unknown attribute %s' % key)
         return self.config_file.get(cls.SECTION, key)
 
     def __setattr__(self, key, value):
+        if key == 'config_file':
+            self.__dict__[key] = value
+            return
         cls = type(self)
         if key not in cls.KEYS:
             raise AttributeError('Unknown attribute %s' % key)
         self.config_file.set(cls.SECITON, key, value)
 
     def read(self, options):
-        cls = type(self)
+        cls = self.__class__
         for key in cls.KEYS:
             value = getattr(self, key)
             if value is not None:

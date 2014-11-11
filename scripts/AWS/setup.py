@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from argparse import ArgumentParser
 from boto.dynamodb2.layer1 import DynamoDBConnection
-from tables import TelemetryTable
+sys.path.append('../')
+from tables import TelemetryTable, TABLE_CLASSES
 from boto.exception import JSONResponseError
+from misc.config import Config
+from config import AwsConfig
 
 
 def write(s):
@@ -57,14 +60,14 @@ def delete_tables(connection):
 
 
 def create_tables(connection):
-    for cls in TelemetryTable.TABLE_CLASSES:
+    for cls in TABLE_CLASSES:
         try:
             table_name = TelemetryTable.full_table_name(cls.TABLE_NAME)
             write('Creating %s...' % table_name)
             table = cls.create_table(connection)
         except JSONResponseError, e:
             if ((u'Message' in e.body and e.body[u'Message'] == u'Cannot create preexisting table') or
-                (u'message' in e.body and e.body[u'message'].startswith(u'Table already exists:'))):
+                    (u'message' in e.body and e.body[u'message'].startswith(u'Table already exists:'))):
                 print 'Table %s already exists.' % cls.TABLE_NAME
                 table = cls(connection)
             else:
@@ -80,19 +83,23 @@ def main():
     parser.add_argument('--port',
                         help='Port of AWS DynamoDB instance (Default: 443)',
                         default=443)
-    parser.add_argument('--secret-key',
+    parser.add_argument('--secret-access-key', '-s',
                         help='AWS secret access key',
                         default=None)
-    parser.add_argument('--access-key',
+    parser.add_argument('--access-key-id', '-a',
                         help='AWS access key id',
                         default=None)
-    parser.add_argument('--prefix',
+    parser.add_argument('--prefix', '-p',
                         help='Prefix of the table names',
                         default='dev')
-    parser.add_argument('--local',
-                        help='Use local DynamoDB',
-                        action='store_true',
-                        default=False)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--local',
+                       help='Use local DynamoDB',
+                       action='store_true',
+                       default=False)
+    group.add_argument('--config', '-c',
+                       help='Configuration that contains an AWS section',
+                       default=None)
     parser.add_argument('action',
                         metavar='ACTION',
                         nargs='+',
@@ -105,6 +112,10 @@ def main():
         options.secret_key = 'dynamodb_local'
         options.host = 'localhost'
         options.port = 8000
+    if options.config:
+        config_file = Config(options.config)
+        AwsConfig(config_file).read(options)
+
     is_secure = True
     if options.host == 'localhost':
         is_secure = False
@@ -113,8 +124,8 @@ def main():
 
     conn = DynamoDBConnection(host=options.host,
                               port=options.port,
-                              aws_secret_access_key=options.secret_key,
-                              aws_access_key_id=options.access_key,
+                              aws_secret_access_key=options.secret_access_key,
+                              aws_access_key_id=options.access_key_id,
                               region='us-west-2',
                               is_secure=is_secure)
 

@@ -1,12 +1,12 @@
 from misc.config import SectionConfig
 
 
-class AwsConfigSec(SectionConfig):
-    SECTION = 'AWS'
+class AwsConfig(SectionConfig):
+    SECTION = 'aws'
     KEYS = (
         'access_key_id',
         'account_id',
-        'identiy_pool_id',
+        'identity_pool_id',
         'secret_access_key'
     )
 
