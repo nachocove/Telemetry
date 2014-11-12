@@ -38,7 +38,7 @@ class MonitorUi(Monitor):
             if vc_type not in self.view_controller_sets:
                 self.view_controller_sets[vc_type] = ViewControllerSet(description=vc_type)
             vc = self.view_controller_sets[vc_type].get(client)
-            timestamp = UtcDateTime(event['timestamp']['iso'])
+            timestamp = UtcDateTime(event['timestamp'])
             vc.parse(timestamp, event['ui_string'])
         for (vc_type, vc_set) in self.view_controller_sets.items():
             vc_set.aggregate_samples()

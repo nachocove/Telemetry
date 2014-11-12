@@ -85,7 +85,7 @@ class TelemetryTableQuery:
             sels = query.selectors[field]
             (lo, hi) = TelemetryTableQuery.optimize_range(sels)
             if lo is not None and hi is not None:
-                self.secondary_keys.add(field, SelectorBetween(lo.value, hi.value))
+                self.query_filter.add(field, SelectorBetween(lo.value, hi.value))
                 continue
             for sel in sels:
                 self.query_filter.add(field, sel)

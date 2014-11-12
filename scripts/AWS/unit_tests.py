@@ -272,10 +272,17 @@ class TestTables(unittest.TestCase):
 
         # Query by timestamp range (should fall back to a scan)
         query = Query()
-        #query.add_range('timestamp', UtcDateTime('2014-11-01T07:30:00Z'), UtcDateTime('2014-11-01T08:30:00Z'))
         query.add_range('timestamp', UtcDateTime('2014-11-01T07:30:00Z'), UtcDateTime('2014-11-01T08:30:00Z'))
         events = Query.events(query, self.connection)
         self.compare_events_list(logs[1:4], events)
+
+        # Query by event_type and uploaded_at range
+        query = Query()
+        query.add('event_type', SelectorEqual('INFO'))
+        query.add('uploaded_at', SelectorGreaterThanEqual(UtcDateTime('2014-11-01T07:30:00Z')))
+        query.add('uploaded_at', SelectorLessThan(UtcDateTime('2014-11-01T08:30:00Z')))
+        events = Query.events(query, self.connection)
+        self.compare_events_one(logs[1], events)
 
     def test_wbxml_table(self):
         pass
@@ -354,8 +361,8 @@ class TestTables(unittest.TestCase):
                 'count': 100,
                 'min_': 100,
                 'max_': 200,
-                'average': 150,
-                'stddev': 50
+                'sum_': 15000,
+                'sum2': 2500000
             },
             {
                 'id_': '2',
@@ -366,8 +373,8 @@ class TestTables(unittest.TestCase):
                 'count': 50,
                 'min_': 1000,
                 'max_': 1050,
-                'average': 1020,
-                'stddev': 10
+                'sum_': 51000,
+                'sum2': 52025000
             },
             {
                 'id_': '3',
@@ -378,8 +385,8 @@ class TestTables(unittest.TestCase):
                 'count': 500,
                 'min_': 10000,
                 'max_': 20000,
-                'average': 15000,
-                'stddev': 500
+                'sum_': 7500000,
+                'sum2': 112625000000
             }
         ]
         self.generic_tests(captures, CaptureEvent)

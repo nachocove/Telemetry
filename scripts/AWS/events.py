@@ -157,17 +157,17 @@ class CounterEvent(Event):
 
 class CaptureEvent(Event):
     TABLE_CLASS = CaptureTable
-    CONFLICT_FIELDS = ['min', 'max']
+    CONFLICT_FIELDS = ['min', 'max', 'sum']
 
     def __init__(self, connection, id_, client, timestamp, uploaded_at,
-                 capture_name, count, min_, max_, average, stddev):
+                 capture_name, count, min_, max_, sum_, sum2):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         self['capture_name'] = capture_name
         self['count'] = count
         self['min'] = min_
         self['max'] = max_
-        self['average'] = average
-        self['stddev'] = stddev
+        self['sum'] = sum_
+        self['sum2'] = sum2
 
     def __str__(self):
         s = self._header_str()
@@ -175,8 +175,8 @@ class CaptureEvent(Event):
         s += self._field_str('count')
         s += self._field_str('min')
         s += self._field_str('max')
-        s += self._field_str('average')
-        s += self._field_str('stddev')
+        s += self._field_str('sum')
+        s += self._field_str('sum2')
         return s
 
 

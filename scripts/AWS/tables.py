@@ -172,6 +172,18 @@ class TelemetryTable(Table):
         return TelemetryTable
 
 
+class DeviceInfoTable(TelemetryTable):
+    TABLE_NAME = 'device_info'
+    FIELDS_NAMES = ['os_type', 'os_version', 'device_model', 'build_version', 'build_number']
+
+    def __init__(self, connection):
+        TelemetryTable.__init__(self, connection=connection, table_name=DeviceInfoTable.TABLE_NAME)
+
+    @classmethod
+    def create_table(cls, connection):
+        return cls.create(connection, global_secondary_indexes=None)
+
+
 class LogTable(TelemetryTable):
     TABLE_NAME = 'log'
     EVENT_TYPES = ['ERROR', 'WARN', 'INFO', 'DEBUG']
@@ -322,6 +334,7 @@ class UiTable(TelemetryTable):
         return cls.create(connection, global_secondary_indexes=None)
 
 TABLE_CLASSES = [
+    DeviceInfoTable,
     LogTable,
     WbxmlTable,
     CounterTable,
