@@ -1,5 +1,6 @@
 from events import LogEvent, WbxmlEvent, CounterEvent, CaptureEvent, SupportEvent, UiEvent
 from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan, SelectorBetween
+from tables import DeviceInfoTable
 
 
 class Query:
@@ -52,6 +53,48 @@ class Query:
             self.table_query[event_cls] = event_cls.TABLE_CLASS.should_handle(self)
 
     @staticmethod
+    def _query(table, table_query, is_count, limit):
+        if table_query.has_primary_keys():
+            if is_count:
+                results = table.query_count(limit=limit,
+                                            consistent=False,  # FIXME - revisit this later
+                                            query_filter=table_query.query_filter.data(),
+                                            **table_query.primary_keys.data())
+            else:
+                results = table.query_2(limit=limit,
+                                        reverse=False,
+                                        consistent=False,  # FIXME - revisit this later
+                                        query_filter=table_query.query_filter.data(),
+                                        **table_query.primary_keys.data())
+        elif table_query.has_secondary_keys():
+            if is_count:
+                results = table.query_count(limit=limit,
+                                            consistent=False,  # FIXME - revisit this later
+                                            index=table_query.index,
+                                            query_filter=table_query.query_filter.data(),
+                                            **table_query.secondary_keys.data())
+            else:
+                results = table.query_2(limit=limit,
+                                        reverse=False,
+                                        consistent=False,  # FIXME - revisit this later
+                                        index=table_query.index,
+                                        query_filter=table_query.query_filter.data(),
+                                        **table_query.secondary_keys.data())
+        else:
+            # No keys in any of the indexes. Fall back to scan
+            if is_count:
+                # count += table.query_count(**table_query.query_filter.data())
+                # Somehow, query_count does not like it when there is no index. Use a scan instead
+                results = table.scan(**table_query.query_filter.data())
+                count = 0
+                for res in results:
+                    count += 1
+                results = count
+            else:
+                results = table.scan(**table_query.query_filter.data())
+        return results
+
+    @staticmethod
     def events(query, connection):
         """
         This method performs query to multiple tables and combines events (chronologically)
@@ -70,42 +113,10 @@ class Query:
             assert table_cls is not None
 
             table = table_cls(connection)
-            if table_query.has_primary_keys():
-                if query.count:
-                    count += table.query_count(limit=query.limit,
-                                               consistent=False,  # FIXME - revisit this later
-                                               query_filter=table_query.query_filter.data(),
-                                               **table_query.primary_keys.data())
-                else:
-                    results = table.query_2(limit=query.limit,
-                                            reverse=False,
-                                            consistent=False,  # FIXME - revisit this later
-                                            query_filter=table_query.query_filter.data(),
-                                            **table_query.primary_keys.data())
-            elif table_query.has_secondary_keys():
-                if query.count:
-                    count += table.query_count(limit=query.limit,
-                                               consistent=False,  # FIXME - revisit this later
-                                               index=table_query.index,
-                                               query_filter=table_query.query_filter.data(),
-                                               **table_query.secondary_keys.data())
-                else:
-                    results = table.query_2(limit=query.limit,
-                                            reverse=False,
-                                            consistent=False,  # FIXME - revisit this later
-                                            index=table_query.index,
-                                            query_filter=table_query.query_filter.data(),
-                                            **table_query.secondary_keys.data())
+            if query.count:
+                count += Query._query(table, table_query, is_count=True, limit=query.limit)
             else:
-                # No keys in any of the indexes. Fall back to scan
-                if query.count:
-                    # count += table.query_count(**table_query.query_filter.data())
-                    # Somehow, query_count does not like it when there is no index. Use a scan instead
-                    results = table.scan(**table_query.query_filter.data())
-                    for res in results:
-                        count += 1
-                else:
-                    results = table.scan(**table_query.query_filter.data())
+                results = Query._query(table, table_query, is_count=False, limit=query.limit)
             if not query.count:
                 table_events = event_cls.from_db_results(connection, results)
                 events.extend(table_events)
@@ -118,6 +129,17 @@ class Query:
 
         # Sort the chronologically.
         return Query.sort_chronologically(events)
+
+    @staticmethod
+    def users(query, connection):
+        table = DeviceInfoTable(connection)
+        table_query = DeviceInfoTable.should_handle(query)
+        events = Query._query(table, table_query, False, query.limit)
+        # Only want the # of unique client id
+        clients = set()
+        for event in events:
+            clients.add(event['client'])
+        return len(clients)
 
     @staticmethod
     def sort_chronologically(events):

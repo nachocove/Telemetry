@@ -12,8 +12,7 @@ class MonitorCount(Monitor):
         # Create the query
         self.query = Query()
         self.query.add_range('uploaded_at', start, end)
-        self.query.limit = 0
-        self.query.count = 1
+        self.query.count = True
 
     def run(self):
         # Derived class must provide its own implementation
@@ -40,7 +39,7 @@ class MonitorUsers(MonitorCount):
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self.count = Query.users(self.query, self.conn)[1]
+        self.count = Query.users(self.query, self.conn)
 
 
 class MonitorEvents(MonitorCount):
@@ -49,4 +48,4 @@ class MonitorEvents(MonitorCount):
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self.count = Query.events(self.query, self.conn)[1]
+        self.count = Query.events(self.query, self.conn)

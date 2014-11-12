@@ -28,6 +28,11 @@ class Event(Item):
     # format is done in the constructors. The other direction is done by overloading
     # __getitem__ and handle them as exception cases
     def __getitem__(self, key):
+        if key == 'event_type':
+            # For tables that optimize away event_type, we need to recreate it
+            table_cls = self.__class__.TABLE_CLASS
+            if len(table_cls.EVENT_TYPES) == 1:
+                return table_cls.EVENT_TYPES[0]
         if key in ['timestamp', 'uploaded_at']:
             return UtcDateTime(Item.__getitem__(self, key))
         else:
