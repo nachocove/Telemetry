@@ -20,12 +20,27 @@ class Config:
         if os.path.exists(self.cfg_file):
             self.config.read(self.cfg_file)
 
-    def get(self, section, key):
+    def _section_and_key_exist(self, section, key):
         if not self.config.has_section(section):
-            return None
+            return False
         if not self.config.has_option(section, key):
+            return False
+        return True
+
+    def get(self, section, key):
+        if not self._section_and_key_exist(section, key):
             return None
         return self.config.get(section, key)
+
+    def getbool(self, section, key):
+        if not self._section_and_key_exist(section, key):
+            return None
+        return self.config.getboolean(section, key)
+
+    def getint(self, section, key):
+        if not self._section_and_key_exist(section, key):
+            return None
+        return self.config.getint(section, key)
 
     def set(self, section, key, value):
         if value is None:
@@ -37,19 +52,6 @@ class Config:
     def write(self):
         with open(self.cfg_file, 'w') as f:
             self.config.write(f)
-
-    def read_wbxml_tool(self, options):
-        """
-        Read the path to WbxmlTool
-        """
-        options.wbxml_tool_path = self.get('wbxml_tool', 'wbxml_tool_path')
-
-    def write_wbxml_tool(self, options):
-        """
-        Write the path to WbxmlTool
-        """
-        self.set('wbxml_tool', 'wbxml_tool_path', options.wbxml_tool_path)
-        self.write()
 
 
 class SectionConfig:
@@ -83,3 +85,30 @@ class SectionConfig:
             value = getattr(self, key)
             if value is not None:
                 setattr(options, cls.SECTION + '_' + key, value)
+
+
+class ColorsConfig(SectionConfig):
+    SECTION = 'colors'
+    KEYS = (
+        'warn',
+        'error',
+        'wbxml_request',
+        'wbxml_response',
+        'counter',
+        'capture',
+        'support',
+        'ui'
+    )
+
+    def __init__(self, config_file):
+        SectionConfig.__init__(self, config_file)
+
+
+class WbxmlToolConfig(SectionConfig):
+    SECTION = 'wbxml_tool'
+    KEYS = (
+        'wbxml_tool_path'
+    )
+
+    def __init__(self, config_file):
+        SectionConfig.__init__(self, config_file)

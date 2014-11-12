@@ -22,7 +22,7 @@ from monitors.monitor_counters import MonitorCounters
 from monitors.monitor_hockeyapp import MonitorHockeyApp
 from monitors.monitor_ui import MonitorUi
 from monitors.monitor_support import MonitorSupport
-from monitors.config import EmailConfig, MonitorProfileConfig
+from monitors.config import EmailConfig, MonitorProfileConfig, TimestampConfig
 
 
 class MonitorConfig(config.Config):
@@ -145,8 +145,9 @@ def main():
     # If we want a time window but do not have one from command line, get it
     # from config and current time
     do_update_timestamp = False
+    timestamp_state = TimestampConfig(Config(options.config + '.state'))
     if isinstance(options.start, str) and options.start == 'last':
-        options.start = config_file.read_timestamp()
+        options.start = timestamp_state.last
     if isinstance(options.end, str) and options.end == 'now':
         options.end = UtcDateTime.now()
         do_update_timestamp = True
@@ -250,7 +251,8 @@ def main():
     # Update timestamp in config if necessary after we have successfully
     # send the notification email
     if do_update_timestamp:
-        config_file.write_timestamp(options.end)
+        timestamp_state.last = options.end
+        timestamp_state.save()
 
 if __name__ == '__main__':
     main()

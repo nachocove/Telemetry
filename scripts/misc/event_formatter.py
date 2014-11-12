@@ -188,7 +188,7 @@ class EventFormatter:
             self.may_add(self.info, obj, field)
         if 'wbxml' in obj:
             # WBXML is special because we may optionally decode it.
-            decoded = self.decode_wbxml(obj['wbxml']['base64'])
+            decoded = self.decode_wbxml(obj['wbxml'].encode())
             if decoded is None:
                 self.info.format('wbxml', obj['wbxml'])
             else:

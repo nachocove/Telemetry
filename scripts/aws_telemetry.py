@@ -18,11 +18,12 @@ import Queue
 import time
 
 import Parse
-from misc import config
 from misc import event_formatter
 from misc import events
 from misc import support
 from misc import expression
+from misc.utc_datetime import UtcDateTime
+from misc.config import Config, ColorsConfig, WbxmlToolConfig
 
 
 def abort(mesg):
@@ -214,7 +215,7 @@ def query_(options):
 
 def console(options):
     # Set up current time
-    current = misc.utc_datetime.UtcDateTime.now()
+    current = UtcDateTime.now()
 
     formatter = setup_event_formatter(event_formatter.LogStyleEventFormatter, options)
 
@@ -233,7 +234,7 @@ def console(options):
                 continue
 
             # Update time
-            current = misc.utc_datetime.UtcDateTime(obj_list[-1]['createdAt'])
+            current = UtcDateTime(obj_list[-1]['createdAt'])
 
             # Print out the event
             for obj in obj_list:
@@ -375,12 +376,12 @@ class SelectorAction(argparse.Action):
             else:
                 raise ValueError('invalid boolean value %s' % value)
         elif option_string == '--after':
-            sel = Parse.query.SelectorGreaterThanEqual(misc.utc_datetime.UtcDateTime(value))
+            sel = Parse.query.SelectorGreaterThanEqual(UtcDateTime(value))
         elif option_string == '--before':
             if value == 'now':
-                sel = Parse.query.SelectorLessThan(misc.utc_datetime.UtcDateTime.now())
+                sel = Parse.query.SelectorLessThan(UtcDateTime.now())
             else:
-                sel = Parse.query.SelectorLessThan(misc.utc_datetime.UtcDateTime(value))
+                sel = Parse.query.SelectorLessThan(UtcDateTime(value))
         elif option_string == '--startswith':
             sel = Parse.query.SelectorStartsWith(value)
         else:
@@ -402,18 +403,6 @@ class FieldSelectorAction(argparse.Action):
         getattr(namespace, 'selectors').append(sel)
 
 
-class ParseConfig(config.Config):
-    def read_colors(self, options):
-        self.get('colors', 'debug', options)
-        self.get('colors', 'info', options)
-        self.get('colors', 'warn', options)
-        self.get('colors', 'error', options)
-        self.get('colors', 'wbxml_request', options)
-        self.get('colors', 'wbxml_response', options)
-        self.get('colors', 'counter', options)
-        self.get('colors', 'capture', options)
-
-
 def main():
     command_mapping = {'console': console,
                        'count': count,
@@ -430,12 +419,7 @@ def main():
     # Access credential
     credential_group = parser.add_argument_group(title='Credential Options',
                                                  description='Option for configuring various keys.')
-    credential_group.add_argument('--app-id', help='Application ID', default=None)
-    rest_api_key_group = credential_group.add_mutually_exclusive_group()
-    rest_api_key_group.add_argument('--api-key', help='REST API key')
     credential_group.add_argument('--config', help='Configuration file', default='parse.cfg')
-    rest_api_key_group.add_argument('--master-key', help='Master key')
-    credential_group.add_argument('--session-token', help='Session token', default=None)
 
     # Login options
     login_group = parser.add_argument_group(title='Login Options',
@@ -511,13 +495,6 @@ def main():
         parser.print_help()
         exit(0)
 
-    def has_credential(opt):
-        if opt.app_id is None:
-            return False
-        if (opt.api_key is None) and (opt.master_key is None):
-            return False
-        return True
-
     # We need to go thru the selectors and convert the value to a different
     # type if necessary. For example, --equal for timestamp should be converted to
     # a UtcDateTime object not a string.
@@ -526,25 +503,14 @@ def main():
     for (field, sel) in zip(options.field, options.selectors):
         if field in ['timestamp', 'createdAt', 'updatedAt', 'counter_start', 'counter_end']:
             if issubclass(sel.__class__, Parse.query.SelectorCompare) and isinstance(sel.value, str):
-                sel.value = misc.utc_datetime.UtcDateTime(sel.value)
+                sel.value = UtcDateTime(sel.value)
         elif field in ['count', 'min', 'max', 'average', 'stddev']:
             if issubclass(sel.__class__, Parse.query.SelectorCompare):
                 sel.value = int(sel.value)
 
-    # Sanity check parameters
-    # Make sure we have keys
-    config_ = ParseConfig(options.config)
-    if not has_credential(options):
-        config_.read_keys(options)
-    else:
-        # Write the credential
-        config_.write_keys(options)
-
-    # Check if we have WbxmlTool configured
-    if options.wbxml_tool_path is not None:
-        config_.write_wbxml_tool(options)
-    else:
-        config_.read_wbxml_tool(options)
+    config_file = Config(options.config)
+    ColorsConfig(config_file).read(options)
+    WbxmlToolConfig(config_file).read(options)
 
     # If there is no display field, set up the default
     if len(options.display) == 0:
@@ -552,15 +518,10 @@ def main():
                            'event_type',
                            'client'] + events.INFO_FIELDS
 
-    # Read the configuration to get the color
-    for event_type in events.TYPES:
-        setattr(options, event_type, None)
-    config_.read_colors(options)
-
     # Handle setup command separately because it takes an extra
     # parameter
     if options.command == 'setup':
-        setup(options, config_)
+        setup(options, config_file)
         exit(0)
 
     if options.command not in command_mapping:
