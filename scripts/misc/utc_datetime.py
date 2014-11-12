@@ -6,8 +6,8 @@ import pytz
 
 class UtcDateTime:
     def __init__(self, value=None):
-        if isinstance(value, str):
-            self.datetime = dateutil.parser.parse(value)
+        if isinstance(value, str) or isinstance(value, unicode):
+            self.datetime = dateutil.parser.parse(str(value))
         elif isinstance(value, datetime.datetime):
             self.datetime = value
         elif isinstance(value, int):
