@@ -208,7 +208,7 @@ class UiEvent(Event):
         if ui_string is not None:
             self['ui_string'] = ui_string
         if ui_integer is not None:
-            self['ui_integer'] = ui_integer
+            self['ui_integer'] = int(ui_integer)
 
     def __str__(self):
         s = self._header_str()

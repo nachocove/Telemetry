@@ -16,6 +16,10 @@ def write(s):
     sys.stdout.flush()
 
 
+def progress():
+    write('.')
+
+
 def poll(fn, duration):
     then = datetime.now()
     while not fn():
@@ -41,16 +45,20 @@ def list_tables(connection):
 
 
 def delete_tables(connection):
-    tables = connection.list_tables()[u'TableNames']
-    for table in tables:
-        write('Deleting %s...' % table)
+    for table in TABLE_CLASSES:
+        table_name = TelemetryTable.full_table_name(table.TABLE_NAME)
+        write('Deleting %s...' % table_name)
         try:
-            connection.delete_table(table)
+            connection.delete_table(table_name)
         except JSONResponseError, e:
-            if u'message' in e.body and \
-                e.body[u'message'].startswith(u'Attempt to change a resource which is still in use: '
-                                              u'Table is being deleted: '):
-                pass
+            if u'message' in e.body:
+                message = e.body[u'message']
+                if message.startswith(u'Attempt to change a resource which is still in use: '
+                                      u'Table is being deleted: '):
+                    pass
+                if message.startswith(u'Requested resource not found: Table: '):
+                    print 'Table %s does not exist.' % table.TABLE_NAME
+                    continue
             else:
                 raise e
 
@@ -64,15 +72,14 @@ def create_tables(connection):
         try:
             table_name = TelemetryTable.full_table_name(cls.TABLE_NAME)
             write('Creating %s...' % table_name)
-            table = cls.create_table(connection)
+            cls.create_table(connection, polling_fn=progress)
+            write('\n')
         except JSONResponseError, e:
             if ((u'Message' in e.body and e.body[u'Message'] == u'Cannot create preexisting table') or
                     (u'message' in e.body and e.body[u'message'].startswith(u'Table already exists:'))):
                 print 'Table %s already exists.' % cls.TABLE_NAME
-                table = cls(connection)
             else:
                 raise e
-        poll(table.is_active, 1)
 
 
 def main():

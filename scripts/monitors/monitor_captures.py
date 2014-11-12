@@ -1,6 +1,6 @@
 import analytics
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorGreaterThanEqual, SelectorLessThan
+from AWS.selectors import SelectorEqual
 from monitor_base import Monitor
 from misc.html_elements import *
 from misc.number_formatter import *

@@ -4,6 +4,7 @@ from boto.dynamodb2.types import NUMBER, STRING
 from table_query import TelemetryTableQuery
 from misc.dict_formatter import DictFormatter
 from selectors import SelectorEqual
+from datetime import datetime
 
 
 class TelemetryTable(Table):
@@ -26,13 +27,26 @@ class TelemetryTable(Table):
             raise ValueError('Prefix is not set yet.')
         return TelemetryTable.PREFIX + '.telemetry.' + table
 
+    @staticmethod
+    def _poll(fn, duration, poll_fn=None):
+        then = datetime.now()
+        while not fn():
+            now = datetime.now()
+            if (now - then).seconds > duration:
+                then = now
+                if callable(poll_fn):
+                    poll_fn()
+
     @classmethod
-    def create(cls, connection, local_secondary_indexes=None, global_secondary_indexes=None, throughput=None):
+    def _create(cls, connection, local_secondary_indexes=None, global_secondary_indexes=None, throughput=None,
+                polling_fn=None):
         # Schema is common for all tables - hash key on client id and range key on timestamp
         schema = [
             HashKey('id', data_type=STRING),
         ]
 
+        # Add a global index on client + timestamp for all tables. Other indexes must be
+        # customized by subclasses
         if global_secondary_indexes is None:
             global_secondary_indexes = list()
         client_timestamp_index = GlobalAllIndex(TelemetryTable.CLIENT_TIMESTAMP_INDEX,
@@ -46,6 +60,7 @@ class TelemetryTable(Table):
                                                 })
         global_secondary_indexes.append(client_timestamp_index)
 
+        # Create the table
         if cls.TABLE_NAME is None:
             raise ValueError('TABLE_NAME is not properly overridden in derived class.')
         Table.create(table_name=TelemetryTable.full_table_name(cls.TABLE_NAME),
@@ -54,7 +69,14 @@ class TelemetryTable(Table):
                      indexes=local_secondary_indexes,
                      global_indexes=global_secondary_indexes,
                      connection=connection)
-        return cls(connection)
+        table = cls(connection)
+
+        # Wait for the table to become active. On local DynamoDB, create is pretty
+        # instantaneous but on AWS DynamoDB, it takes a few seconds for the table
+        # to be come active.
+        TelemetryTable._poll(table.is_active, 1, polling_fn)
+
+        return table
 
     @classmethod
     def has_field(cls, field):
@@ -191,8 +213,8 @@ class DeviceInfoTable(TelemetryTable):
         TelemetryTable.__init__(self, connection=connection, table_name=DeviceInfoTable.TABLE_NAME)
 
     @classmethod
-    def create_table(cls, connection):
-        return cls.create(connection, global_secondary_indexes=None)
+    def create_table(cls, connection, polling_fn=None):
+        return cls._create(connection, global_secondary_indexes=None, polling_fn=polling_fn)
 
 
 class LogTable(TelemetryTable):
@@ -205,7 +227,7 @@ class LogTable(TelemetryTable):
         TelemetryTable.__init__(self, connection=connection, table_name=LogTable.TABLE_NAME)
 
     @classmethod
-    def create_table(cls, connection):
+    def create_table(cls, connection, polling_fn=None):
         event_type_timestamp_index = GlobalAllIndex(LogTable.EVENT_TYPE_TIMESTAMP_INDEX,
                                                     parts=[
                                                         HashKey('event_type', data_type=STRING),
@@ -215,7 +237,7 @@ class LogTable(TelemetryTable):
                                                         'read': 1,
                                                         'write': 1
                                                     })
-        return cls.create(connection, global_secondary_indexes=[event_type_timestamp_index])
+        return cls._create(connection, global_secondary_indexes=[event_type_timestamp_index], polling_fn=polling_fn)
 
     @classmethod
     def should_handle(cls, query):
@@ -237,7 +259,7 @@ class WbxmlTable(TelemetryTable):
         TelemetryTable.__init__(self, connection=connection, table_name=WbxmlTable.TABLE_NAME)
 
     @classmethod
-    def create_table(cls, connection):
+    def create_table(cls, connection, polling_fn=None):
         event_type_timestamp_index = GlobalAllIndex(WbxmlTable.EVENT_TYPE_TIMESTAMP_INDEX,
                                                     parts=[
                                                         HashKey('event_type', data_type=STRING),
@@ -247,7 +269,7 @@ class WbxmlTable(TelemetryTable):
                                                         'read': 1,
                                                         'write': 1
                                                     })
-        return cls.create(connection, global_secondary_indexes=[event_type_timestamp_index])
+        return cls._create(connection, global_secondary_indexes=[event_type_timestamp_index], polling_fn=polling_fn)
 
     @classmethod
     def should_handle(cls, query):
@@ -269,7 +291,7 @@ class CounterTable(TelemetryTable):
         TelemetryTable.__init__(self, connection=connection, table_name=CounterTable.TABLE_NAME)
 
     @classmethod
-    def create_table(cls, connection):
+    def create_table(cls, connection, polling_fn=None):
         counter_name_timestamp_index = GlobalAllIndex(CounterTable.COUNTER_NAME_TIMESTAMP_INDEX,
                                                       parts=[
                                                           HashKey('counter_name', data_type=STRING),
@@ -279,7 +301,7 @@ class CounterTable(TelemetryTable):
                                                           'read': 1,
                                                           'write': 1
                                                       })
-        return cls.create(connection, global_secondary_indexes=[counter_name_timestamp_index])
+        return cls._create(connection, global_secondary_indexes=[counter_name_timestamp_index], polling_fn=polling_fn)
 
     @classmethod
     def should_handle(cls, query):
@@ -301,7 +323,7 @@ class CaptureTable(TelemetryTable):
         TelemetryTable.__init__(self, connection=connection, table_name=CaptureTable.TABLE_NAME)
 
     @classmethod
-    def create_table(cls, connection):
+    def create_table(cls, connection, polling_fn=None):
         capture_name_timestamp_index = GlobalAllIndex(CaptureTable.CAPTURE_NAME_TIMESTAMP_INDEX,
                                                       parts=[
                                                           HashKey('capture_name', data_type=STRING),
@@ -311,7 +333,7 @@ class CaptureTable(TelemetryTable):
                                                           'read': 1,
                                                           'write': 1
                                                       })
-        return cls.create(connection, global_secondary_indexes=[capture_name_timestamp_index])
+        return cls._create(connection, global_secondary_indexes=[capture_name_timestamp_index], polling_fn=polling_fn)
 
     @classmethod
     def should_handle(cls, query):
@@ -332,8 +354,8 @@ class SupportTable(TelemetryTable):
         TelemetryTable.__init__(self, connection=connection, table_name=SupportTable.TABLE_NAME)
 
     @classmethod
-    def create_table(cls, connection):
-        return cls.create(connection, global_secondary_indexes=None)
+    def create_table(cls, connection, polling_fn=None):
+        return cls._create(connection, global_secondary_indexes=None, polling_fn=polling_fn)
 
 
 class UiTable(TelemetryTable):
@@ -345,8 +367,8 @@ class UiTable(TelemetryTable):
         TelemetryTable.__init__(self, connection=connection, table_name=UiTable.TABLE_NAME)
 
     @classmethod
-    def create_table(cls, connection):
-        return cls.create(connection, global_secondary_indexes=None)
+    def create_table(cls, connection, polling_fn=None):
+        return cls._create(connection, global_secondary_indexes=None, polling_fn=polling_fn)
 
 TABLE_CLASSES = [
     DeviceInfoTable,
