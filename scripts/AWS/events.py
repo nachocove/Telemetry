@@ -136,7 +136,7 @@ class CounterEvent(Event):
                  counter_name, count, counter_start, counter_end):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         self['counter_name'] = counter_name
-        self['count'] = count
+        self['count'] = int(count)
         self['counter_start'] = Event.parse_datetime(counter_start)
         self['counter_end'] = Event.parse_datetime(counter_end)
 
@@ -163,11 +163,12 @@ class CaptureEvent(Event):
                  capture_name, count, min_, max_, sum_, sum2):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         self['capture_name'] = capture_name
-        self['count'] = count
-        self['min'] = min_
-        self['max'] = max_
-        self['sum'] = sum_
-        self['sum2'] = sum2
+        # Convert all Decimal to int
+        self['count'] = int(count)
+        self['min'] = int(min_)
+        self['max'] = int(max_)
+        self['sum'] = int(sum_)
+        self['sum2'] = int(sum2)
 
     def __str__(self):
         s = self._header_str()
