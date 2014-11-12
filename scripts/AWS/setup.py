@@ -63,7 +63,7 @@ def delete_tables(connection):
                 raise e
 
         def is_deleted():
-            return table not in get_table_names(connection)
+            return table_name not in get_table_names(connection)
         poll(is_deleted, 1)
 
 

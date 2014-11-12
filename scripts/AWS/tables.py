@@ -16,6 +16,7 @@ class TelemetryTable(Table):
     # (but not in device info table)
     COMMON_FIELD_NAMES = ['id', 'client', 'timestamp', 'uploaded_at']
     CLIENT_TIMESTAMP_INDEX = 'index.client-timestamp'
+    EVENT_TYPE_UPLOADED_AT_INDEX = 'index.event_type-uploaded_at'
 
     def __init__(self, connection, table_name):
         Table.__init__(self, table_name=TelemetryTable.full_table_name(table_name),
@@ -59,6 +60,17 @@ class TelemetryTable(Table):
                                                     'write': 1
                                                 })
         global_secondary_indexes.append(client_timestamp_index)
+        if 'event_type' in cls.FIELD_NAMES:
+            event_type_uploaded_at_index = GlobalAllIndex(TelemetryTable.EVENT_TYPE_UPLOADED_AT_INDEX,
+                                                          parts=[
+                                                              HashKey('event_type', data_type=STRING),
+                                                              RangeKey('uploaded_at', data_type=NUMBER)
+                                                          ],
+                                                          throughput={
+                                                              'read': 1,
+                                                              'write': 1
+                                                          })
+            global_secondary_indexes.append(event_type_uploaded_at_index)
 
         # Create the table
         if cls.TABLE_NAME is None:
@@ -103,6 +115,11 @@ class TelemetryTable(Table):
         result.may_add_secondary_rangekey(query.selectors, 'timestamp',
                                           index_name=[
                                               TelemetryTable.CLIENT_TIMESTAMP_INDEX,
+                                          ])
+        result.may_add_secondary_hashkey(query.selectors, 'event_type', TelemetryTable.EVENT_TYPE_UPLOADED_AT_INDEX)
+        result.may_add_secondary_rangekey(query.selectors, 'uploaded_at',
+                                          index_name=[
+                                              TelemetryTable.EVENT_TYPE_UPLOADED_AT_INDEX,
                                           ])
         result.set_query_filter(query, cls)
         return result
@@ -284,7 +301,7 @@ class WbxmlTable(TelemetryTable):
 class CounterTable(TelemetryTable):
     TABLE_NAME = 'counter'
     EVENT_TYPES = ['COUNTER']
-    FIELD_NAMES = ['counter_name', 'count', 'counter_start', 'counter_end']
+    FIELD_NAMES = ['event_type', 'counter_name', 'count', 'counter_start', 'counter_end']
     COUNTER_NAME_TIMESTAMP_INDEX = 'index.counter_name-timestamp'
 
     def __init__(self, connection):
@@ -316,7 +333,7 @@ class CounterTable(TelemetryTable):
 class CaptureTable(TelemetryTable):
     TABLE_NAME = 'capture'
     EVENT_TYPES = ['CAPTURE']
-    FIELD_NAMES = ['capture_name', 'count', 'min', 'max', 'average', 'stddev']
+    FIELD_NAMES = ['event_type', 'capture_name', 'count', 'min', 'max', 'average', 'stddev']
     CAPTURE_NAME_TIMESTAMP_INDEX = 'index.capture_name-timestamp'
 
     def __init__(self, connection):
@@ -348,7 +365,7 @@ class CaptureTable(TelemetryTable):
 class SupportTable(TelemetryTable):
     TABLE_NAME = 'support'
     EVENT_TYPES = ['SUPPORT']
-    FIELD_NAMES = ['support']
+    FIELD_NAMES = ['event_type', 'support']
 
     def __init__(self, connection):
         TelemetryTable.__init__(self, connection=connection, table_name=SupportTable.TABLE_NAME)
@@ -361,7 +378,7 @@ class SupportTable(TelemetryTable):
 class UiTable(TelemetryTable):
     TABLE_NAME = 'ui'
     EVENT_TYPES = ['UI']
-    FIELD_NAMES = ['ui_type', 'ui_object', 'ui_string', 'ui_integer']
+    FIELD_NAMES = ['event_type', 'ui_type', 'ui_object', 'ui_string', 'ui_integer']
 
     def __init__(self, connection):
         TelemetryTable.__init__(self, connection=connection, table_name=UiTable.TABLE_NAME)

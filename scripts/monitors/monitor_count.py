@@ -1,4 +1,6 @@
 from AWS.query import Query
+from AWS.tables import TABLE_CLASSES
+from AWS.selectors import SelectorEqual
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
 
@@ -48,4 +50,16 @@ class MonitorEvents(MonitorCount):
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self.count = Query.events(self.query, self.conn)
+        # We cannot just issue a query with a range on uploaded_at because it
+        # will result in a scan. Instead, we iterate of all event types, issue
+        # a query for event_type + uploaded_at range which results in a indexed query
+        # for each event type and finally combine the count
+        self.count = 0
+        for table in TABLE_CLASSES:
+            for event_type in table.EVENT_TYPES:
+                query = Query()
+                query.add('event_type', SelectorEqual(event_type))
+                query.add_range('uploaded_at', self.start, self.end)
+                query.count = True
+                count = Query.events(query, self.conn)
+                self.count += count

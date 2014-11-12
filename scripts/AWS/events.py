@@ -137,9 +137,11 @@ class WbxmlEvent(Event):
 class CounterEvent(Event):
     TABLE_CLASS = CounterTable
 
-    def __init__(self, connection, id_, client, timestamp, uploaded_at,
+    def __init__(self, connection, id_, client, timestamp, uploaded_at, event_type,
                  counter_name, count, counter_start, counter_end):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
+        assert event_type == 'COUNTER'
+        self['event_type'] = event_type
         self['counter_name'] = counter_name
         self['count'] = int(count)
         self['counter_start'] = Event.parse_datetime(counter_start)
@@ -164,9 +166,11 @@ class CaptureEvent(Event):
     TABLE_CLASS = CaptureTable
     CONFLICT_FIELDS = ['min', 'max', 'sum']
 
-    def __init__(self, connection, id_, client, timestamp, uploaded_at,
+    def __init__(self, connection, id_, client, timestamp, uploaded_at, event_type,
                  capture_name, count, min_, max_, sum_, sum2):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
+        assert event_type == 'CAPTURE'
+        self['event_type'] = event_type
         self['capture_name'] = capture_name
         # Convert all Decimal to int
         self['count'] = int(count)
@@ -189,8 +193,10 @@ class CaptureEvent(Event):
 class SupportEvent(Event):
     TABLE_CLASS = SupportTable
 
-    def __init__(self, connection, id_, client, timestamp, uploaded_at, support):
+    def __init__(self, connection, id_, client, timestamp, uploaded_at, event_type, support):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
+        assert event_type == 'SUPPORT'
+        self['event_type'] = event_type
         self['support'] = support
 
     def __str__(self):
@@ -200,9 +206,11 @@ class SupportEvent(Event):
 class UiEvent(Event):
     TABLE_CLASS = UiTable
 
-    def __init__(self, connection, id_, client, timestamp, uploaded_at,
+    def __init__(self, connection, id_, client, timestamp, uploaded_at, event_type,
                  ui_type, ui_object, ui_string=None, ui_integer=None):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
+        assert event_type == 'UI'
+        self['event_type'] = event_type
         self['ui_type'] = ui_type
         self['ui_object'] = ui_object
         if ui_string is not None:

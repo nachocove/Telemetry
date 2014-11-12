@@ -53,6 +53,7 @@ class TelemetryTableQuery:
         return lo, hi
 
     def may_add_secondary_rangekey(self, selectors, field_name, index_name):
+        # Note: may_add_secondary_hashkey() must be called before this method!
         if field_name not in selectors:
             return False
         if not self.has_index():
@@ -60,7 +61,7 @@ class TelemetryTableQuery:
         if isinstance(index_name, list):
             if self.index not in index_name:
                 return False
-        if isinstance(index_name, str) or isinstance(index_name, unicode):
+        if isinstance(index_name, (str, unicode)):
             if self.index != index_name:
                 return False
         sels = selectors[field_name]
