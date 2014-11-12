@@ -99,7 +99,11 @@ class Query:
             else:
                 # No keys in any of the indexes. Fall back to scan
                 if query.count:
-                    results = table.query_count(**table_query.query_filter.data())
+                    # count += table.query_count(**table_query.query_filter.data())
+                    # Somehow, query_count does not like it when there is no index. Use a scan instead
+                    results = table.scan(**table_query.query_filter.data())
+                    for res in results:
+                        count += 1
                 else:
                     results = table.scan(**table_query.query_filter.data())
             if not query.count:

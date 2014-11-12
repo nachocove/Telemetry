@@ -284,6 +284,11 @@ class TestTables(unittest.TestCase):
         events = Query.events(query, self.connection)
         self.compare_events_one(logs[1], events)
 
+        query = Query()
+        query.add_range('uploaded_at', UtcDateTime('2014-11-01T07:30:00Z'), UtcDateTime('2014-11-01T08:30:00Z'))
+        events = Query.events(query, self.connection)
+        self.compare_events_list(logs[1:4], events)
+
     def test_wbxml_table(self):
         pass
 
@@ -349,7 +354,19 @@ class TestTables(unittest.TestCase):
         events = Query.events(query, self.connection)
         self.compare_events_one(counters[2], events)
 
+        # Query by event_type + uploaded_at
+        query = Query()
+        query.add('event_type', SelectorEqual('COUNTER'))
+        query.add_range('uploaded_at', UtcDateTime('2014-10-17T01:30:00Z'), UtcDateTime('2014-10-17T02:30:00Z'))
+        events = Query.events(query, self.connection)
+        self.compare_events_one(counters[1], events)
+
+        # Count by event_type + uploaded_at
+        query.count = True
+        self.assertEqual(1, Query.events(query, self.connection))
+
     def test_capture_table(self):
+
         # Create items
         captures = [
             {
@@ -416,6 +433,17 @@ class TestTables(unittest.TestCase):
         query.add('timestamp', SelectorLessThanEqual(UtcDateTime('2014-09-01T00:00:00Z')))
         events = Query.events(query, self.connection)
         self.compare_events_one(captures[0], events)
+
+        # Query by event_type + uploaded_at
+        query = Query()
+        query.add('event_type', SelectorEqual('CAPTURE'))
+        query.add_range('uploaded_at', UtcDateTime('2014-09-01T00:30:00Z'), UtcDateTime('2014-09-01T01:30:00Z'))
+        events = Query.events(query, self.connection)
+        self.compare_events_one(captures[1], events)
+
+        # Count by event_type + uploaded_at
+        query.count = True
+        self.assertEqual(1, Query.events(query, self.connection))
 
     def test_support_table(self):
         supports = [

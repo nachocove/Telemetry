@@ -72,7 +72,7 @@ class TelemetryTableQuery:
             TelemetryTableQuery.check_rangekey_selector(sel)
             self.secondary_keys.add(field_name, sel)
 
-    def set_query_filter(self, query):
+    def set_query_filter(self, query, table_cls):
         self.query_filter = QueryFilter()
         fields = set(query.selectors.keys())
         for field in self.primary_keys.fields:
@@ -82,6 +82,12 @@ class TelemetryTableQuery:
             if field in fields:
                 fields.remove(field)
         for field in fields:
+            if field == 'event_type' and not table_cls.has_field(field):
+                # event_type is an exception. It is optimized away in
+                # tables that cover only one event type. But a query
+                # must specify this field if it is to select a single
+                # event type (even if the table does not have it)
+                continue
             sels = query.selectors[field]
             (lo, hi) = TelemetryTableQuery.optimize_range(sels)
             if lo is not None and hi is not None:

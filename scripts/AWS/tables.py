@@ -3,11 +3,13 @@ from boto.dynamodb2.fields import HashKey, RangeKey, GlobalAllIndex
 from boto.dynamodb2.types import NUMBER, STRING
 from table_query import TelemetryTableQuery
 from misc.dict_formatter import DictFormatter
+from selectors import SelectorEqual
 
 
 class TelemetryTable(Table):
     PREFIX = None
     TABLE_NAME = None
+    EVENT_TYPES = list()
     FIELD_NAMES = list()
     # These are fields that exist in all telemetry event tables
     # (but not in device info table)
@@ -55,23 +57,32 @@ class TelemetryTable(Table):
         return cls(connection)
 
     @classmethod
-    def is_for_us(cls, fields):
-        for field in fields:
-            if not (field in TelemetryTable.COMMON_FIELD_NAMES or field in cls.FIELD_NAMES):
+    def has_field(cls, field):
+        return field in TelemetryTable.COMMON_FIELD_NAMES or field in cls.FIELD_NAMES
+
+    @classmethod
+    def is_for_us(cls, selectors):
+        for (field, sel) in selectors.items():
+            if field == 'event_type' and len(sel) == 1 and isinstance(sel[0], SelectorEqual):
+                if sel[0].value in cls.EVENT_TYPES:
+                    continue
+                else:
+                    return False
+            if not cls.has_field(field):
                 return False
         return True
 
     @classmethod
     def should_handle(cls, query):
         result = TelemetryTableQuery()
-        result.for_us = cls.is_for_us(query.selectors.keys())
+        result.for_us = cls.is_for_us(query.selectors)
         result.may_add_primary_hashkey(query.selectors, 'id')
         result.may_add_secondary_hashkey(query.selectors, 'client', TelemetryTable.CLIENT_TIMESTAMP_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'timestamp',
                                           index_name=[
                                               TelemetryTable.CLIENT_TIMESTAMP_INDEX,
                                           ])
-        result.set_query_filter(query)
+        result.set_query_filter(query, cls)
         return result
 
     def is_active(self):
@@ -209,10 +220,10 @@ class LogTable(TelemetryTable):
     @classmethod
     def should_handle(cls, query):
         result = TelemetryTable.should_handle(query)
-        result.for_us = cls.is_for_us(query.selectors.keys())
+        result.for_us = cls.is_for_us(query.selectors)
         result.may_add_secondary_hashkey(query.selectors, 'event_type', cls.EVENT_TYPE_TIMESTAMP_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.EVENT_TYPE_TIMESTAMP_INDEX])
-        result.set_query_filter(query)
+        result.set_query_filter(query, cls)
         return result
 
 
@@ -241,15 +252,16 @@ class WbxmlTable(TelemetryTable):
     @classmethod
     def should_handle(cls, query):
         result = TelemetryTable.should_handle(query)
-        result.for_us = cls.is_for_us(query.selectors.keys())
+        result.for_us = cls.is_for_us(query.selectors)
         result.may_add_secondary_hashkey(query.selectors, 'event_type', cls.EVENT_TYPE_TIMESTAMP_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.EVENT_TYPE_TIMESTAMP_INDEX])
-        result.set_query_filter(query)
+        result.set_query_filter(query, cls)
         return result
 
 
 class CounterTable(TelemetryTable):
     TABLE_NAME = 'counter'
+    EVENT_TYPES = ['COUNTER']
     FIELD_NAMES = ['counter_name', 'count', 'counter_start', 'counter_end']
     COUNTER_NAME_TIMESTAMP_INDEX = 'index.counter_name-timestamp'
 
@@ -272,15 +284,16 @@ class CounterTable(TelemetryTable):
     @classmethod
     def should_handle(cls, query):
         result = TelemetryTable.should_handle(query)
-        result.for_us = cls.is_for_us(query.selectors.keys())
+        result.for_us = cls.is_for_us(query.selectors)
         result.may_add_secondary_hashkey(query.selectors, 'counter_name', cls.COUNTER_NAME_TIMESTAMP_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.COUNTER_NAME_TIMESTAMP_INDEX])
-        result.set_query_filter(query)
+        result.set_query_filter(query, cls)
         return result
 
 
 class CaptureTable(TelemetryTable):
     TABLE_NAME = 'capture'
+    EVENT_TYPES = ['CAPTURE']
     FIELD_NAMES = ['capture_name', 'count', 'min', 'max', 'average', 'stddev']
     CAPTURE_NAME_TIMESTAMP_INDEX = 'index.capture_name-timestamp'
 
@@ -303,15 +316,16 @@ class CaptureTable(TelemetryTable):
     @classmethod
     def should_handle(cls, query):
         result = TelemetryTable.should_handle(query)
-        result.for_us = cls.is_for_us(query.selectors.keys())
+        result.for_us = cls.is_for_us(query.selectors)
         result.may_add_secondary_hashkey(query.selectors, 'counter_name', cls.CAPTURE_NAME_TIMESTAMP_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.CAPTURE_NAME_TIMESTAMP_INDEX])
-        result.set_query_filter(query)
+        result.set_query_filter(query, cls)
         return result
 
 
 class SupportTable(TelemetryTable):
     TABLE_NAME = 'support'
+    EVENT_TYPES = ['SUPPORT']
     FIELD_NAMES = ['support']
 
     def __init__(self, connection):
@@ -324,6 +338,7 @@ class SupportTable(TelemetryTable):
 
 class UiTable(TelemetryTable):
     TABLE_NAME = 'ui'
+    EVENT_TYPES = ['UI']
     FIELD_NAMES = ['ui_type', 'ui_object', 'ui_string', 'ui_integer']
 
     def __init__(self, connection):
