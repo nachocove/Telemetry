@@ -1,4 +1,4 @@
-from events import LogEvent, WbxmlEvent, CounterEvent, CaptureEvent, SupportEvent, UiEvent
+from events import LogEvent, WbxmlEvent, CounterEvent, CaptureEvent, SupportEvent, UiEvent, DeviceInfoEvent
 from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan, SelectorBetween
 from tables import DeviceInfoTable
 
@@ -135,11 +135,13 @@ class Query:
         table = DeviceInfoTable(connection)
         table_query = DeviceInfoTable.should_handle(query)
         events = Query._query(table, table_query, False, query.limit)
-        # Only want the # of unique client id
-        clients = set()
-        for event in events:
-            clients.add(event['client'])
-        return len(clients)
+        if query.count:
+            # Only want the # of unique client id
+            clients = set()
+            for event in events:
+                clients.add(event['client'])
+            return len(clients)
+        return DeviceInfoEvent.from_db_results(connection, events)
 
     @staticmethod
     def sort_chronologically(events):

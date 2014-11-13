@@ -51,8 +51,8 @@ else:
 assert access_key_id and secret_access_key
 tmp_logger = logging.getLogger('telemetry')
 tmp_logger.info('project = %s', project)
-tmp_logger.info('access_key = %s', access_key_id)
-tmp_logger.info('secret_access_key = %s', secret_access_key)
+#tmp_logger.info('access_key = %s', access_key_id)
+#tmp_logger.info('secret_access_key = %s', secret_access_key)
 
 default_span = 1
 
@@ -74,14 +74,6 @@ def _aws_connection():
                               is_secure=True)
 
 
-def _client_id_strip(client_id):
-    return client_id.strip('us-east-1:')
-
-
-def _client_id_unstrip(client_id):
-    return 'us-east-1:' + client_id
-
-
 def _parse_junk(junk, mapping):
     retval = dict()
     lines = junk.splitlines()
@@ -95,8 +87,6 @@ def _parse_junk(junk, mapping):
             retval[mapping[key]] = value.strip()
     logger = logging.getLogger('telemetry').getChild('_parse_junk')
     logger.debug('retval=%s', retval)
-    if 'client' in retval:
-        retval['client'] = _client_id_strip(retval['client'])
     return retval
 
 
@@ -170,7 +160,7 @@ def home(request):
                 events = Query.events(query, conn)
                 email_events = Support.get_sha256_email_address(events, loc['email'])[1]
                 if len(email_events) != 0:
-                    loc['client'] = _client_id_strip(email_events[-1].client)
+                    loc['client'] = email_events[-1].client
                     if 'timestamp' not in loc:
                         loc['timestamp'] = email_events[-1].timestamp
                     loc['span'] = str(default_span)
@@ -221,7 +211,6 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     #     logger.info('no session token. must log in first.')
     #     return HttpResponseRedirect('/login/')
 
-    client = _client_id_unstrip(client)
     logger.info('client=%s, timestamp=%s, span=%s', client, timestamp, span)
     span = int(span)
     client = str(client)
@@ -267,11 +256,20 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     params['stop'] = before.isoformat('T')
     params['client'] = client
     params['event_count'] = event_count
-    if len(obj_list) > 0:
-        params['os_type'] = obj_list[0]['os_type']
-        params['os_version'] = obj_list[0]['os_version']
-        params['device_model'] = obj_list[0]['device_model']
-        params['build_version'] = obj_list[0]['build_version']
+    # Query the user device info
+    try:
+        user_query = Query()
+        user_query.add('client', SelectorEqual(client))
+        client = Query.users(user_query, conn)
+
+        if len(client) > 0:
+            # Get the user from the first client
+            params['os_type'] = client[0]['os_type']
+            params['os_version'] = client[0]['os_version']
+            params['device_model'] = client[0]['device_model']
+            params['build_version'] = client[0]['build_version']
+    except DynamoDBError, e:
+        logger.error('fail to query device info - %s', str(e))
     html += 'var params = ' + json.dumps(params) + ';\n'
 
     # Generate the events JSON

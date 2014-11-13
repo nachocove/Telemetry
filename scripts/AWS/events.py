@@ -1,4 +1,4 @@
-from tables import LogTable, WbxmlTable, CounterTable, CaptureTable, SupportTable, UiTable
+from tables import LogTable, WbxmlTable, CounterTable, CaptureTable, SupportTable, UiTable, DeviceInfoTable
 from boto.dynamodb.types import Binary
 from boto.dynamodb2.items import Item
 from misc.utc_datetime import UtcDateTime
@@ -237,3 +237,26 @@ class UiEvent(Event):
         if 'ui_integer' in keys:
             s += self._field_str('ui_integer')
         return s
+
+
+class DeviceInfoEvent(Event):
+    TABLE_CLASS = DeviceInfoTable
+
+    def __init__(self, connection, id_, client, timestamp, uploaded_at,
+                 device_model, os_type, os_version, build_version, build_number):
+        Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
+        self['device_model'] = device_model
+        self['os_type'] = os_type
+        self['os_version'] = os_version
+        self['build_version'] = build_version
+        self['build_number'] = build_number
+
+    def __str__(self):
+        s = self._header_str()
+        s += self._field_str('device_model')
+        s += self._field_str('os_type')
+        s += self._field_str('os_version')
+        s += self._field_str('build_version')
+        s += self._field_str('build_number')
+        return s
+
