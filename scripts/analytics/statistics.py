@@ -32,7 +32,7 @@ class Statistics:
                 if a >= b:
                     return False
                 # a < b but make sure they are not very close
-                return math.fabs((a - b) / max(a,b)) > 1.0e-8
+                return math.fabs((a - b) / max(a, b)) > 1.0e-8
 
             mean = self.mean()
 

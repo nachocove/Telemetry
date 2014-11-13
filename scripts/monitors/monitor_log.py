@@ -1,15 +1,16 @@
-import Parse
 import pprint
 import zipfile
-import event_formatter
+from misc import event_formatter
 import os
+from AWS.query import Query
+from AWS.selectors import SelectorEqual
 from monitor_base import Monitor
-from number_formatter import pretty_number
-from html_elements import *
+from misc.number_formatter import pretty_number
+from misc.html_elements import *
 from logtrace import LogTrace
 from analytics.token import TokenList, WhiteSpaceTokenizer
 from analytics.cluster import Clusterer
-from threadpool import *
+from misc.threadpool import *
 
 
 class MonitorLogTraceThread(ThreadPoolThread):
@@ -47,12 +48,9 @@ class MonitorLog(Monitor):
         self.trace_enabled = False
 
     def _query(self):
-        query = Parse.query.Query()
-        query.add('event_type', Parse.query.SelectorEqual(self.event_type))
-        if self.start is not None:
-            query.add('createdAt', Parse.query.SelectorGreaterThanEqual(self.start))
-        if self.end is not None:
-            query.add('createdAt', Parse.query.SelectorLessThan(self.end))
+        query = Query()
+        query.add('event_type', SelectorEqual(self.event_type))
+        query.add_range('uploaded_at', self.start, self.end)
 
         self.events, self.event_count = self.query_all(query)
 
@@ -73,7 +71,7 @@ class MonitorLog(Monitor):
 
     def _get_trace(self, event):
         assert 'client' in event and 'timestamp' in event
-        (start, end) = LogTrace.get_time_window(event['timestamp']['iso'], 2, 0)
+        (start, end) = LogTrace.get_time_window(event['timestamp'], 2, 0)
         trace = LogTrace(desc=self.desc, client=event['client'], start=start, end=end)
         return trace
 

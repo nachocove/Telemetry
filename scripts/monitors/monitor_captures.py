@@ -1,24 +1,22 @@
-import Parse
 import analytics
+from AWS.query import Query
+from AWS.selectors import SelectorEqual
 from monitor_base import Monitor
-from html_elements import *
-from number_formatter import *
+from misc.html_elements import *
+from misc.number_formatter import *
+from misc.utc_datetime import UtcDateTime
 
 
 class Capture:
     def __init__(self, event):
         self.client = event['client']
         self.name = event['capture_name']
-        count = float(event['count'])
-        average = float(event['average'])
-        first_moment = average * count
-        second_moment = ((float(event['stddev']) ** 2) + (average ** 2)) * count
         self.statistics = analytics.statistics.Statistics(count=event['count'],
                                                           min_=event['min'],
                                                           max_=event['max'],
-                                                          first_moment=first_moment,
-                                                          second_moment=second_moment)
-        self.timestamp = Parse.utc_datetime.UtcDateTime(event['timestamp']['iso'])
+                                                          first_moment=event['sum'],
+                                                          second_moment=event['sum2'])
+        self.timestamp = UtcDateTime(event['timestamp'])
 
     def _same_client(self, other):
         if self.client != other.client:
@@ -52,12 +50,9 @@ class MonitorCaptures(Monitor):
         self.events = []
 
     def _query(self):
-        query = Parse.query.Query()
-        query.add('event_type', Parse.query.SelectorEqual('CAPTURE'))
-        if self.start is not None:
-            query.add('createdAt', Parse.query.SelectorGreaterThanEqual(self.start))
-        if self.end is not None:
-            query.add('createdAt', Parse.query.SelectorLessThan(self.end))
+        query = Query()
+        query.add('event_type', SelectorEqual('CAPTURE'))
+        query.add_range('uploaded_at', self.start, self.end)
 
         self.events = self.query_all(query)[0]
 

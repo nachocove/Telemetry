@@ -1,21 +1,28 @@
+#!/usr/bin/env python
+
 import argparse
-import Parse
-import HockeyApp
-import config
 import ConfigParser
-import emails
-import getpass
 import logging
 from datetime import timedelta
-from html_elements import *
-from monitor_base import Summary, Monitor
-from monitor_log import MonitorErrors, MonitorWarnings
-from monitor_count import MonitorUsers, MonitorEvents
-from monitor_captures import MonitorCaptures
-from monitor_counters import MonitorCounters
-from monitor_hockeyapp import MonitorHockeyApp
-from monitor_ui import MonitorUi
-from monitor_support import MonitorSupport
+
+from boto.dynamodb2.layer1 import DynamoDBConnection
+from AWS.config import AwsConfig
+from AWS.tables import TelemetryTable
+import HockeyApp
+from HockeyApp.config import HockeyAppConfig
+from misc import config
+from misc.html_elements import *
+from misc.utc_datetime import UtcDateTime
+from misc.config import Config
+from monitors.monitor_base import Summary, Monitor
+from monitors.monitor_log import MonitorErrors, MonitorWarnings
+from monitors.monitor_count import MonitorUsers, MonitorEvents
+from monitors.monitor_captures import MonitorCaptures
+from monitors.monitor_counters import MonitorCounters
+from monitors.monitor_hockeyapp import MonitorHockeyApp
+from monitors.monitor_ui import MonitorUi
+from monitors.monitor_support import MonitorSupport
+from monitors.config import EmailConfig, MonitorProfileConfig, TimestampConfig
 
 
 class MonitorConfig(config.Config):
@@ -27,65 +34,13 @@ class MonitorConfig(config.Config):
             timestamp = self.config.get('timestamps', 'last')
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             return None
-        return Parse.utc_datetime.UtcDateTime(timestamp)
+        return UtcDateTime(timestamp)
 
     def write_timestamp(self, utc_now):
         if not self.config.has_section('timestamps'):
             self.config.add_section('timestamps')
         self.config.set('timestamps', 'last', str(utc_now))
         self.write()
-
-    def read_email_settings(self):
-        email = emails.Email()
-        try:
-            server = self.config.get('email', 'smtp_server')
-            port = self.config.getint('email', 'port')
-            username = self.config.get('email', 'username')
-            # We need to get the email account password
-            if self.config.has_option('email', 'password'):
-                # Option 1 - hardcoded into the file. highly not recommended.
-                password = self.config.get('email', 'password')
-            else:
-                # Option 2 - try to get it from keychain
-                try:
-                    import keyring
-                    password = keyring.get_password('NachoCove Telemetry', username)
-                except ImportError:
-                    password = None
-                if password is None:
-                    # Option 3 - user input
-                    password = getpass.getpass('Email password: ')
-                else:
-                    logging.getLogger('monitor').info('Got email account password from keychain.')
-            if self.config.has_option('email', 'start_tls'):
-                start_tls = self.config.getboolean('email', 'start_tls')
-            else:
-                start_tls = False
-            if self.config.has_option('email', 'tls'):
-                tls = self.config.getboolean('email', 'tls')
-            else:
-                tls = False
-
-            email.from_address = username
-            email.to_addresses = self.config.get('email', 'recipient').split(',')
-
-            smtp_server = emails.EmailServer(server=server, port=port, username=username,
-                                             password=password, tls=tls, start_tls=start_tls)
-            return smtp_server, email
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            return None, None
-
-    def read_hockeyapp_settings(self, options):
-        self.get('keys', 'ha_app_id', options)
-        self.get('keys', 'ha_api_token', options)
-
-    def read_monitors(self, options):
-        self.get('profile', 'monitors', options)
-        if isinstance(options.monitors, str):
-            options.monitors = options.monitors.split(',')
-
-    def read_profile_name(self, options):
-        self.get('profile', 'name', options)
 
 
 class DateTimeAction(argparse.Action):
@@ -100,7 +55,7 @@ class DateTimeAction(argparse.Action):
         elif (option_string == '--before') and ('now' == value):
             setattr(namespace, self.dest, 'now')
         else:
-            setattr(namespace, self.dest, Parse.utc_datetime.UtcDateTime(value))
+            setattr(namespace, self.dest, UtcDateTime(value))
 
 
 def datetime_tostr(iso_datetime):
@@ -125,15 +80,6 @@ def main():
                                                          'parse.py login command. A configuration file is created to '
                                                          'store these parameters for you. So, you can omit these '
                                                          'parameters after running with them once.')
-    config_group.add_argument('--api-key',
-                              help='REST API key [default: NachoMail API key]',
-                              default=None)
-    config_group.add_argument('--app-id',
-                              help='Application ID',
-                              default=None)
-    config_group.add_argument('--session-token',
-                              help='Session token',
-                              default=None)
     config_group.add_argument('--config',
                               help='Configuration file (default: monitor.cfg)',
                               default='monitor.cfg')
@@ -176,33 +122,37 @@ def main():
         exit(0)
 
     # If no key is provided in command line, get them from config.
-    config_ = MonitorConfig(options.config)
-    if not options.api_key or not options.app_id or not options.session_token:
-        config_.read_keys(options)
-    else:
-        config_.write_keys(options)
-    config_.read_hockeyapp_settings(options)
-    config_.read_profile_name(options)
-    if 'name' in dir(options):
-        logger.info('Running profile "%s"', options.name)
+    config_file = Config(options.config)
+    AwsConfig(config_file).read(options)
+    HockeyAppConfig(config_file).read(options)
+    MonitorProfileConfig(config_file).read(options)
+    if 'profile_name' in dir(options):
+        logger.info('Running profile "%s"', options.profile_name)
+
+    if options.aws_prefix is None:
+        logger.error('Missing "prefix" in "aws" section')
+        exit(1)
+    TelemetryTable.PREFIX = options.aws_prefix
 
     # Must have 1+ monitor from command-line or config
     if len(options.monitors) == 0:
-        config_.read_monitors(options)
-        if len(options.monitors) == 0:
+        if 'profile_monitors' in dir(options) and len(options.profile_monitors) > 0:
+            options.monitors = options.profile_monitors
+        else:
             parser.print_help()
             exit(0)
 
     # If we want a time window but do not have one from command line, get it
     # from config and current time
     do_update_timestamp = False
+    timestamp_state = TimestampConfig(Config(options.config + '.state'))
     if isinstance(options.start, str) and options.start == 'last':
-        options.start = config_.read_timestamp()
+        options.start = timestamp_state.last
     if isinstance(options.end, str) and options.end == 'now':
-        options.end = Parse.utc_datetime.UtcDateTime.now()
+        options.end = UtcDateTime.now()
         do_update_timestamp = True
     if options.daily:
-        options.end = Parse.utc_datetime.UtcDateTime(str(options.start))
+        options.end = UtcDateTime(str(options.start))
         options.end.datetime += timedelta(days=1)
         do_update_timestamp = True
         
@@ -210,7 +160,7 @@ def main():
     summary_table = Summary()
     summary_table.colors = [None, '#f0f0f0']
     if options.email:
-        (smtp_server, email) = config_.read_email_settings()
+        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email()
         if smtp_server is None:
             logger.error('no email configuration')
             exit(1)
@@ -243,15 +193,18 @@ def main():
             continue
         extra_params = list()
         if monitor_name == 'crashes':
-            ha_obj = HockeyApp.hockeyapp.HockeyApp(options.ha_api_token)
-            ha_app_obj = ha_obj.app(options.ha_app_id)
+            ha_obj = HockeyApp.hockeyapp.HockeyApp(options.hockeyapp_api_token)
+            ha_app_obj = ha_obj.app(options.hockeyapp_app_id)
             extra_params.append(ha_app_obj)
 
         # Run the monitor with retries to robustly handle service failures
         def run_monitor():
-            conn = Parse.connection.Connection.create(app_id=options.app_id,
-                                                      api_key=options.api_key,
-                                                      session_token=options.session_token)
+            conn = DynamoDBConnection(host='dynamodb.us-west-2.amazonaws.com',
+                                      port=443,
+                                      aws_secret_access_key=options.aws_secret_access_key,
+                                      aws_access_key_id=options.aws_access_key_id,
+                                      region='us-west-2',
+                                      is_secure=True)
             monitor_cls = mapping[monitor_name]
             new_monitor = monitor_cls(conn, options.start, options.end, *extra_params)
             new_monitor.run()
@@ -283,7 +236,7 @@ def main():
         with open('monitor-email.%s.txt' % end_time_suffix, 'w') as f:
             print >>f, email.content.plain_text()
         # Add title
-        email.subject = '%s [%s]' % (options.name, str(options.end))
+        email.subject = '%s [%s]' % (options.profile_name, str(options.end))
         num_retries = 0
         while num_retries < 5:
             try:
@@ -298,7 +251,8 @@ def main():
     # Update timestamp in config if necessary after we have successfully
     # send the notification email
     if do_update_timestamp:
-        config_.write_timestamp(options.end)
+        timestamp_state.last = options.end
+        timestamp_state.save()
 
 if __name__ == '__main__':
     main()

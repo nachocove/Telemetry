@@ -1,7 +1,8 @@
-import Parse
+from AWS.query import Query
+from AWS.selectors import SelectorEqual
 from monitor_base import Monitor
-from html_elements import *
-from number_formatter import pretty_number
+from misc.html_elements import *
+from misc.number_formatter import pretty_number
 
 
 class CounterInfo:
@@ -28,12 +29,9 @@ class MonitorCounters(Monitor):
         self.client_count = 0
 
     def _query(self):
-        query = Parse.query.Query()
-        query.add('event_type', Parse.query.SelectorEqual('COUNTER'))
-        if self.start is not None:
-            query.add('createdAt', Parse.query.SelectorGreaterThanEqual(self.start))
-        if self.end is not None:
-            query.add('createdAt', Parse.query.SelectorLessThan(self.end))
+        query = Query()
+        query.add('event_type', SelectorEqual('COUNTER'))
+        query.add_range('uploaded_at', self.start, self.end)
 
         self.events = self.query_all(query)[0]
 

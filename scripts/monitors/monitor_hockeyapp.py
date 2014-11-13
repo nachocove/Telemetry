@@ -1,12 +1,14 @@
 import os
 import zipfile
-import HockeyApp
-import Parse
 import logging
+import HockeyApp
+from boto.dynamodb2.layer1 import DynamoDBConnection
+from AWS.query import Query
+from AWS.selectors import SelectorEqual, SelectorStartsWith
 from monitor_base import Monitor
-from Parse.utc_datetime import UtcDateTime
+from misc.utc_datetime import UtcDateTime
 from logtrace import LogTrace
-from html_elements import *
+from misc.html_elements import *
 
 
 class CrashInfo:
@@ -15,7 +17,7 @@ class CrashInfo:
     """
     def __init__(self, ha_crash_obj, conn):
         assert isinstance(ha_crash_obj, HockeyApp.crash.Crash)
-        assert isinstance(conn, Parse.connection.Connection)
+        assert isinstance(conn, DynamoDBConnection)
 
         self.logger = logging.getLogger('monitor')
         self.ha_crash_obj = ha_crash_obj
@@ -36,7 +38,7 @@ class CrashInfo:
 
     def _determine_client(self):
         """
-        Determine the Parse client id from the build info
+        Determine the client id from the build info
         """
         # Get the description and parse the parameters
         description = self.ha_crash_obj.read_description()
@@ -50,10 +52,10 @@ class CrashInfo:
             self.logger.debug('    device id = %s', ha_desc_obj.device_id)
 
         # Query telemetry for the build
-        query = Parse.query.Query()
-        query.add('event_type', Parse.query.SelectorEqual('INFO'))
-        query.add('message', Parse.query.SelectorStartsWith('Device ID: ' + ha_desc_obj.device_id))
-        events = Parse.query.Query.objects('Events', query, self.conn)[0]
+        query = Query()
+        query.add('event_type', SelectorEqual('INFO'))
+        query.add('message', SelectorStartsWith('Device ID: ' + ha_desc_obj.device_id))
+        events = Query.events(query, self.conn)
         if len(events) == 0:
             self.logger.warning('    cannot find build info log for crash %s', self.ha_crash_obj.crash_id)
             return None
@@ -142,7 +144,7 @@ class MonitorHockeyApp(Monitor):
                 self.logger.debug('  Analyzing crash %s (in crash group %s)',
                                   crash.crash_id, crash_group.crash_group_id)
                 # HockeyApp is quite slow. By the time we get here,
-                # the Parse connection would have time out. So, create
+                # the DynamoDB connection may have time out. So, create
                 # a new one
                 conn = self.clone_connection(self.conn)
                 # TODO - parse the platform and instantiate the right class of objects

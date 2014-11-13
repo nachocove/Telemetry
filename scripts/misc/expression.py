@@ -1,5 +1,6 @@
 import re
 import sys
+
 import Parse
 from events import QUERY_FIELDS
 
@@ -121,7 +122,7 @@ class SimpleExpression(Expression):
                     raise ValueError('%s is not a valid integer' % value)
             elif QUERY_FIELDS[self.field] == 'iso8601':
                 try:
-                    value = Parse.utc_datetime.UtcDateTime(value)
+                    value = misc.utc_datetime.UtcDateTime(value)
                 except ValueError:
                     raise ValueError('%s is not a valid ISO-8601 UTC string' % value)
         self.value = value

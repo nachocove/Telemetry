@@ -12,11 +12,16 @@ import tempfile
 import json
 import ConfigParser
 
-sys.path.append('../Parse/scripts')
+sys.path.append('../scripts')
 
-import Parse
-from monitor_base import Monitor
-from support import Support
+from boto.dynamodb2.layer1 import DynamoDBConnection
+from boto.dynamodb2.exceptions import DynamoDBError
+from AWS.query import Query
+from AWS.selectors import SelectorEqual, SelectorStartsWith
+from AWS.tables import TelemetryTable
+from monitors.monitor_base import Monitor
+from misc.support import Support
+from misc.utc_datetime import UtcDateTime
 
 
 username = 'monitor'
@@ -27,24 +32,29 @@ projects.read('projects.cfg')
 
 # Get the project name from the environment variable
 project = os.getenv('PROJECT')
-api_key = None
-app_id = None
+TelemetryTable.PREFIX = project
+
+access_key_id = None
+secret_access_key = None
+
+ACCESS_KEY_ID = 'access_key_id'
+SECRET_ACCESS_KEY = 'secret_access_key'
 if not project:
     project = projects.sections()[0]
-    api_key = projects.get(project, 'api_key')
-    app_id = projects.get(project, 'app_id')
+    access_key_id = projects.get(project, ACCESS_KEY_ID)
+    secret_access_key = projects.get(project, SECRET_ACCESS_KEY)
 else:
     for p in projects.sections():
         if p == project:
-            api_key = projects.get(p, 'api_key')
-            app_id = projects.get(p, 'app_id')
-assert api_key and app_id
+            access_key_id = projects.get(p, ACCESS_KEY_ID)
+            secret_access_key = projects.get(p, SECRET_ACCESS_KEY)
+assert access_key_id and secret_access_key
 tmp_logger = logging.getLogger('telemetry')
 tmp_logger.info('project = %s', project)
-tmp_logger.info('api_key = %s', api_key)
-tmp_logger.info('app_id = %s', app_id)
+#tmp_logger.info('access_key = %s', access_key_id)
+#tmp_logger.info('secret_access_key = %s', secret_access_key)
 
-default_span = 15
+default_span = 1
 
 
 class LoginForm(forms.Form):
@@ -53,6 +63,15 @@ class LoginForm(forms.Form):
 
 class VectorForm(forms.Form):
     tele_paste = forms.CharField(widget=forms.Textarea)
+
+
+def _aws_connection():
+    return DynamoDBConnection(host='dynamodb.us-west-2.amazonaws.com',
+                              port=443,
+                              aws_secret_access_key=secret_access_key,
+                              aws_access_key_id=access_key_id,
+                              region='us-west-2',
+                              is_secure=True)
 
 
 def _parse_junk(junk, mapping):
@@ -100,15 +119,12 @@ def login(request):
     if request.method == 'POST':
         form = LoginForm(request.POST)
         if form.is_valid():
-            logger.debug('app_id=%s', app_id)
-            logger.debug('api_key=%s', api_key)
-            conn = Parse.connection.Connection(app_id=app_id, api_key=api_key)
             try:
-                user = Parse.users.User.login(username=username, password=form.cleaned_data['password'], conn=conn)
-                request.session['session_token'] = user.session_token
-                logger.debug('session_token=%s' % user.session_token)
+                # TODO - No login code right now!
+                request.session['session_token'] = 'BS_TOKEN'
+                logger.debug('session_token=%s' % request.session['session_token'])
                 return HttpResponseRedirect('/')
-            except Parse.exception.ParseException, e:
+            except Exception, e:
                 logger.error('fail to get session token - %s' % str(e))
                 message = 'Cannot log in (%s). Please enter the password again.' % e.error
         else:
@@ -119,9 +135,10 @@ def login(request):
 
 def home(request):
     logger = logging.getLogger('telemetry').getChild('home')
-    if not 'session_token' in request.session:
-        logger.info('no session token. must log in first.')
-        return HttpResponseRedirect('/login/')
+    # FIXME - Auth is disabled for now!
+    # if not 'session_token' in request.session:
+    #     logger.info('no session token. must log in first.')
+    #     return HttpResponseRedirect('/login/')
     # Any message set in 'message' will be displayed as a red error message.
     # Used for reporting error in any POST.
     message = ''
@@ -137,11 +154,10 @@ def home(request):
             if loc is not None:
                 loc['span'] = str(default_span)
                 # From the email, we need to find the Parse client ID
-                conn = Parse.connection.Connection(app_id=app_id, api_key=api_key,
-                                                   session_token=request.session['session_token'])
-                query = Parse.query.Query()
-                query.add('event_type', Parse.query.SelectorEqual('SUPPORT'))
-                events = Parse.query.Query.objects('Events', query, conn)[0]
+                conn = _aws_connection()
+                query = Query()
+                query.add('event_type', SelectorEqual('SUPPORT'))
+                events = Query.events(query, conn)
                 email_events = Support.get_sha256_email_address(events, loc['email'])[1]
                 if len(email_events) != 0:
                     loc['client'] = email_events[-1].client
@@ -156,13 +172,12 @@ def home(request):
             loc = _parse_crash_report(form.cleaned_data['tele_paste'])
             if None != loc:
                 # From the crash log device ID, we need to find the Parse client ID
-                conn = Parse.connection.Connection(app_id=app_id, api_key=api_key,
-                                                   session_token=request.session['session_token'])
-                query = Parse.query.Query()
-                query.add('event_type', Parse.query.SelectorEqual('INFO'))
+                conn = _aws_connection()
+                query = Query()
+                query.add('event_type', SelectorEqual('INFO'))
                 search_key = 'Device ID: ' + str(loc['device_id'])
-                query.add('message', Parse.query.SelectorStartsWith(search_key))
-                events = Parse.query.Query.objects('Events', query, conn)[0]
+                query.add('message', SelectorStartsWith(search_key))
+                events = Query.events(query, conn)
                 if len(events) != 0:
                     assert 'client' in events[-1]
                     client = events[-1]['client']
@@ -191,9 +206,10 @@ def _iso_z_format(date):
 
 def entry_page(request, client='', timestamp='', span=str(default_span)):
     logger = logging.getLogger('telemetry').getChild('entry_page')
-    if not 'session_token' in request.session:
-        logger.info('no session token. must log in first.')
-        return HttpResponseRedirect('/login/')
+    # FIXME - Auth is disabled for now!
+    # if not 'session_token' in request.session:
+    #     logger.info('no session token. must log in first.')
+    #     return HttpResponseRedirect('/login/')
 
     logger.info('client=%s, timestamp=%s, span=%s', client, timestamp, span)
     span = int(span)
@@ -204,22 +220,18 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     before = center + spread
     go_earlier = after - spread
     go_later = before + spread
-    conn = Parse.connection.Connection(app_id=app_id, api_key=api_key,
-                                       session_token=request.session['session_token'])
-    query = Parse.query.Query()
-    query.limit = 1000
-    query.skip = 0
-    query.add('client', Parse.query.SelectorEqual(client))
-    #return HttpResponse(before)
-    query.add('timestamp', Parse.query.SelectorGreaterThanEqual(Parse.utc_datetime.UtcDateTime(str(after))))
-    query.add('timestamp', Parse.query.SelectorLessThan(Parse.utc_datetime.UtcDateTime(str(before))))
-    logger.debug('query=%s', str(query.where()))
+    conn = _aws_connection()
+    query = Query()
+    query.limit = 100000
+    query.add('client', SelectorEqual(client))
+    query.add_range('timestamp', UtcDateTime(str(after)), UtcDateTime(str(before)))
+    ###### FIXME - logger.debug('query=%s', str(query.where()))
     obj_list = list()
     event_count = 0
     try:
         (obj_list, event_count) = Monitor.query_events(conn, query, False, logger)
         logger.info('%d objects found', len(obj_list))
-    except Parse.exception.ParseException, e:
+    except DynamoDBError, e:
         logger.error('fail to query events - %s', str(e))
     iso_center = _iso_z_format(center)
     iso_go_earlier = _iso_z_format(go_earlier)
@@ -244,17 +256,27 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     params['stop'] = before.isoformat('T')
     params['client'] = client
     params['event_count'] = event_count
-    if len(obj_list) > 0:
-        params['os_type'] = obj_list[0]['os_type']
-        params['os_version'] = obj_list[0]['os_version']
-        params['device_model'] = obj_list[0]['device_model']
-        params['build_version'] = obj_list[0]['build_version']
+    # Query the user device info
+    try:
+        user_query = Query()
+        user_query.add('client', SelectorEqual(client))
+        client = Query.users(user_query, conn)
+
+        if len(client) > 0:
+            # Get the user from the first client
+            params['os_type'] = client[0]['os_type']
+            params['os_version'] = client[0]['os_version']
+            params['device_model'] = client[0]['device_model']
+            params['build_version'] = client[0]['build_version']
+    except DynamoDBError, e:
+        logger.error('fail to query device info - %s', str(e))
     html += 'var params = ' + json.dumps(params) + ';\n'
 
     # Generate the events JSON
-    for event in obj_list:
-        event['timestamp'] = event['timestamp']['iso']
-        for field in ['createdAt', 'updatedAt', 'os_type', 'os_version', 'device_model', 'build_version']:
+    event_list = [dict(x.items()) for x in obj_list]
+    for event in event_list:
+        event['timestamp'] = str(event['timestamp'])
+        for field in ['uploaded_at', 'client']:
             del event[field]
 
         if event['event_type'] in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
@@ -271,13 +293,13 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
                     output = f.read()
                 os.unlink(path)
                 return output
-            base64 = event['wbxml']['base64']
+            base64 = event['wbxml'].encode()
             event['wbxml_base64'] = cgi.escape(base64)
             event['wbxml'] = cgi.escape(decode_wbxml(base64))
         if 'message' in event:
             event['message'] = cgi.escape(event['message'])
 
-    html += 'var events = ' + json.dumps(obj_list) + ';\n'
+    html += 'var events = ' + json.dumps(event_list) + ';\n'
     html += '</script>\n'
     html += '<script type="text/javascript" src="/static/list.js"></script>\n'
 

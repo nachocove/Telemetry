@@ -1,8 +1,10 @@
-import Parse
+from AWS.selectors import SelectorEqual
+from AWS.query import Query
+from AWS.events import Event
 from monitor_base import Monitor
 from viewcontroller import ViewControllerSet
-from number_formatter import *
-from html_elements import *
+from misc.number_formatter import *
+from misc.html_elements import *
 
 
 class MonitorUi(Monitor):
@@ -14,14 +16,11 @@ class MonitorUi(Monitor):
         self.clients = set()
 
     def _query(self):
-        query = Parse.query.Query()
-        query.add('event_type', Parse.query.SelectorEqual('UI'))
-        if self.start is not None:
-            query.add('createdAt', Parse.query.SelectorGreaterThanEqual(self.start))
-        if self.end is not None:
-            query.add('createdAt', Parse.query.SelectorLessThan(self.end))
+        query = Query()
+        query.add('event_type', SelectorEqual('UI'))
+        query.add_range('uploaded_at', self.start, self.end)
 
-        self.events = Parse.objects.Object.sort_chronologically(self.query_all(query)[0])
+        self.events = Event.sort_chronologically(self.query_all(query)[0])
 
     def _analyze(self):
         self.view_controller_sets = dict()
@@ -38,7 +37,7 @@ class MonitorUi(Monitor):
             if vc_type not in self.view_controller_sets:
                 self.view_controller_sets[vc_type] = ViewControllerSet(description=vc_type)
             vc = self.view_controller_sets[vc_type].get(client)
-            timestamp = Parse.utc_datetime.UtcDateTime(event['timestamp']['iso'])
+            timestamp = event['timestamp']
             vc.parse(timestamp, event['ui_string'])
         for (vc_type, vc_set) in self.view_controller_sets.items():
             vc_set.aggregate_samples()

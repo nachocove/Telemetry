@@ -1,6 +1,8 @@
-import Parse
+from AWS.query import Query
+from AWS.tables import TABLE_CLASSES
+from AWS.selectors import SelectorEqual
 from monitor_base import Monitor
-from number_formatter import pretty_number
+from misc.number_formatter import pretty_number
 
 
 class MonitorCount(Monitor):
@@ -10,13 +12,9 @@ class MonitorCount(Monitor):
         self.rate_desc = rate_desc
 
         # Create the query
-        self.query = Parse.query.Query()
-        if self.start is not None:
-            self.query.add('createdAt', Parse.query.SelectorGreaterThanEqual(start))
-        if self.end is not None:
-            self.query.add('createdAt', Parse.query.SelectorLessThan(end))
-        self.query.limit = 0
-        self.query.count = 1
+        self.query = Query()
+        self.query.add_range('uploaded_at', start, end)
+        self.query.count = True
 
     def run(self):
         # Derived class must provide its own implementation
@@ -43,7 +41,7 @@ class MonitorUsers(MonitorCount):
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self.count = Parse.query.Query.users(self.query, self.conn)[1]
+        self.count = Query.users(self.query, self.conn)
 
 
 class MonitorEvents(MonitorCount):
@@ -52,4 +50,16 @@ class MonitorEvents(MonitorCount):
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self.count = Parse.query.Query.objects('Events', self.query, self.conn)[1]
+        # We cannot just issue a query with a range on uploaded_at because it
+        # will result in a scan. Instead, we iterate of all event types, issue
+        # a query for event_type + uploaded_at range which results in a indexed query
+        # for each event type and finally combine the count
+        self.count = 0
+        for table in TABLE_CLASSES:
+            for event_type in table.EVENT_TYPES:
+                query = Query()
+                query.add('event_type', SelectorEqual(event_type))
+                query.add_range('uploaded_at', self.start, self.end)
+                query.count = True
+                count = Query.events(query, self.conn)
+                self.count += count
