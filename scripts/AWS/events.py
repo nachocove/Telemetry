@@ -1,4 +1,5 @@
 from tables import LogTable, WbxmlTable, CounterTable, CaptureTable, SupportTable, UiTable
+from boto.dynamodb.types import Binary
 from boto.dynamodb2.items import Item
 from misc.utc_datetime import UtcDateTime
 from decimal import Decimal
@@ -59,7 +60,14 @@ class Event(Item):
     def items(self):
         retval = list()
         for (field, value) in Item.items(self):
-            retval.append((field, self[field]))
+            value = self[field]
+            # Convert Binary to base64 str
+            if isinstance(value, Binary):
+                value = value.encode()
+            # Convert Decimal to int
+            if isinstance(value, Decimal):
+                value = int(value)
+            retval.append((field, value))
         return retval
 
     @classmethod
@@ -109,11 +117,12 @@ class Event(Item):
 class LogEvent(Event):
     TABLE_CLASS = LogTable
 
-    def __init__(self, connection, id_, client, timestamp, uploaded_at, event_type, message):
+    def __init__(self, connection, id_, client, timestamp, uploaded_at, event_type, thread_id, message):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         if event_type not in LogTable.EVENT_TYPES:
             raise ValueError('Unknown log event type %s' % event_type)
         self['event_type'] = event_type
+        self['thread_id'] = thread_id
         self['message'] = message
 
     def __str__(self):
