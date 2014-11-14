@@ -12,6 +12,8 @@ from misc.html_elements import *
 
 
 class CrashInfo:
+    device_info_logs = None
+
     """
     A class that ties a HockeyApp Crash object with its associated raw log and telemetry event trace.
     """
@@ -52,10 +54,15 @@ class CrashInfo:
             self.logger.debug('    device id = %s', ha_desc_obj.device_id)
 
         # Query telemetry for the build
-        query = Query()
-        query.add('event_type', SelectorEqual('INFO'))
-        query.add('message', SelectorStartsWith('Device ID: ' + ha_desc_obj.device_id))
-        events = Query.events(query, self.conn)
+        if CrashInfo.device_info_logs is None:
+            query = Query()
+            query.add('event_type', SelectorEqual('INFO'))
+            query.add('message', SelectorStartsWith('Device ID: '))
+            CrashInfo.device_info_logs = Query.events(query, self.conn)
+        events = list()
+        for event in CrashInfo.device_info_logs:
+            if event['message'].startswith('Device ID: ' + ha_desc_obj.device_id):
+                events.append(event)
         if len(events) == 0:
             self.logger.warning('    cannot find build info log for crash %s', self.ha_crash_obj.crash_id)
             return None

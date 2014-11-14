@@ -18,7 +18,7 @@ class MonitorProfileConfig(SectionConfig):
     def read(self, options):
         SectionConfig.read(self, options)
         if 'profile_monitors' in dir(options):
-            options.monitors = options.profile_monitors.split(',')
+            options.profile_monitors = options.profile_monitors.split(',')
 
 
 class EmailConfig(SectionConfig):

@@ -59,7 +59,12 @@ class MonitorCaptures(Monitor):
     def _analyze(self):
         self.captures = dict()
         for event in self.events:
-            capture = Capture(event)
+            try:
+                capture = Capture(event)
+            except ValueError, e:
+                self.logger.error(e.message)
+                self.logger.error(str(event))
+                continue
             if capture.name not in self.captures:
                 self.captures[capture.name] = CaptureKind(capture.name)
             self.captures[capture.name].add(capture)

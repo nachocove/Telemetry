@@ -129,11 +129,6 @@ def main():
     if 'profile_name' in dir(options):
         logger.info('Running profile "%s"', options.profile_name)
 
-    if options.aws_prefix is None:
-        logger.error('Missing "prefix" in "aws" section')
-        exit(1)
-    TelemetryTable.PREFIX = options.aws_prefix
-
     # Must have 1+ monitor from command-line or config
     if len(options.monitors) == 0:
         if 'profile_monitors' in dir(options) and len(options.profile_monitors) > 0:
@@ -141,6 +136,11 @@ def main():
         else:
             parser.print_help()
             exit(0)
+
+    if 'aws_prefix' not in dir(options) or options.aws_prefix is None:
+        logger.error('Missing "prefix" in "aws" section')
+        exit(1)
+    TelemetryTable.PREFIX = options.aws_prefix
 
     # If we want a time window but do not have one from command line, get it
     # from config and current time
