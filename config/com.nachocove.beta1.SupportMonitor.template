@@ -27,6 +27,6 @@ http://www.apple.com/DTDs/PropertyList-1.0.dtd >
     <true/>
 
     <key>WorkingDirectory</key>
-    <string>REPO/Parse/scripts</string>
+    <string>REPO/scripts</string>
 </dict>
 </plist>

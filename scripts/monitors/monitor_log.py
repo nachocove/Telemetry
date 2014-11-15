@@ -95,8 +95,8 @@ class MonitorLog(Monitor):
         self.logger.info('  Consolidate %d events into %d traces', len(self.events), len(self.traces))
 
         # Get all the traces
-        num_threads = 4
-        thread_pool = ThreadPool(4, MonitorLogTraceThread, self.conn, self.logger)
+        num_threads = 2
+        thread_pool = ThreadPool(num_threads, MonitorLogTraceThread, self.conn, self.logger)
         n = 0
         for trace in self.traces:
             thread_pool.threads[n].obj_queue.put(trace)

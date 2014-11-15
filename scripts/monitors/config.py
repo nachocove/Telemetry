@@ -3,6 +3,7 @@ import logging
 import keyring
 from misc.config import SectionConfig
 from misc.emails import Email, EmailServer
+from misc.utc_datetime import UtcDateTime
 
 
 class MonitorProfileConfig(SectionConfig):
@@ -92,6 +93,19 @@ class TimestampConfig(SectionConfig):
 
     def __init__(self, config_file):
         SectionConfig.__init__(self, config_file)
+
+    def __getattr__(self, key):
+        if key == 'last':
+            return UtcDateTime(self.config_file.get(TimestampConfig.SECTION, key))
+        return SectionConfig.__init__(self, key)
+
+    def __setattr__(self, key, value):
+        if key == 'last':
+            if not isinstance(value, UtcDateTime):
+                raise TypeError('value must be misc.utc_datetime.UtcDateTIme')
+            self.config_file.set(TimestampConfig.SECTION, key, str(value))
+            return
+        SectionConfig.__setattr__(self, key, value)
 
     def save(self):
         self.config_file.write()

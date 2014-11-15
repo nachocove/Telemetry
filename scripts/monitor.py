@@ -8,6 +8,7 @@ from datetime import timedelta
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from AWS.config import AwsConfig
 from AWS.tables import TelemetryTable
+from AWS.connection import Connection
 import HockeyApp
 from HockeyApp.config import HockeyAppConfig
 from misc import config
@@ -199,12 +200,12 @@ def main():
 
         # Run the monitor with retries to robustly handle service failures
         def run_monitor():
-            conn = DynamoDBConnection(host='dynamodb.us-west-2.amazonaws.com',
-                                      port=443,
-                                      aws_secret_access_key=options.aws_secret_access_key,
-                                      aws_access_key_id=options.aws_access_key_id,
-                                      region='us-west-2',
-                                      is_secure=True)
+            conn = Connection(host='dynamodb.us-west-2.amazonaws.com',
+                              port=443,
+                              aws_secret_access_key=options.aws_secret_access_key,
+                              aws_access_key_id=options.aws_access_key_id,
+                              region='us-west-2',
+                              is_secure=True)
             monitor_cls = mapping[monitor_name]
             new_monitor = monitor_cls(conn, options.start, options.end, *extra_params)
             new_monitor.run()

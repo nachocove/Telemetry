@@ -1,5 +1,7 @@
+import time
 from datetime import timedelta
 
+from boto.dynamodb2.exceptions import ProvisionedThroughputExceededException
 from AWS.query import Query
 from AWS.selectors import SelectorEqual
 from misc import event_formatter
@@ -53,7 +55,13 @@ class LogTrace:
         query = Query()
         query.add('client', SelectorEqual(self.client))
         query.add_range('timestamp', self.start, self.end)
-        self.events = Query.events(query, conn)
+        done = False
+        while not done:
+            try:
+                self.events = Query.events(query, conn)
+                done = True
+            except ProvisionedThroughputExceededException:
+                time.sleep(5)
 
     def _filename(self):
         return '%s.client_%s.%s.%s.trace.txt' % (self.desc, self.client,

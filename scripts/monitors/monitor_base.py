@@ -1,7 +1,7 @@
 import logging
-from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.query import Query
+from AWS.connection import Connection
 from misc.html_elements import *
 from misc.number_formatter import pretty_number
 
@@ -119,9 +119,9 @@ class Monitor:
 
     @staticmethod
     def clone_connection(conn):
-        assert isinstance(conn, DynamoDBConnection)
+        assert isinstance(conn, Connection)
         # FIXME - Maybe AWS connection has retry built in????
-        return conn
+        return conn.clone()
 
     @staticmethod
     def run_with_retries(func, desc, max_retries, exception_func=None):

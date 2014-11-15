@@ -1,13 +1,15 @@
 #!/bin/sh
 
-repo_path=`pushd ../.. > /dev/null ; pwd -P ; popd > /dev/null`
+repo_path=`pushd .. > /dev/null ; pwd -P ; popd > /dev/null`
 echo "Telemetry working copy at: $repo_path"
-if [ ! -d $repo_path/Parse/scripts ]
+scripts_path=$repo_path/scripts
+echo "Telemetry scripts at: $scripts_path"
+if [ ! -d $scripts_path ]
 then
-  echo "ERROR: The Telemetry working copy seems to be incomplete. Cannot find $repo_path/Parse/scripts"
+  echo "ERROR: The Telemetry working copy seems to be incomplete. Cannot find $scripts_path"
   exit 1
 else
-  echo "$repo_path/Parse/scripts found."
+  echo "$scripts_path found."
 fi
 
 source plist.sh
