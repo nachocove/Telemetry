@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 import sys
+import locale
 from datetime import datetime
 from argparse import ArgumentParser
 from boto.dynamodb2.layer1 import DynamoDBConnection
+from boto.dynamodb2.table import  Table
 sys.path.append('../')
 from tables import TelemetryTable, TABLE_CLASSES
 from boto.exception import JSONResponseError
@@ -82,7 +84,53 @@ def create_tables(connection):
                 raise e
 
 
+def show_table_cost(connection):
+    rate = 0.0065 / 10.0 * 24 * 31  # For us-west-2. Would be nice to have an API to get the cost
+
+    total_read_units = 0
+    total_write_units = 0
+    total_read_cost = 0.0
+    total_write_cost = 0.0
+
+    tables = connection.list_tables()[u'TableNames']
+    print ' Read Write       Read      Write   Table'
+    print ' Unit  Unit       Cost       Cost'
+    print '----- ----- ---------- ----------   ----------------------------'
+
+    def format_cost(cost):
+        locale.setlocale( locale.LC_ALL, '' )
+        return locale.currency(cost, grouping=True)
+
+    for table_name in tables:
+        table = Table(table_name=table_name, connection=connection)
+        info = table.describe()
+
+        read_units = info[u'Table'][u'ProvisionedThroughput'][u'ReadCapacityUnits']
+        write_units = info[u'Table'][u'ProvisionedThroughput'][u'WriteCapacityUnits']
+        read_cost = read_units * rate
+        write_cost = write_units * rate
+
+        total_read_units += read_units
+        total_write_units += write_units
+        total_read_cost += read_cost
+        total_write_cost += write_cost
+
+        print '%5d %5d %10s %10s   %s' % (read_units, write_units, format_cost(read_cost),
+                                         format_cost(write_cost), table_name)
+    print '%5d %5d %10s %10s   TOTAL' % (total_read_units, total_write_units, format_cost(total_read_cost),
+                                         format_cost(total_write_cost))
+    print '\nTotal number of units = %d' % (total_read_units + total_write_units)
+    print 'Total cost = %s' % format_cost(total_read_cost + total_write_cost)
+
+
 def main():
+    action_table = {
+        'list': list_tables,
+        'show-cost': show_table_cost,
+        'reset': delete_tables,
+        'setup': create_tables
+    }
+
     parser = ArgumentParser()
     parser.add_argument('--host',
                         help='Host of AWS DynamoDB instance (Default: dynamodb.us-west-2.amazonaws.com)',
@@ -109,11 +157,12 @@ def main():
     group.add_argument('--config', '-c',
                        help='Configuration that contains an AWS section',
                        default=None)
+    actions = sorted(action_table.keys())
     parser.add_argument('action',
                         metavar='ACTION',
                         nargs='+',
-                        help='List of actions. (Choices are: list, reset, setup)',
-                        choices=['list', 'reset', 'setup'])
+                        help='List of actions. (Choices are: %s)' % ', '.join(actions),
+                        choices=actions)
     options = parser.parse_args()
 
     if options.local:
@@ -137,12 +186,6 @@ def main():
                               aws_access_key_id=options.aws_access_key_id,
                               region='us-west-2',
                               is_secure=is_secure)
-
-    action_table = {
-        'list': list_tables,
-        'reset': delete_tables,
-        'setup': create_tables
-    }
 
     for action in options.action:
         action_fn = action_table.get(action, None)
