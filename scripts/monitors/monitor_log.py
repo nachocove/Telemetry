@@ -124,7 +124,7 @@ class MonitorLog(Monitor):
             new_report[new_message] = report[message]
         return new_report
 
-    def report(self, summary):
+    def report(self, summary, **kwargs):
         count = self.event_count
         rate = Monitor.compute_rate(count, self.start, self.end, 'hr')
 
@@ -139,7 +139,8 @@ class MonitorLog(Monitor):
             return None
         report = MonitorLog._process_report(self.report_)
         report_list = sorted(report.items(), key=lambda x: x[1], reverse=True)
-        pprint.PrettyPrinter(depth=4).pprint(report_list)
+        if kwargs.get('debug', False):
+            pprint.PrettyPrinter(depth=4).pprint(report_list)
 
         # Create paragraph with a header and table
         table = Table()

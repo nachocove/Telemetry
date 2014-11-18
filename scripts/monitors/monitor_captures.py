@@ -78,7 +78,7 @@ class MonitorCaptures(Monitor):
         self._query()
         self._analyze()
 
-    def report(self, summary):
+    def report(self, summary, **kwargs):
         summary.add_entry('Capture event count', pretty_number(len(self.events)))
         summary.add_entry('Capture kind count', pretty_number(len(self.captures)))
         summary.add_entry('Capture client count', pretty_number(len(self.clients)))

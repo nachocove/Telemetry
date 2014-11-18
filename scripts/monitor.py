@@ -5,7 +5,6 @@ import ConfigParser
 import logging
 from datetime import timedelta
 
-from boto.dynamodb2.layer1 import DynamoDBConnection
 from AWS.config import AwsConfig
 from AWS.tables import TelemetryTable
 from AWS.connection import Connection
@@ -88,6 +87,10 @@ def main():
                               help='Send email notification',
                               action='store_true',
                               default=False)
+    config_group.add_argument('-d', '--debug',
+                              help='Debug',
+                              action='store_true',
+                              default=False)
 
     filter_group = parser.add_argument_group(title='Filtering Options',
                                              description='These options specify a time '
@@ -153,15 +156,18 @@ def main():
         options.end = UtcDateTime.now()
         do_update_timestamp = True
     if options.daily:
-        options.end = UtcDateTime(str(options.start))
+        if not options.start:
+            from datetime import datetime
+            options.start = UtcDateTime(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
+        options.end = UtcDateTime(options.start)
         options.end.datetime += timedelta(days=1)
         do_update_timestamp = True
-        
+
     # If send email, we want to make sure that the email credential is there
     summary_table = Summary()
     summary_table.colors = [None, '#f0f0f0']
     if options.email:
-        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email()
+        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email(debug=options.debug)
         if smtp_server is None:
             logger.error('no email configuration')
             exit(1)
@@ -216,7 +222,7 @@ def main():
     # Generate all outputs
     for monitor in monitors:
         summary_table.toggle_color()
-        output = monitor.report(summary_table)
+        output = monitor.report(summary_table, debug=options.debug)
         if options.email and output is not None:
             if isinstance(output, list):
                 for element in output:

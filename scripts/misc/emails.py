@@ -29,13 +29,14 @@ class EmailServer:
 
 
 class Email:
-    def __init__(self):
+    def __init__(self, debug=False):
         self.subject = ''
         self.content = None
         self.from_address = None
         self.to_addresses = []
         # A list of file paths of attachments
         self.attachments = []
+        self.debug = debug
 
     def to_addresses_str(self):
         return ','.join(self.to_addresses)
@@ -57,7 +58,8 @@ class Email:
             outer_email.attach(email_)
 
             def encode_attachment(path):
-                print '  Attaching %s...' % path
+                if self.debug:
+                    print '  Attaching %s...' % path
                 part = email.mime.base.MIMEBase('application', "octet-stream")
                 part.set_payload(open(path, "rb").read())
                 encoders.encode_base64(part)
@@ -72,4 +74,8 @@ class Email:
         email_['To'] = self.to_addresses_str()
         email_['Subject'] = self.subject
 
-        server.send(self.from_address, self.to_addresses_str(), email_.as_string())
+        if not self.debug:
+            server.send(self.from_address, self.to_addresses_str(), email_.as_string())
+        else:
+            print "From: %(from)s\nTo: %(to)s\n\n%(email)s" %{'from': self.from_address, 'to': self.to_addresses_str(),
+                                                              'email': email_.as_string()}

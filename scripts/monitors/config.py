@@ -44,8 +44,8 @@ class EmailConfig(SectionConfig):
             return self.config_file.getbool(EmailConfig.SECTION, key)
         return SectionConfig.__getattr__(self, key)
 
-    def configure_server_and_email(self):
-        email = Email()
+    def configure_server_and_email(self, debug=False):
+        email = Email(debug)
         server = self.smtp_server
         port = self.port
         username = self.username

@@ -6,10 +6,10 @@ import pytz
 
 class UtcDateTime:
     def __init__(self, value=None):
-        if isinstance(value, str) or isinstance(value, unicode):
+        if isinstance(value, (str, unicode, UtcDateTime)):
             self.datetime = dateutil.parser.parse(str(value))
         elif isinstance(value, datetime.datetime):
-            self.datetime = value
+            self.datetime = value.replace(tzinfo=pytz.utc)
         elif isinstance(value, int):
             milliseconds = value / 10000
             (days, milliseconds) = divmod(milliseconds, 86400 * 1000)
@@ -26,6 +26,8 @@ class UtcDateTime:
                                               second=seconds,
                                               microsecond=milliseconds * 1000,
                                               tzinfo=pytz.utc)
+        else:
+            raise ValueError("Unsupported input type %s" % value.__class__)
 
     def __repr__(self):
         s = self.datetime.strftime('%Y-%m-%dT%H:%M:%S')
