@@ -20,7 +20,7 @@ class MonitorCount(Monitor):
         # Derived class must provide its own implementation
         raise Exception('must override')
 
-    def report(self, summary):
+    def report(self, summary, **kwargs):
         rate = Monitor.compute_rate(self.count, self.start, self.end, 'hr')
         count_str = pretty_number(self.count)
         self.logger.info('%s: %s', self.desc, count_str)

@@ -1,5 +1,6 @@
 import logging
 from boto.dynamodb2.exceptions import DynamoDBError
+import time
 from AWS.query import Query
 from AWS.connection import Connection
 from misc.html_elements import *
@@ -56,7 +57,7 @@ class Monitor:
         """
         raise NotImplementedError()
 
-    def report(self, summary):
+    def report(self, summary, **kwargs):
         """
         Report the result (if any). It may display the result to stdout. A Summary
         object (which is a simple wrapper of Table) is given for this monitor to
@@ -126,12 +127,15 @@ class Monitor:
     @staticmethod
     def run_with_retries(func, desc, max_retries, exception_func=None):
         num_retries = 0
+        logger = logging.getLogger('monitor')
         while num_retries <= max_retries:
             try:
+                t1 = time.time()
                 retval = func()
+                t2 = time.time()
+                logger.debug("Successful Query took %s seconds", t2-t1)
                 break
             except DynamoDBError, e:
-                logger = logging.getLogger('monitor')
                 logger.error('fail to run %s (DynamoDb:%s)' % (desc, e.message))
                 num_retries += 1
                 if exception_func is not None:

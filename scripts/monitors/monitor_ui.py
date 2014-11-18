@@ -88,7 +88,7 @@ class MonitorUi(Monitor):
                                 TableElement(Text(max_str), align='right'),
                                 TableElement(Text(sdev_str), align='right')]))
 
-    def report(self, summary):
+    def report(self, summary, **kwargs):
         summary.add_entry('UI event count', pretty_number(len(self.events)))
         summary.add_entry('UI view controller event count', pretty_number(self.num_vc_events))
         summary.add_entry('UI client count', pretty_number(len(self.clients)))

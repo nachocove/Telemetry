@@ -52,7 +52,7 @@ class MonitorCounters(Monitor):
         self._query()
         self._analyze()
 
-    def report(self, summary):
+    def report(self, summary, **kwargs):
         summary.add_entry('Counter event count', len(self.events))
         summary.add_entry('Counter type count', len(self.counters))
         summary.add_entry('Counter client count', self.client_count)

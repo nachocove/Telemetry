@@ -24,7 +24,7 @@ class MonitorSupport(Monitor):
         self._query()
         self._analyze()
 
-    def report(self, summary):
+    def report(self, summary, **kwargs):
         num_requests = len(self.requests)
         self.logger.info('# support requests: %d', num_requests)
         if num_requests == 0:

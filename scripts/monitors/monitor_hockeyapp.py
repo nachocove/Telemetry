@@ -157,7 +157,7 @@ class MonitorHockeyApp(Monitor):
                 # TODO - parse the platform and instantiate the right class of objects
                 self.crashes.append(CrashInfoIos(crash, conn))
 
-    def report(self, summary):
+    def report(self, summary, **kwargs):
         summary.add_entry('Crash count', str(len(self.crashes)))
 
         if len(self.crashes) == 0:
