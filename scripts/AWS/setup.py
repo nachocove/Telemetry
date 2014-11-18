@@ -5,7 +5,7 @@ import locale
 from datetime import datetime
 from argparse import ArgumentParser
 from boto.dynamodb2.layer1 import DynamoDBConnection
-from boto.dynamodb2.table import  Table
+from boto.dynamodb2.table import Table
 sys.path.append('../')
 from tables import TelemetryTable, TABLE_CLASSES
 from boto.exception import JSONResponseError
@@ -98,7 +98,7 @@ def show_table_cost(connection):
     print '----- ----- ---------- ----------   ----------------------------'
 
     def format_cost(cost):
-        locale.setlocale( locale.LC_ALL, '' )
+        locale.setlocale(locale.LC_ALL, '')
         return locale.currency(cost, grouping=True)
 
     for table_name in tables:
@@ -116,7 +116,7 @@ def show_table_cost(connection):
         total_write_cost += write_cost
 
         print '%5d %5d %10s %10s   %s' % (read_units, write_units, format_cost(read_cost),
-                                         format_cost(write_cost), table_name)
+                                          format_cost(write_cost), table_name)
     print '%5d %5d %10s %10s   TOTAL' % (total_read_units, total_write_units, format_cost(total_read_cost),
                                          format_cost(total_write_cost))
     print '\nTotal number of units = %d' % (total_read_units + total_write_units)
