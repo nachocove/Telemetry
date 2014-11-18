@@ -113,12 +113,12 @@ class Query:
             assert table_cls is not None
 
             table = table_cls(connection)
-            table.connection.NumberRetries = 50
             if query.count:
                 count += Query._query(table, table_query, is_count=True, limit=query.limit)
             else:
                 results = Query._query(table, table_query, is_count=False, limit=query.limit)
-                table_events = event_cls.from_db_results(table.connection, results)
+            if not query.count:
+                table_events = event_cls.from_db_results(connection, results)
                 events.extend(table_events)
 
         # We apply the limit to each table. The combined length could exceed the query limit. If so, trim again
