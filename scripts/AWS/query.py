@@ -3,7 +3,13 @@ from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan, Sele
 from tables import DeviceInfoTable
 
 
-class Query:
+class Query(object):
+    """
+    Class intended to abstract the various tables and DB mechanisms from the caller.
+
+    The idea is that if the user asks for all events for client xyz from time A to B.
+    it needs to query multiple tables (see EVENT_CLASSES) and merge the results back to form the all-events list
+    """
     EVENT_CLASSES = [
         LogEvent,
         WbxmlEvent,
@@ -91,7 +97,8 @@ class Query:
                     count += 1
                 results = count
             else:
-                results = table.scan(**table_query.query_filter.data())
+                results = table.scan(limit=limit,
+                                     **table_query.query_filter.data())
         return results
 
     @staticmethod
@@ -132,6 +139,7 @@ class Query:
 
     @staticmethod
     def users(query, connection):
+        assert isinstance(query, Query)
         table = DeviceInfoTable(connection)
         table_query = DeviceInfoTable.should_handle(query)
         events = Query._query(table, table_query, False, query.limit)
