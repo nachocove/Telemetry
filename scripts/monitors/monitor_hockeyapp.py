@@ -1,10 +1,12 @@
 import os
+from dateutil.parser import parse
 import zipfile
 import logging
+from AWS.events import Event
 import HockeyApp
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorStartsWith
+from AWS.selectors import SelectorEqual, SelectorStartsWith, SelectorLessThan
 from monitor_base import Monitor
 from misc.utc_datetime import UtcDateTime
 from logtrace import LogTrace
@@ -53,21 +55,33 @@ class CrashInfo:
         else:
             self.logger.debug('    device id = %s', ha_desc_obj.device_id)
 
-        # Query telemetry for the build
-        if CrashInfo.device_info_logs is None:
-            query = Query()
-            query.add('event_type', SelectorEqual('INFO'))
-            query.add('message', SelectorStartsWith('Device ID: '))
-            CrashInfo.device_info_logs = Query.events(query, self.conn)
-        events = list()
-        for event in CrashInfo.device_info_logs:
-            if event['message'].startswith('Device ID: ' + ha_desc_obj.device_id):
-                events.append(event)
-        if len(events) == 0:
-            self.logger.warning('    cannot find build info log for crash %s', self.ha_crash_obj.crash_id)
-            return None
-        assert 'client' in events[0]
-        client = events[0]['client']
+        query = Query()
+        query.add('device_id', SelectorEqual(ha_desc_obj.device_id))
+        # TODO Should probably see if we can also have a lower bound here, i.e. the upper bound is the crash timestamp.
+        query.add('uploaded_at', SelectorLessThan(Event.parse_datetime(UtcDateTime(parse(self.crash_utc)))))
+        # query telemetry.device_info for the client. Look for the latest entry no greater than the crash date.
+        devices = Query.users(query, self.conn)
+        if devices:
+            last_device = sorted(devices, key=lambda device: device['uploaded_at'])[-1]
+            client = last_device['client']
+            self.logger.debug('     Found client %s in telemetry.device_info', client)
+        else:
+            self.logger.debug('     No client found in telemetry.device_info. Searching in telemetry.log (this could take a while)')
+            # Query telemetry.log for the build info
+            if CrashInfo.device_info_logs is None:
+                query = Query()
+                query.add('event_type', SelectorEqual('INFO'))
+                query.add('message', SelectorStartsWith('Device ID: '))
+                CrashInfo.device_info_logs = Query.events(query, self.conn)
+            events = list()
+            for event in CrashInfo.device_info_logs:
+                if event['message'].startswith('Device ID: ' + ha_desc_obj.device_id):
+                    events.append(event)
+            if len(events) == 0:
+                self.logger.warning('    cannot find build info log for crash %s', self.ha_crash_obj.crash_id)
+                return None
+            assert 'client' in events[0]
+            client = events[0]['client']
         self.logger.debug('    client = %s', client)
         return client
 

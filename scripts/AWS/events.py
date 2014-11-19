@@ -243,13 +243,14 @@ class DeviceInfoEvent(Event):
     TABLE_CLASS = DeviceInfoTable
 
     def __init__(self, connection, id_, client, timestamp, uploaded_at,
-                 device_model, os_type, os_version, build_version, build_number):
+                 device_model, os_type, os_version, build_version, build_number, device_id):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         self['device_model'] = device_model
         self['os_type'] = os_type
         self['os_version'] = os_version
         self['build_version'] = build_version
         self['build_number'] = build_number
+        self['device_id'] = device_id
 
     def __str__(self):
         s = self._header_str()
@@ -258,5 +259,6 @@ class DeviceInfoEvent(Event):
         s += self._field_str('os_version')
         s += self._field_str('build_version')
         s += self._field_str('build_number')
+        s += self._field_str('device_id')
         return s
 
