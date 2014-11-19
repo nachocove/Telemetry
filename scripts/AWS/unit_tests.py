@@ -64,13 +64,10 @@ def dynamo_server(dynamo_home, port):
            '--port', str(port)]
     os.execv(args[0], args)
 
-Start_local = True if os.environ.get('DYNAMODBLOCAL_HOME', None) else False
 DynamoLocalProcess = None
 def start_dynamo(port):
-    global DynamoLocalProcess, Start_local
-    if not DynamoLocalProcess and Start_local:
-        if not 'DYNAMODBLOCAL_HOME' in os.environ:
-            raise ValueError("$ENV['DYNAMODBLOCAL_HOME'] is not set. Can not run dynamo-local unit tests")
+    global DynamoLocalProcess
+    if not DynamoLocalProcess and 'DYNAMODBLOCAL_HOME' in os.environ:
         from multiprocessing import Process
         p = Process(target=dynamo_server, args=(os.environ['DYNAMODBLOCAL_HOME'], port))
         p.start()
@@ -85,7 +82,7 @@ def kill_dynamo():
         DynamoLocalProcess = None
 
 class DynamoLocalUnitTest(unittest.TestCase):
-    DYNAMO_LOCAL_PORT = 8091
+    DYNAMO_LOCAL_PORT = 8000
     DynamoLocalProcess = None
 
     @classmethod
