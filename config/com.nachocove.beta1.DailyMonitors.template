@@ -11,7 +11,7 @@ http://www.apple.com/DTDs/PropertyList-1.0.dtd >
         <string>python2.7</string>
         <string>monitor.py</string>
         <string>--config</string>
-        <string>monitor_beta1.cfg</string>
+        <string>../config/monitor_beta1.cfg</string>
         <string>--after</string>
         <string>last</string>
         <string>--daily</string>

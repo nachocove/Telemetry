@@ -5,7 +5,7 @@ import hashlib
 class SupportEvent:
     def __init__(self, event):
         self.client = event['client']
-        self.timestamp = event['timestamp']['iso']
+        self.timestamp = str(event['timestamp'])
         self.params = json.loads(event['support'])
         if self.params is None:
             # There are some bad SUPPORT events in telemetry. They were
