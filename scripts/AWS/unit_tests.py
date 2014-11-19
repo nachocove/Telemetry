@@ -1,3 +1,4 @@
+import os
 import unittest
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from events import *
@@ -140,6 +141,7 @@ class TestTables(unittest.TestCase):
                 'timestamp': UtcDateTime('2014-11-01T07:00:00Z'),
                 'uploaded_at': UtcDateTime('2014-11-01T07:00:00.001Z'),
                 'event_type': 'INFO',
+                'thread_id': '1',
                 'message': 'info log #1'
             },
             {
@@ -148,6 +150,7 @@ class TestTables(unittest.TestCase):
                 'timestamp': UtcDateTime('2014-11-01T08:00:00Z'),
                 'uploaded_at': UtcDateTime('2014-11-01T08:00:00.001Z'),
                 'event_type': 'INFO',
+                'thread_id': '2',
                 'message': 'info log #2'
             },
             {
@@ -156,6 +159,7 @@ class TestTables(unittest.TestCase):
                 'timestamp': UtcDateTime('2014-11-01T08:00:05Z'),
                 'uploaded_at': UtcDateTime('2014-11-01T08:00:05.001Z'),
                 'event_type': 'WARN',
+                'thread_id': '3',
                 'message': 'warn log #3'
             },
             {
@@ -164,6 +168,7 @@ class TestTables(unittest.TestCase):
                 'timestamp': UtcDateTime('2014-11-01T08:00:10Z'),
                 'uploaded_at': UtcDateTime('2014-11-01T08:00:10.001Z'),
                 'event_type': 'ERROR',
+                'thread_id': '4',
                 'message': 'error log #4'
             },
             {
@@ -172,6 +177,7 @@ class TestTables(unittest.TestCase):
                 'timestamp': UtcDateTime('2014-11-01T09:00:11Z'),
                 'uploaded_at': UtcDateTime('2014-11-01T09:00:11.001Z'),
                 'event_type': 'INFO',
+                'thread_id': '5',
                 'message': 'info log #5'
             },
             {
@@ -180,7 +186,8 @@ class TestTables(unittest.TestCase):
                 'timestamp': UtcDateTime('2014-11-01T10:00:12Z'),
                 'uploaded_at': UtcDateTime('2014-11-01T10:00:12.001Z'),
                 'event_type': 'DEBUG',
-                'message': 'debug log #6'
+                'thread_id': '6',
+                'message': 'debug log #6',
             }
         ]
         self.generic_tests(logs, LogEvent)
@@ -303,7 +310,8 @@ class TestTables(unittest.TestCase):
                 'counter_name': 'counter B',
                 'count': 101,
                 'counter_start': UtcDateTime('2014-10-17T01:00:00Z'),
-                'counter_end': UtcDateTime('2014-10-17T01:10:00Z')
+                'counter_end': UtcDateTime('2014-10-17T01:10:00Z'),
+                'event_type': 'COUNTER',
             },
             {
                 'id_': '2',
@@ -313,7 +321,8 @@ class TestTables(unittest.TestCase):
                 'counter_name': u'counter A',
                 'count': 1001,
                 'counter_start': UtcDateTime('2014-10-17T02:00:00Z'),
-                'counter_end': UtcDateTime('2014-10-17T02:01:00Z')
+                'counter_end': UtcDateTime('2014-10-17T02:01:00Z'),
+                'event_type': 'COUNTER',
             },
             {
                 'id_': '3',
@@ -323,7 +332,8 @@ class TestTables(unittest.TestCase):
                 'counter_name': 'counter B',
                 'count': 201,
                 'counter_start': UtcDateTime('2014-10-17T03:00:00Z'),
-                'counter_end': UtcDateTime('2014-10-17T03:01:00Z')
+                'counter_end': UtcDateTime('2014-10-17T03:01:00Z'),
+                'event_type': 'COUNTER',
             }
         ]
         self.generic_tests(counters, CounterEvent)
@@ -379,7 +389,8 @@ class TestTables(unittest.TestCase):
                 'min_': 100,
                 'max_': 200,
                 'sum_': 15000,
-                'sum2': 2500000
+                'sum2': 2500000,
+                'event_type': 'CAPTURE',
             },
             {
                 'id_': '2',
@@ -391,7 +402,8 @@ class TestTables(unittest.TestCase):
                 'min_': 1000,
                 'max_': 1050,
                 'sum_': 51000,
-                'sum2': 52025000
+                'sum2': 52025000,
+                'event_type': 'CAPTURE',
             },
             {
                 'id_': '3',
@@ -403,7 +415,8 @@ class TestTables(unittest.TestCase):
                 'min_': 10000,
                 'max_': 20000,
                 'sum_': 7500000,
-                'sum2': 112625000000
+                'sum2': 112625000000,
+                'event_type': 'CAPTURE',
             }
         ]
         self.generic_tests(captures, CaptureEvent)
@@ -452,14 +465,16 @@ class TestTables(unittest.TestCase):
                 'client': 'bob',
                 'timestamp': UtcDateTime('2014-10-01T07:00:00Z'),
                 'uploaded_at': UtcDateTime('2014-10-01T07:00:00.001Z'),
-                'support': '{"email": "bob@company.com"}'
+                'support': '{"email": "bob@company.com"}',
+                'event_type': 'SUPPORT',
             },
             {
                 'id_': '2',
                 'client': 'john',
                 'timestamp': UtcDateTime('2014-10-01T07:01:00Z'),
                 'uploaded_at': UtcDateTime('2014-10-01T07:01:00.001Z'),
-                'support': '{"email": "john@company.com"}'
+                'support': '{"email": "john@company.com"}',
+                'event_type': 'SUPPORT',
             }
         ]
         self.generic_tests(supports, SupportEvent)
@@ -473,7 +488,8 @@ class TestTables(unittest.TestCase):
                 'uploaded_at': UtcDateTime('2014-10-01T07:05:00.002Z'),
                 'ui_type': 'UIViewController',
                 'ui_object': 'AttachmentViewController',
-                'ui_string': 'will appear begin'
+                'ui_string': 'will appear begin',
+                'event_type': 'UI',
             },
             {
                 'id_': '2',
@@ -482,7 +498,8 @@ class TestTables(unittest.TestCase):
                 'uploaded_at': UtcDateTime('2014-10-01T07:05:00.053Z'),
                 'ui_type': 'UIViewController',
                 'ui_object': 'AttachmentViewController',
-                'ui_string': 'will appear end'
+                'ui_string': 'will appear end',
+                'event_type': 'UI',
             },
             {
                 'id_': '3',
@@ -491,7 +508,8 @@ class TestTables(unittest.TestCase):
                 'uploaded_at': UtcDateTime('2014-10-01T07:05:10.114Z'),
                 'ui_type': 'UISegmentedControl',
                 'ui_object': 'By file, date, contact',
-                'ui_integer': 2
+                'ui_integer': 2,
+                'event_type': 'UI',
             },
             {
                 'id_': '4',
@@ -500,6 +518,7 @@ class TestTables(unittest.TestCase):
                 'uploaded_at': UtcDateTime('2014-10-01T07:05:20.205Z'),
                 'ui_type': 'UIButton',
                 'ui_object': 'Dismiss',
+                'event_type': 'UI',
             },
             {
                 'id_': '5',
@@ -508,7 +527,8 @@ class TestTables(unittest.TestCase):
                 'uploaded_at': UtcDateTime('2014-10-01T07:05:20.256Z'),
                 'ui_type': 'UIViewController',
                 'ui_object': 'AttachmentViewController',
-                'ui_string': 'will disappear begin'
+                'ui_string': 'will disappear begin',
+                'event_type': 'UI',
             },
             {
                 'id_': '6',
@@ -517,7 +537,8 @@ class TestTables(unittest.TestCase):
                 'uploaded_at': UtcDateTime('2014-10-01T07:05:20.256Z'),
                 'ui_type': 'UIViewController',
                 'ui_object': 'AttachmentViewController',
-                'ui_string': 'will disappear end'
+                'ui_string': 'will disappear end',
+                'event_type': 'UI',
             },
         ]
         self.generic_tests(ui_events, UiEvent)
