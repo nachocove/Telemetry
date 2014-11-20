@@ -58,19 +58,63 @@ class TestQueryFilter(unittest.TestCase):
                                  'timestamp__gte': 600
                              })
 
+def dynamo_server(dynamo_home, port):
+    args = ['%s/bin/java' % os.environ.get('JAVA_HOME', '/usr'), '-Djava.library.path=%s/DynamoDBLocal_lib' % dynamo_home,
+           '-jar', '%s/DynamoDBLocal.jar' % dynamo_home,
+           '--port', str(port)]
+    os.execv(args[0], args)
 
-class TestTables(unittest.TestCase):
+Start_local = True if os.environ.get('DYNAMODBLOCAL_HOME', None) else False
+DynamoLocalProcess = None
+def start_dynamo(port):
+    global DynamoLocalProcess, Start_local
+    if not DynamoLocalProcess and Start_local:
+        if not 'DYNAMODBLOCAL_HOME' in os.environ:
+            raise ValueError("$ENV['DYNAMODBLOCAL_HOME'] is not set. Can not run dynamo-local unit tests")
+        from multiprocessing import Process
+        p = Process(target=dynamo_server, args=(os.environ['DYNAMODBLOCAL_HOME'], port))
+        p.start()
+        print "Started process %d" % p.pid
+        DynamoLocalProcess = p
+
+def kill_dynamo():
+    global DynamoLocalProcess
+    if DynamoLocalProcess:
+        DynamoLocalProcess.terminate()  # kill the process
+        DynamoLocalProcess.join()  # reap the process (not sure this is strictly necessary)
+        DynamoLocalProcess = None
+
+class DynamoLocalUnitTest(unittest.TestCase):
+    DYNAMO_LOCAL_PORT = 8091
+    DynamoLocalProcess = None
+
+    @classmethod
+    def setUpClass(cls):
+        #if os.path.exists('unittest_localhost.db'):
+        #    os.remove('unittest_localhost.db')
+
+        start_dynamo(port=cls.DYNAMO_LOCAL_PORT)
+
+    @classmethod
+    def tearDownClass(cls):
+        kill_dynamo()
+
+    def setUp(self):
+        self.connection = DynamoDBConnection(host='localhost',
+                                             port=self.DYNAMO_LOCAL_PORT,
+                                             aws_secret_access_key='unittest',
+                                             aws_access_key_id='unittest',
+                                             region='us-east-1',
+                                             is_secure=False)
+
+class TestTables(DynamoLocalUnitTest):
     """
     Verify extensively many variations of LogTable. Only do spot checking for all
     other tables.
     """
     def setUp(self):
-        self.connection = DynamoDBConnection(host='localhost',
-                                             port=8000,
-                                             aws_secret_access_key='unittest',
-                                             aws_access_key_id='unittest',
-                                             region='us-east-1',
-                                             is_secure=False)
+        super(TestTables, self).setUp()
+
         TelemetryTable.PREFIX = 'unittest'
 
         # Delete all tables
