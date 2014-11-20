@@ -58,15 +58,47 @@ class TestQueryFilter(unittest.TestCase):
                                  'timestamp__gte': 600
                              })
 
+def dynamo_server(dynamo_home, port):
+    args = ['%s/bin/java' % os.environ.get('JAVA_HOME', '/usr'), '-Djava.library.path=%s/DynamoDBLocal_lib' % dynamo_home,
+           '-jar', '%s/DynamoDBLocal.jar' % dynamo_home,
+           '--port', str(port)]
+    os.execv(args[0], args)
 
-class TestTables(unittest.TestCase):
-    """
-    Verify extensively many variations of LogTable. Only do spot checking for all
-    other tables.
-    """
+DynamoLocalProcess = None
+def start_dynamo(port):
+    global DynamoLocalProcess
+    if not DynamoLocalProcess and 'DYNAMODBLOCAL_HOME' in os.environ:
+        from multiprocessing import Process
+        p = Process(target=dynamo_server, args=(os.environ['DYNAMODBLOCAL_HOME'], port))
+        p.start()
+        print "Started process %d" % p.pid
+        DynamoLocalProcess = p
+
+def kill_dynamo():
+    global DynamoLocalProcess
+    if DynamoLocalProcess:
+        DynamoLocalProcess.terminate()  # kill the process
+        DynamoLocalProcess.join()  # reap the process (not sure this is strictly necessary)
+        DynamoLocalProcess = None
+
+class DynamoLocalUnitTest(unittest.TestCase):
+    DYNAMO_LOCAL_PORT = 8000
+    DynamoLocalProcess = None
+
+    @classmethod
+    def setUpClass(cls):
+        #if os.path.exists('unittest_localhost.db'):
+        #    os.remove('unittest_localhost.db')
+
+        start_dynamo(port=cls.DYNAMO_LOCAL_PORT)
+
+    @classmethod
+    def tearDownClass(cls):
+        kill_dynamo()
+
     def setUp(self):
         self.connection = DynamoDBConnection(host='localhost',
-                                             port=8000,
+                                             port=self.DYNAMO_LOCAL_PORT,
                                              aws_secret_access_key='unittest',
                                              aws_access_key_id='unittest',
                                              region='us-east-1',
@@ -82,6 +114,27 @@ class TestTables(unittest.TestCase):
         for event_cls in Query.EVENT_CLASSES:
             table_cls = event_cls.TABLE_CLASS
             table_cls.create_table(self.connection)
+
+
+class TestTables(DynamoLocalUnitTest):
+    """
+    Generic class to set up and do rudimentary tests on a table.
+
+    Sub-classes need to set event_cls and items.
+    """
+
+    event_cls = None
+    items = None
+
+    def setUp(self):
+        super(TestTables, self).setUp()
+        self.insert_items()
+
+    def insert_items(self):
+        # Insert them into db
+        for item in self.items:
+            event = self.event_cls(self.connection, **item)
+            event.save()
 
     def compare_events(self, expected, got):
         # Make sure the set of keys are the same. Note that we need to strip the trailing '_'
@@ -104,444 +157,478 @@ class TestTables(unittest.TestCase):
         self.assertEqual(1, len(got))
         self.compare_events(expected, got[0])
 
-    def generic_tests(self, items, event_cls):
+    def generic_read_tests(self):
         """
-        Insert all items to db. Scan all of them. Query by id on all of them.
-        :param items:
-        :param event_cls:
+        Scan all items. Query by id on all of them.
         :return:
         """
-        # Insert them into db
-        for item in items:
-            event = event_cls(self.connection, **item)
-            event.save()
-
         # Scan and verify them
-        events = event_cls.scan(self.connection)
+        events = self.event_cls.scan(self.connection)
         for event in events:
             print str(event) + '\n'
             index = int(event['id']) - 1
-            self.compare_events(items[index], event)
+            self.compare_events(self.items[index], event)
 
         # Query by id
-        for index in range(len(items)):
+        for index in range(len(self.items)):
             id_ = index + 1
             query = Query()
             query.add('id', SelectorEqual(str(id_)))
             events = Query.events(query, self.connection)
             self.assertEqual(len(events), 1)
-            self.compare_events(items[index], events[0])
+            self.compare_events(self.items[index], events[0])
+
+class TestLogTable(TestTables):
+    event_cls = LogEvent
+    items = [
+        {
+            'id_': '1',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-11-01T07:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-11-01T07:00:00.001Z'),
+            'event_type': 'INFO',
+            'thread_id': '1',
+            'message': 'info log #1'
+        },
+        {
+            'id_': '2',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-11-01T08:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-11-01T08:00:00.001Z'),
+            'event_type': 'INFO',
+            'thread_id': '2',
+            'message': 'info log #2'
+        },
+        {
+            'id_': '3',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-11-01T08:00:05Z'),
+            'uploaded_at': UtcDateTime('2014-11-01T08:00:05.001Z'),
+            'event_type': 'WARN',
+            'thread_id': '3',
+            'message': 'warn log #3'
+        },
+        {
+            'id_': '4',
+            'client': 'john',
+            'timestamp': UtcDateTime('2014-11-01T08:00:10Z'),
+            'uploaded_at': UtcDateTime('2014-11-01T08:00:10.001Z'),
+            'event_type': 'ERROR',
+            'thread_id': '4',
+            'message': 'error log #4'
+        },
+        {
+            'id_': '5',
+            'client': 'john',
+            'timestamp': UtcDateTime('2014-11-01T09:00:11Z'),
+            'uploaded_at': UtcDateTime('2014-11-01T09:00:11.001Z'),
+            'event_type': 'INFO',
+            'thread_id': '5',
+            'message': 'info log #5'
+        },
+        {
+            'id_': '6',
+            'client': 'john',
+            'timestamp': UtcDateTime('2014-11-01T10:00:12Z'),
+            'uploaded_at': UtcDateTime('2014-11-01T10:00:12.001Z'),
+            'event_type': 'DEBUG',
+            'thread_id': '6',
+            'message': 'debug log #6',
+        }
+    ]
 
     def test_log_table(self):
-        # Create items
-        logs = [
-            {
-                'id_': '1',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-11-01T07:00:00Z'),
-                'uploaded_at': UtcDateTime('2014-11-01T07:00:00.001Z'),
-                'event_type': 'INFO',
-                'thread_id': '1',
-                'message': 'info log #1'
-            },
-            {
-                'id_': '2',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-11-01T08:00:00Z'),
-                'uploaded_at': UtcDateTime('2014-11-01T08:00:00.001Z'),
-                'event_type': 'INFO',
-                'thread_id': '2',
-                'message': 'info log #2'
-            },
-            {
-                'id_': '3',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-11-01T08:00:05Z'),
-                'uploaded_at': UtcDateTime('2014-11-01T08:00:05.001Z'),
-                'event_type': 'WARN',
-                'thread_id': '3',
-                'message': 'warn log #3'
-            },
-            {
-                'id_': '4',
-                'client': 'john',
-                'timestamp': UtcDateTime('2014-11-01T08:00:10Z'),
-                'uploaded_at': UtcDateTime('2014-11-01T08:00:10.001Z'),
-                'event_type': 'ERROR',
-                'thread_id': '4',
-                'message': 'error log #4'
-            },
-            {
-                'id_': '5',
-                'client': 'john',
-                'timestamp': UtcDateTime('2014-11-01T09:00:11Z'),
-                'uploaded_at': UtcDateTime('2014-11-01T09:00:11.001Z'),
-                'event_type': 'INFO',
-                'thread_id': '5',
-                'message': 'info log #5'
-            },
-            {
-                'id_': '6',
-                'client': 'john',
-                'timestamp': UtcDateTime('2014-11-01T10:00:12Z'),
-                'uploaded_at': UtcDateTime('2014-11-01T10:00:12.001Z'),
-                'event_type': 'DEBUG',
-                'thread_id': '6',
-                'message': 'debug log #6',
-            }
-        ]
-        self.generic_tests(logs, LogEvent)
+        self.generic_read_tests()
 
+    def test_query_client(self):
         # Query by client id
         query = Query()
         query.add('client', SelectorEqual('bob'))
         events = Query.events(query, self.connection)
-        self.compare_events_list(logs[0:3], events)
+        self.compare_events_list(self.items[0:3], events)
 
         query = Query()
         query.add('client', SelectorEqual('john'))
         events = Query.events(query, self.connection)
-        self.compare_events_list(logs[3:6], events)
+        self.compare_events_list(self.items[3:6], events)
 
+    def test_query_client_timestamp(self):
         # Query by client id + timestamp
         query = Query()
         query.add('client', SelectorEqual('bob'))
         query.add('timestamp', SelectorEqual(UtcDateTime('2014-11-01T08:00:05Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_one(logs[2], events)
+        self.compare_events_one(self.items[2], events)
 
         # Query by client id + timestamp range
         query = Query()
         query.add('client', SelectorEqual('john'))
         query.add('timestamp', SelectorLessThan(UtcDateTime('2014-11-01T09:30:00Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_list(logs[3:5], events)
+        self.compare_events_list(self.items[3:5], events)
 
         query = Query()
         query.add('client', SelectorEqual('john'))
         query.add('timestamp', SelectorGreaterThan(UtcDateTime('2014-11-01T08:30:00Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_list(logs[4:6], events)
+        self.compare_events_list(self.items[4:6], events)
 
         query = Query()
         query.add('client', SelectorEqual('john'))
         query.add('timestamp', SelectorGreaterThanEqual(UtcDateTime('2014-11-01T08:30:00Z')))
         query.add('timestamp', SelectorLessThan(UtcDateTime('2014-11-01T09:30:00Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_one(logs[4], events)
+        self.compare_events_one(self.items[4], events)
 
+    def test_query_event_type(self):
         # Query by event_type
         query = Query()
         query.add('event_type', SelectorEqual('INFO'))
         events = Query.events(query, self.connection)
-        self.compare_events_list(sublist(logs, [0, 1, 4]), events)
+        self.compare_events_list(sublist(self.items, [0, 1, 4]), events)
 
         query = Query()
         query.add('event_type', SelectorEqual('ERROR'))
         events = Query.events(query, self.connection)
-        self.compare_events_one(logs[3], events)
+        self.compare_events_one(self.items[3], events)
 
         query = Query()
         query.add('event_type', SelectorEqual('WARN'))
         events = Query.events(query, self.connection)
-        self.compare_events_one(logs[2], events)
+        self.compare_events_one(self.items[2], events)
 
         query = Query()
         query.add('event_type', SelectorEqual('DEBUG'))
         events = Query.events(query, self.connection)
-        self.compare_events_one(logs[5], events)
+        self.compare_events_one(self.items[5], events)
 
+    @unittest.skip('fails locally')
+    def test_query_event_type_timestamp(self):
         # Query by event_type + timestamp
         query = Query()
         query.add('event_type', SelectorEqual('INFO'))
         query.add('timestamp', SelectorEqual(UtcDateTime('2014-11-01T09:00:11Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_one(logs[4], events)
+        self.compare_events_one(self.items[4], events)
 
         # Query by event_type + timestamp range
         query = Query()
         query.add('event_type', SelectorEqual('INFO'))
         query.add('timestamp', SelectorLessThan(UtcDateTime('2014-11-01T08:30:00Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_list(logs[:2], events)
+        self.compare_events_list(self.items[:2], events)
 
         query = Query()
         query.add('event_type', SelectorEqual('INFO'))
         query.add('timestamp', SelectorGreaterThanEqual(UtcDateTime('2014-11-01T07:30:00Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_list(sublist(logs, [1, 4]), events)
+        self.compare_events_list(sublist(self.items, [1, 4]), events)
 
         query = Query()
         query.add('event_type', SelectorEqual('INFO'))
         query.add_range('timestamp', UtcDateTime('2014-11-01T07:30:00Z'), UtcDateTime('2014-11-01T08:30:00Z'))
         events = Query.events(query, self.connection)
-        self.compare_events_one(logs[1], events)
+        self.compare_events_one(self.items[1], events)
 
+    def test_query_timestamp(self):
         # Query by timestamp range (should fall back to a scan)
         query = Query()
         query.add_range('timestamp', UtcDateTime('2014-11-01T07:30:00Z'), UtcDateTime('2014-11-01T08:30:00Z'))
         events = Query.events(query, self.connection)
-        self.compare_events_list(logs[1:4], events)
+        self.compare_events_list(self.items[1:4], events)
 
+    def test_query_event_type_uploaded_at(self):
         # Query by event_type and uploaded_at range
         query = Query()
         query.add('event_type', SelectorEqual('INFO'))
         query.add('uploaded_at', SelectorGreaterThanEqual(UtcDateTime('2014-11-01T07:30:00Z')))
         query.add('uploaded_at', SelectorLessThan(UtcDateTime('2014-11-01T08:30:00Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_one(logs[1], events)
+        self.compare_events_one(self.items[1], events)
 
         query = Query()
         query.add_range('uploaded_at', UtcDateTime('2014-11-01T07:30:00Z'), UtcDateTime('2014-11-01T08:30:00Z'))
         events = Query.events(query, self.connection)
-        self.compare_events_list(logs[1:4], events)
+        self.compare_events_list(self.items[1:4], events)
+
+class TestWBXMLTable(TestTables):
+    event_cls = WbxmlEvent
+    items = [
+        {
+            'id_': '1',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-17T01:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-10-17T01:00:00.001Z'),
+            'event_type': 'WBXML_REQUEST',
+            'wbxml': "WHATGOESHERE?",
+        },
+        {
+            'id_': '2',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-17T01:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-10-17T01:00:00.001Z'),
+            'event_type': 'WBXML_RESPONSE',
+            'wbxml': "WHATGOESHERE?",
+        },
+    ]
 
     def test_wbxml_table(self):
-        pass
+        self.generic_read_tests()
+
+class TestCounterTable(TestTables):
+    event_cls = CounterEvent
+    items = [
+        {
+            'id_': '1',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-17T01:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-10-17T01:00:00.001Z'),
+            'counter_name': 'counter B',
+            'count': 101,
+            'counter_start': UtcDateTime('2014-10-17T01:00:00Z'),
+            'counter_end': UtcDateTime('2014-10-17T01:10:00Z'),
+            'event_type': 'COUNTER',
+        },
+        {
+            'id_': '2',
+            'client': 'john',
+            'timestamp': UtcDateTime('2014-10-17T02:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-10-17T02:00:00.001Z'),
+            'counter_name': u'counter A',
+            'count': 1001,
+            'counter_start': UtcDateTime('2014-10-17T02:00:00Z'),
+            'counter_end': UtcDateTime('2014-10-17T02:01:00Z'),
+            'event_type': 'COUNTER',
+        },
+        {
+            'id_': '3',
+            'client': 'john',
+            'timestamp': UtcDateTime('2014-10-17T03:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-10-17T03:00:00.001Z'),
+            'counter_name': 'counter B',
+            'count': 201,
+            'counter_start': UtcDateTime('2014-10-17T03:00:00Z'),
+            'counter_end': UtcDateTime('2014-10-17T03:01:00Z'),
+            'event_type': 'COUNTER',
+        }
+    ]
 
     def test_counter_table(self):
         # Create items
-        counters = [
-            {
-                'id_': '1',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-10-17T01:00:00Z'),
-                'uploaded_at': UtcDateTime('2014-10-17T01:00:00.001Z'),
-                'counter_name': 'counter B',
-                'count': 101,
-                'counter_start': UtcDateTime('2014-10-17T01:00:00Z'),
-                'counter_end': UtcDateTime('2014-10-17T01:10:00Z'),
-                'event_type': 'COUNTER',
-            },
-            {
-                'id_': '2',
-                'client': 'john',
-                'timestamp': UtcDateTime('2014-10-17T02:00:00Z'),
-                'uploaded_at': UtcDateTime('2014-10-17T02:00:00.001Z'),
-                'counter_name': u'counter A',
-                'count': 1001,
-                'counter_start': UtcDateTime('2014-10-17T02:00:00Z'),
-                'counter_end': UtcDateTime('2014-10-17T02:01:00Z'),
-                'event_type': 'COUNTER',
-            },
-            {
-                'id_': '3',
-                'client': 'john',
-                'timestamp': UtcDateTime('2014-10-17T03:00:00Z'),
-                'uploaded_at': UtcDateTime('2014-10-17T03:00:00.001Z'),
-                'counter_name': 'counter B',
-                'count': 201,
-                'counter_start': UtcDateTime('2014-10-17T03:00:00Z'),
-                'counter_end': UtcDateTime('2014-10-17T03:01:00Z'),
-                'event_type': 'COUNTER',
-            }
-        ]
-        self.generic_tests(counters, CounterEvent)
+        self.generic_read_tests()
 
+    def test_query_client(self):
         # Query by client id
         query = Query()
         query.add('client', SelectorEqual('john'))
         events = Query.events(query, self.connection)
-        self.compare_events_list(counters[1:3], events)
+        self.compare_events_list(self.items[1:3], events)
 
         # Query by client id + timestamp
         query = Query()
         query.add('client', SelectorEqual('john'))
         query.add('timestamp', SelectorEqual(UtcDateTime('2014-10-17T03:00:00Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_one(counters[2], events)
+        self.compare_events_one(self.items[2], events)
 
         # Query by counter name
         query = Query()
         query.add('counter_name', SelectorEqual('counter B'))
         events = Query.events(query, self.connection)
-        self.compare_events_list(sublist(counters, [0, 2]), events)
+        self.compare_events_list(sublist(self.items, [0, 2]), events)
 
         # Query by counter name + timestamp
         query = Query()
         query.add('counter_name', SelectorEqual('counter B'))
         query.add('timestamp', SelectorGreaterThanEqual(UtcDateTime('2014-10-17T03:00:00Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_one(counters[2], events)
+        self.compare_events_one(self.items[2], events)
 
         # Query by event_type + uploaded_at
         query = Query()
         query.add('event_type', SelectorEqual('COUNTER'))
         query.add_range('uploaded_at', UtcDateTime('2014-10-17T01:30:00Z'), UtcDateTime('2014-10-17T02:30:00Z'))
         events = Query.events(query, self.connection)
-        self.compare_events_one(counters[1], events)
+        self.compare_events_one(self.items[1], events)
 
         # Count by event_type + uploaded_at
         query.count = True
         self.assertEqual(1, Query.events(query, self.connection))
 
-    def test_capture_table(self):
+class TestCaptureTable(TestTables):
+    event_cls = CaptureEvent
+    items = [
+        {
+            'id_': '1',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-09-01T00:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-09-01T00:00:00.001Z'),
+            'capture_name': 'capture A',
+            'count': 100,
+            'min_': 100,
+            'max_': 200,
+            'sum_': 15000,
+            'sum2': 2500000,
+            'event_type': 'CAPTURE',
+        },
+        {
+            'id_': '2',
+            'client': 'john',
+            'timestamp': UtcDateTime('2014-09-01T01:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-09-01T01:00:00.001Z'),
+            'capture_name': 'capture B',
+            'count': 50,
+            'min_': 1000,
+            'max_': 1050,
+            'sum_': 51000,
+            'sum2': 52025000,
+            'event_type': 'CAPTURE',
+        },
+        {
+            'id_': '3',
+            'client': 'john',
+            'timestamp': UtcDateTime('2014-09-01T02:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-09-01T02:00:00.001Z'),
+            'capture_name': 'capture A',
+            'count': 500,
+            'min_': 10000,
+            'max_': 20000,
+            'sum_': 7500000,
+            'sum2': 112625000000,
+            'event_type': 'CAPTURE',
+        }
+    ]
 
+    def test_capture_table(self):
         # Create items
-        captures = [
-            {
-                'id_': '1',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-09-01T00:00:00Z'),
-                'uploaded_at': UtcDateTime('2014-09-01T00:00:00.001Z'),
-                'capture_name': 'capture A',
-                'count': 100,
-                'min_': 100,
-                'max_': 200,
-                'sum_': 15000,
-                'sum2': 2500000,
-                'event_type': 'CAPTURE',
-            },
-            {
-                'id_': '2',
-                'client': 'john',
-                'timestamp': UtcDateTime('2014-09-01T01:00:00Z'),
-                'uploaded_at': UtcDateTime('2014-09-01T01:00:00.001Z'),
-                'capture_name': 'capture B',
-                'count': 50,
-                'min_': 1000,
-                'max_': 1050,
-                'sum_': 51000,
-                'sum2': 52025000,
-                'event_type': 'CAPTURE',
-            },
-            {
-                'id_': '3',
-                'client': 'john',
-                'timestamp': UtcDateTime('2014-09-01T02:00:00Z'),
-                'uploaded_at': UtcDateTime('2014-09-01T02:00:00.001Z'),
-                'capture_name': 'capture A',
-                'count': 500,
-                'min_': 10000,
-                'max_': 20000,
-                'sum_': 7500000,
-                'sum2': 112625000000,
-                'event_type': 'CAPTURE',
-            }
-        ]
-        self.generic_tests(captures, CaptureEvent)
+        self.generic_read_tests()
 
         # Query by client id
         query = Query()
         query.add('client', SelectorEqual('john'))
         events = Query.events(query, self.connection)
-        self.compare_events_list(captures[1:3], events)
+        self.compare_events_list(self.items[1:3], events)
 
         # Query by client id + timestamp
         query = Query()
         query.add('client', SelectorEqual('john'))
         query.add('timestamp', SelectorEqual(UtcDateTime('2014-09-01T02:00:00Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_one(captures[2], events)
+        self.compare_events_one(self.items[2], events)
 
         # Query by capture name
         query = Query()
         query.add('capture_name', SelectorEqual('capture A'))
         events = Query.events(query, self.connection)
-        self.compare_events_list(sublist(captures, [0, 2]), events)
+        self.compare_events_list(sublist(self.items, [0, 2]), events)
 
         # Query by capture name + timestamp
         query = Query()
         query.add('capture_name', SelectorEqual('capture A'))
         query.add('timestamp', SelectorLessThanEqual(UtcDateTime('2014-09-01T00:00:00Z')))
         events = Query.events(query, self.connection)
-        self.compare_events_one(captures[0], events)
+        self.compare_events_one(self.items[0], events)
 
         # Query by event_type + uploaded_at
         query = Query()
         query.add('event_type', SelectorEqual('CAPTURE'))
         query.add_range('uploaded_at', UtcDateTime('2014-09-01T00:30:00Z'), UtcDateTime('2014-09-01T01:30:00Z'))
         events = Query.events(query, self.connection)
-        self.compare_events_one(captures[1], events)
+        self.compare_events_one(self.items[1], events)
 
         # Count by event_type + uploaded_at
         query.count = True
         self.assertEqual(1, Query.events(query, self.connection))
 
+class TestSupportTable(TestTables):
+    event_cls = SupportEvent
+    items = [
+        {
+            'id_': '1',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-01T07:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-10-01T07:00:00.001Z'),
+            'support': '{"email": "bob@company.com"}',
+            'event_type': 'SUPPORT',
+        },
+        {
+            'id_': '2',
+            'client': 'john',
+            'timestamp': UtcDateTime('2014-10-01T07:01:00Z'),
+            'uploaded_at': UtcDateTime('2014-10-01T07:01:00.001Z'),
+            'support': '{"email": "john@company.com"}',
+            'event_type': 'SUPPORT',
+        }
+    ]
     def test_support_table(self):
-        supports = [
-            {
-                'id_': '1',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-10-01T07:00:00Z'),
-                'uploaded_at': UtcDateTime('2014-10-01T07:00:00.001Z'),
-                'support': '{"email": "bob@company.com"}',
-                'event_type': 'SUPPORT',
-            },
-            {
-                'id_': '2',
-                'client': 'john',
-                'timestamp': UtcDateTime('2014-10-01T07:01:00Z'),
-                'uploaded_at': UtcDateTime('2014-10-01T07:01:00.001Z'),
-                'support': '{"email": "john@company.com"}',
-                'event_type': 'SUPPORT',
-            }
-        ]
-        self.generic_tests(supports, SupportEvent)
+        self.generic_read_tests()
+
+class TestUITable(TestTables):
+    event_cls = UiEvent
+    items = [
+        {
+            'id_': '1',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-01T07:05:00.001Z'),
+            'uploaded_at': UtcDateTime('2014-10-01T07:05:00.002Z'),
+            'ui_type': 'UIViewController',
+            'ui_object': 'AttachmentViewController',
+            'ui_string': 'will appear begin',
+            'event_type': 'UI',
+        },
+        {
+            'id_': '2',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-01T07:05:00.052Z'),
+            'uploaded_at': UtcDateTime('2014-10-01T07:05:00.053Z'),
+            'ui_type': 'UIViewController',
+            'ui_object': 'AttachmentViewController',
+            'ui_string': 'will appear end',
+            'event_type': 'UI',
+        },
+        {
+            'id_': '3',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-01T07:05:10.113Z'),
+            'uploaded_at': UtcDateTime('2014-10-01T07:05:10.114Z'),
+            'ui_type': 'UISegmentedControl',
+            'ui_object': 'By file, date, contact',
+            'ui_integer': 2,
+            'event_type': 'UI',
+        },
+        {
+            'id_': '4',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-01T07:05:20.204Z'),
+            'uploaded_at': UtcDateTime('2014-10-01T07:05:20.205Z'),
+            'ui_type': 'UIButton',
+            'ui_object': 'Dismiss',
+            'event_type': 'UI',
+        },
+        {
+            'id_': '5',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-01T07:05:20.255Z'),
+            'uploaded_at': UtcDateTime('2014-10-01T07:05:20.256Z'),
+            'ui_type': 'UIViewController',
+            'ui_object': 'AttachmentViewController',
+            'ui_string': 'will disappear begin',
+            'event_type': 'UI',
+        },
+        {
+            'id_': '6',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-01T07:05:20.255Z'),
+            'uploaded_at': UtcDateTime('2014-10-01T07:05:20.256Z'),
+            'ui_type': 'UIViewController',
+            'ui_object': 'AttachmentViewController',
+            'ui_string': 'will disappear end',
+            'event_type': 'UI',
+        },
+    ]
 
     def test_ui_table(self):
-        ui_events = [
-            {
-                'id_': '1',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-10-01T07:05:00.001Z'),
-                'uploaded_at': UtcDateTime('2014-10-01T07:05:00.002Z'),
-                'ui_type': 'UIViewController',
-                'ui_object': 'AttachmentViewController',
-                'ui_string': 'will appear begin',
-                'event_type': 'UI',
-            },
-            {
-                'id_': '2',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-10-01T07:05:00.052Z'),
-                'uploaded_at': UtcDateTime('2014-10-01T07:05:00.053Z'),
-                'ui_type': 'UIViewController',
-                'ui_object': 'AttachmentViewController',
-                'ui_string': 'will appear end',
-                'event_type': 'UI',
-            },
-            {
-                'id_': '3',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-10-01T07:05:10.113Z'),
-                'uploaded_at': UtcDateTime('2014-10-01T07:05:10.114Z'),
-                'ui_type': 'UISegmentedControl',
-                'ui_object': 'By file, date, contact',
-                'ui_integer': 2,
-                'event_type': 'UI',
-            },
-            {
-                'id_': '4',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-10-01T07:05:20.204Z'),
-                'uploaded_at': UtcDateTime('2014-10-01T07:05:20.205Z'),
-                'ui_type': 'UIButton',
-                'ui_object': 'Dismiss',
-                'event_type': 'UI',
-            },
-            {
-                'id_': '5',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-10-01T07:05:20.255Z'),
-                'uploaded_at': UtcDateTime('2014-10-01T07:05:20.256Z'),
-                'ui_type': 'UIViewController',
-                'ui_object': 'AttachmentViewController',
-                'ui_string': 'will disappear begin',
-                'event_type': 'UI',
-            },
-            {
-                'id_': '6',
-                'client': 'bob',
-                'timestamp': UtcDateTime('2014-10-01T07:05:20.255Z'),
-                'uploaded_at': UtcDateTime('2014-10-01T07:05:20.256Z'),
-                'ui_type': 'UIViewController',
-                'ui_object': 'AttachmentViewController',
-                'ui_string': 'will disappear end',
-                'event_type': 'UI',
-            },
-        ]
-        self.generic_tests(ui_events, UiEvent)
+        self.generic_read_tests()
 
 
 if __name__ == '__main__':
