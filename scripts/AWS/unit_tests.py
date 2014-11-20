@@ -118,9 +118,14 @@ class DynamoLocalUnitTest(unittest.TestCase):
 
 class TestTables(DynamoLocalUnitTest):
     """
-    Verify extensively many variations of LogTable. Only do spot checking for all
-    other tables.
+    Generic class to set up and do rudimentary tests on a table.
+
+    Sub-classes need to set event_cls and items.
     """
+
+    event_cls = None
+    items = None
+
     def setUp(self):
         super(TestTables, self).setUp()
         self.insert_items()
@@ -152,11 +157,9 @@ class TestTables(DynamoLocalUnitTest):
         self.assertEqual(1, len(got))
         self.compare_events(expected, got[0])
 
-    def generic_tests(self):
+    def generic_read_tests(self):
         """
-        Scan all of them. Query by id on all of them.
-        :param items:
-        :param event_cls:
+        Scan all items. Query by id on all of them.
         :return:
         """
         # Scan and verify them
@@ -235,7 +238,7 @@ class TestLogTable(TestTables):
     ]
 
     def test_log_table(self):
-        self.generic_tests()
+        self.generic_read_tests()
 
     def test_query_client(self):
         # Query by client id
@@ -348,8 +351,29 @@ class TestLogTable(TestTables):
         events = Query.events(query, self.connection)
         self.compare_events_list(self.items[1:4], events)
 
+class TestWBXMLTable(TestTables):
+    event_cls = WbxmlEvent
+    items = [
+        {
+            'id_': '1',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-17T01:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-10-17T01:00:00.001Z'),
+            'event_type': 'WBXML_REQUEST',
+            'wbxml': "WHATGOESHERE?",
+        },
+        {
+            'id_': '2',
+            'client': 'bob',
+            'timestamp': UtcDateTime('2014-10-17T01:00:00Z'),
+            'uploaded_at': UtcDateTime('2014-10-17T01:00:00.001Z'),
+            'event_type': 'WBXML_RESPONSE',
+            'wbxml': "WHATGOESHERE?",
+        },
+    ]
+
     def test_wbxml_table(self):
-        pass
+        self.generic_read_tests()
 
 class TestCounterTable(TestTables):
     event_cls = CounterEvent
@@ -391,7 +415,7 @@ class TestCounterTable(TestTables):
 
     def test_counter_table(self):
         # Create items
-        self.generic_tests()
+        self.generic_read_tests()
 
     def test_query_client(self):
         # Query by client id
@@ -477,7 +501,7 @@ class TestCaptureTable(TestTables):
 
     def test_capture_table(self):
         # Create items
-        self.generic_tests()
+        self.generic_read_tests()
 
         # Query by client id
         query = Query()
@@ -537,7 +561,7 @@ class TestSupportTable(TestTables):
         }
     ]
     def test_support_table(self):
-        self.generic_tests()
+        self.generic_read_tests()
 
 class TestUITable(TestTables):
     event_cls = UiEvent
@@ -604,7 +628,7 @@ class TestUITable(TestTables):
     ]
 
     def test_ui_table(self):
-        self.generic_tests()
+        self.generic_read_tests()
 
 
 if __name__ == '__main__':
