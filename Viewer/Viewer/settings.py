@@ -59,7 +59,9 @@ WSGI_APPLICATION = 'Viewer.wsgi.application'
 DATABASES = {
 }
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
+#SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
+SESSION_ENGINE = 'django.contrib.sessions.backends.file'
+SESSION_COOKIE_HTTPONLY = True
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/
@@ -115,3 +117,8 @@ LOGGING = {
         },
     }
 }
+
+LOGIN_URL="/login/"
+
+# needs salt, but better than plain-text
+NACHO_PASSWORD_DIGEST = "037a63dfd71c7cfc0d8e76389f45854d2a5be75cec62c315800bf94add5a3c83"
