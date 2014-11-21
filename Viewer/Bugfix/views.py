@@ -277,7 +277,6 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     html = '<link rel="stylesheet" type="text/css" href="/static/list.css">\n'
 
     # Save some global parameters for summary table
-    html += '<script type="text/javascript">\n'
     params = dict()
     params['start'] = after.isoformat('T')
     params['stop'] = before.isoformat('T')
@@ -297,6 +296,10 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
             params['build_version'] = client_list[0]['build_version']
     except DynamoDBError, e:
         logger.error('fail to query device info - %s', str(e))
+        html += '<body><h1>ERROR</h1>%s</body>' % str(e)
+        return HttpResponse(html)
+
+    html += '<script type="text/javascript">\n'
     html += 'var params = ' + json.dumps(params) + ';\n'
 
     # Generate the events JSON
@@ -308,17 +311,14 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
         if event['event_type'] in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
             def decode_wbxml(wbxml_):
-                # This is kind ugly. A better looking solution would involve
-                # using subprocess but redirecting pipes causes my Mac to
-                # crash! I'm guessing it has something to do with redirecting
-                # stdin / stdout in a WSGI process. Regardless to aesthetic,
-                # this solution works fine.
-                path = tempfile.mktemp()
-                os.system('mono %s -d -b %s > %s' %
-                          (os.path.realpath('./WbxmlTool.Mac.exe'), wbxml_, path))
-                with open(path, 'r') as f:
-                    output = f.read()
-                os.unlink(path)
+                # possibly look into https://github.com/davidpshaw/PyWBXMLDecoder
+                import subprocess
+                cmd = ['mono', os.path.realpath('./WbxmlTool.Mac.exe'), '-d', '-b', wbxml_]
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                output, errors = process.communicate()
+                if process.returncode != 0 or errors:
+                    logger.error('Could not run command. cmd=%s, errors=%s', " ".join(cmd), errors)
+                    raise Exception('mono failure')
                 return output
             base64 = event['wbxml'].encode()
             event['wbxml_base64'] = cgi.escape(base64)
