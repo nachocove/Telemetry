@@ -126,7 +126,7 @@ def login(request):
                 return HttpResponseRedirect('/')
             except Exception, e:
                 logger.error('fail to get session token - %s' % str(e))
-                message = 'Cannot log in (%s). Please enter the password again.' % e.error
+                message = 'Cannot log in (%s). Please enter the password again.' % e
         else:
             logger.warn('invalid form data')
     form = LoginForm()
