@@ -1,0 +1,17 @@
+<!doctype html>
+<head>
+<meta http-equiv="Content-type" content="text/html; charset=UTF-8">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+<title>{{ project }}</title>
+</head>
+<body>
+<div align="right"><a href="/logout/">Logout</a></div>
+<div align="left"><h1>Project: {{ project }}</h1></div>
+<hr>
+{% block content %}
+{% endblock %}
+<p><font color="red">{{ message }}</font></p>
+<div>&copy; Copyright 2014 Nacho Cove, Inc</div>
+</body>
