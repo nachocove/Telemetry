@@ -126,7 +126,7 @@ def login(request):
                 return HttpResponseRedirect('/')
             except Exception, e:
                 logger.error('fail to get session token - %s' % str(e))
-                message = 'Cannot log in (%s). Please enter the password again.' % e.error
+                message = 'Cannot log in (%s). Please enter the password again.' % e
         else:
             logger.warn('invalid form data')
     form = LoginForm()
@@ -260,14 +260,14 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     try:
         user_query = Query()
         user_query.add('client', SelectorEqual(client))
-        client = Query.users(user_query, conn)
+        client_list = Query.users(user_query, conn)
 
-        if len(client) > 0:
+        if len(client_list) > 0:
             # Get the user from the first client
-            params['os_type'] = client[0]['os_type']
-            params['os_version'] = client[0]['os_version']
-            params['device_model'] = client[0]['device_model']
-            params['build_version'] = client[0]['build_version']
+            params['os_type'] = client_list[0]['os_type']
+            params['os_version'] = client_list[0]['os_version']
+            params['device_model'] = client_list[0]['device_model']
+            params['build_version'] = client_list[0]['build_version']
     except DynamoDBError, e:
         logger.error('fail to query device info - %s', str(e))
     html += 'var params = ' + json.dumps(params) + ';\n'
