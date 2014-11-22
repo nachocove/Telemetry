@@ -116,6 +116,9 @@ class CrashInfoIos(CrashInfo):
             return match.group('crash_utc')
         return None  # somehow cannot find the crash time in the raw crash log
 
+class CrashInfoUnknownPlatformException(Exception):
+    pass
+
 def CrashInfoFactory(ha_crash_obj, conn):
     """
     Create a crashinfo subclass based on the crash-group
@@ -131,7 +134,7 @@ def CrashInfoFactory(ha_crash_obj, conn):
     if platform == 'iOS':
         return CrashInfoIos(ha_crash_obj, conn)
     else:
-        raise ValueError("Unsupported (unimplemented) crash platform %s" % platform)
+        raise CrashInfoUnknownPlatformException("Unsupported (unimplemented) crash platform %s" % platform)
 
 class MonitorHockeyApp(Monitor):
     def __init__(self, conn, start=None, end=None, ha_app_obj=None):
@@ -170,7 +173,10 @@ class MonitorHockeyApp(Monitor):
                 # the DynamoDB connection may have time out. So, create
                 # a new one
                 conn = self.clone_connection(self.conn)
-                self.crashes.append(CrashInfoFactory(crash, conn))
+                try:
+                    self.crashes.append(CrashInfoFactory(crash, conn))
+                except CrashInfoUnknownPlatformException as e:
+                    self.logger.error('Could not analyze crash: %s (SKIPPING)' % e)
 
     def report(self, summary, **kwargs):
         summary.add_entry('Crash count', str(len(self.crashes)))
