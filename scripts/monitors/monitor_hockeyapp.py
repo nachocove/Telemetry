@@ -6,7 +6,7 @@ import logging
 import HockeyApp
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorStartsWith, SelectorLessThan, SelectorBetween
+from AWS.selectors import SelectorEqual, SelectorStartsWith, SelectorBetween, SelectorLessThanEqual
 from monitor_base import Monitor
 from misc.utc_datetime import UtcDateTime
 from logtrace import LogTrace
@@ -81,7 +81,7 @@ class CrashInfo:
             self.logger.debug('     No client found in telemetry.device_info within a month of the crash. Expanding search.')
             query = Query()
             query.add('device_id', SelectorEqual(ha_desc_obj.device_id))
-            query.add('uploaded_at', SelectorLessThan(lower_bound))
+            query.add('uploaded_at', SelectorLessThanEqual(lower_bound))
             devices = Query.users(query, self.conn)
 
         if devices:
