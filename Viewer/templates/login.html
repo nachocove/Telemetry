@@ -1,6 +1,11 @@
-<h1>{{ project }}</h1><hr>
+<h1>Project: {{ project }}</h1><hr>
 <form action="/login/" method="post">{% csrf_token %}
-{{ form.as_p }}
+{% for field in form %}
+    <div class="fieldWrapper">
+        {{ field.label_tag }} {{ field }}
+        {{ field.errors }}
+    </div>
+{% endfor %}
 <input type="submit" value="Submit" />
 </form>
 <p><font color="red">{{ message }}</font></p>

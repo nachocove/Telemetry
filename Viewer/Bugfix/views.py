@@ -1,6 +1,10 @@
+from functools import wraps
+import hashlib
 import sys
 import dateutil.parser
 from datetime import timedelta
+from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django import forms
 from django.shortcuts import render
@@ -11,6 +15,7 @@ import os
 import tempfile
 import json
 import ConfigParser
+from django.utils.decorators import available_attrs
 
 sys.path.append('../scripts')
 
@@ -60,6 +65,15 @@ default_span = 1
 class LoginForm(forms.Form):
     password = forms.CharField(widget=forms.PasswordInput)
 
+    def validate_password(self, password):
+        if hashlib.sha256(password).hexdigest() != settings.NACHO_PASSWORD_DIGEST:
+            self.add_error('password', 'Incorrect Password')
+            raise ValidationError('Incorrect Password')
+
+    def clean(self):
+        if 'password' in self.cleaned_data:
+            self.validate_password(self.cleaned_data['password'])
+        return self.cleaned_data
 
 class VectorForm(forms.Form):
     tele_paste = forms.CharField(widget=forms.Textarea)
@@ -110,9 +124,26 @@ def _parse_support_email(junk):
         return dict_
     return None
 
+def nacho_token():
+    token = "NACHO:%s" % settings.SECRET_KEY
+    return hashlib.sha256(token).hexdigest()
+
+def create_session(request):
+    request.session['nachotoken'] = nacho_token()
+
+def validate_session(request):
+    return request.session.get('nachotoken', None) == nacho_token()
+
+def nachotoken_required(view_func):
+    @wraps(view_func, assigned=available_attrs(view_func))
+    def _wrapped_view(request, *args, **kwargs):
+        if validate_session(request):
+            return view_func(request, *args, **kwargs)
+        else:
+            return HttpResponseRedirect(settings.LOGIN_URL)
+    return _wrapped_view
+
 # Create your views here.
-
-
 def login(request):
     message = ''
     logger = logging.getLogger('telemetry').getChild('login')
@@ -120,25 +151,25 @@ def login(request):
         form = LoginForm(request.POST)
         if form.is_valid():
             try:
-                # TODO - No login code right now!
-                request.session['session_token'] = 'BS_TOKEN'
-                logger.debug('session_token=%s' % request.session['session_token'])
-                return HttpResponseRedirect('/')
+                create_session(request)
+                return HttpResponseRedirect(request.GET.get('next', '/'))
             except Exception, e:
                 logger.error('fail to get session token - %s' % str(e))
-                message = 'Cannot log in (%s). Please enter the password again.' % e.error
-        else:
-            logger.warn('invalid form data')
-    form = LoginForm()
+                message = 'Cannot log in (%s). Please enter the password again.' % e
+    else:
+        form = LoginForm()
     return render(request, 'login.html', {'form': form, 'message': message, 'project': project})
 
+def logout(request):
+    try:
+        del request.session['nachotoken']
+    except AttributeError:
+        pass
+    return HttpResponseRedirect(settings.LOGIN_URL)
 
+@nachotoken_required
 def home(request):
     logger = logging.getLogger('telemetry').getChild('home')
-    # FIXME - Auth is disabled for now!
-    # if not 'session_token' in request.session:
-    #     logger.info('no session token. must log in first.')
-    #     return HttpResponseRedirect('/login/')
     # Any message set in 'message' will be displayed as a red error message.
     # Used for reporting error in any POST.
     message = ''
@@ -204,13 +235,9 @@ def _iso_z_format(date):
     return keep[:-3] + 'Z'
 
 
+@nachotoken_required
 def entry_page(request, client='', timestamp='', span=str(default_span)):
     logger = logging.getLogger('telemetry').getChild('entry_page')
-    # FIXME - Auth is disabled for now!
-    # if not 'session_token' in request.session:
-    #     logger.info('no session token. must log in first.')
-    #     return HttpResponseRedirect('/login/')
-
     logger.info('client=%s, timestamp=%s, span=%s', client, timestamp, span)
     span = int(span)
     client = str(client)
@@ -250,7 +277,6 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     html = '<link rel="stylesheet" type="text/css" href="/static/list.css">\n'
 
     # Save some global parameters for summary table
-    html += '<script type="text/javascript">\n'
     params = dict()
     params['start'] = after.isoformat('T')
     params['stop'] = before.isoformat('T')
@@ -260,16 +286,20 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     try:
         user_query = Query()
         user_query.add('client', SelectorEqual(client))
-        client = Query.users(user_query, conn)
+        client_list = Query.users(user_query, conn)
 
-        if len(client) > 0:
+        if len(client_list) > 0:
             # Get the user from the first client
-            params['os_type'] = client[0]['os_type']
-            params['os_version'] = client[0]['os_version']
-            params['device_model'] = client[0]['device_model']
-            params['build_version'] = client[0]['build_version']
+            params['os_type'] = client_list[0]['os_type']
+            params['os_version'] = client_list[0]['os_version']
+            params['device_model'] = client_list[0]['device_model']
+            params['build_version'] = client_list[0]['build_version']
     except DynamoDBError, e:
         logger.error('fail to query device info - %s', str(e))
+        html += '<body><h1>ERROR</h1>%s</body>' % str(e)
+        return HttpResponse(html)
+
+    html += '<script type="text/javascript">\n'
     html += 'var params = ' + json.dumps(params) + ';\n'
 
     # Generate the events JSON
@@ -281,17 +311,14 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
         if event['event_type'] in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
             def decode_wbxml(wbxml_):
-                # This is kind ugly. A better looking solution would involve
-                # using subprocess but redirecting pipes causes my Mac to
-                # crash! I'm guessing it has something to do with redirecting
-                # stdin / stdout in a WSGI process. Regardless to aesthetic,
-                # this solution works fine.
-                path = tempfile.mktemp()
-                os.system('mono %s -d -b %s > %s' %
-                          (os.path.realpath('./WbxmlTool.Mac.exe'), wbxml_, path))
-                with open(path, 'r') as f:
-                    output = f.read()
-                os.unlink(path)
+                # possibly look into https://github.com/davidpshaw/PyWBXMLDecoder
+                import subprocess
+                cmd = ['mono', os.path.realpath('./WbxmlTool.Mac.exe'), '-d', '-b', wbxml_]
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                output, errors = process.communicate()
+                if process.returncode != 0 or errors:
+                    logger.error('Could not run command. cmd=%s, errors=%s', " ".join(cmd), errors)
+                    raise Exception('mono failure')
                 return output
             base64 = event['wbxml'].encode()
             event['wbxml_base64'] = cgi.escape(base64)
@@ -319,6 +346,7 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
     # Add an event table
     html += '<table id="table_events" class="table"></table>\n'
+    html += '<a href="/logout/">Logout</a>'
     html += '</body>\n'
 
     return HttpResponse(html)

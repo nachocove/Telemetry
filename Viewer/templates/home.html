@@ -1,6 +1,7 @@
-<h1>{{ project }}</h1><hr>
+{% extends "base.html" %}
+{% block content %}
 <form action="/bugfix/" method="post">{% csrf_token %}
 {{ form.as_p }}
 <input type="submit" value="Submit" />
 </form>
-<p><font color="red">{{ message }}</font></p>
+{% endblock %}
