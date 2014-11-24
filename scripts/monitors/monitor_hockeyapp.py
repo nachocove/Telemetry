@@ -1,12 +1,12 @@
 import os
+from datetime import timedelta
 from dateutil.parser import parse
 import zipfile
 import logging
-from AWS.events import Event
 import HockeyApp
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorStartsWith, SelectorLessThan
+from AWS.selectors import SelectorEqual, SelectorStartsWith, SelectorLessThan, SelectorBetween
 from monitor_base import Monitor
 from misc.utc_datetime import UtcDateTime
 from logtrace import LogTrace
@@ -14,7 +14,10 @@ from misc.html_elements import *
 
 
 class CrashInfo:
+
+    # these are class variables. Modifying these will modify them for all instances (which is expected in this case)
     device_info_logs = None
+    client_cache = {}
 
     """
     A class that ties a HockeyApp Crash object with its associated raw log and telemetry event trace.
@@ -40,6 +43,55 @@ class CrashInfo:
         """
         raise NotImplementedError("subclass must implement this method")
 
+    def _determine_client_by_log(self, ha_desc_obj):
+        """
+        A VERY SLOW search through tht telemetry.log file
+        """
+        # Query telemetry.log for the build info
+        if CrashInfo.device_info_logs is None:
+            query = Query()
+            query.add('event_type', SelectorEqual('INFO'))
+            query.add('message', SelectorStartsWith('Device ID: '))
+            CrashInfo.device_info_logs = Query.events(query, self.conn)
+        events = list()
+        for event in CrashInfo.device_info_logs:
+            if event['message'].startswith('Device ID: ' + ha_desc_obj.device_id):
+                events.append(event)
+        if len(events) == 0:
+            self.logger.warning('    cannot find build info log for crash %s', self.ha_crash_obj.crash_id)
+            return None
+        assert 'client' in events[0]
+        return events[0]['client']
+
+    def _determine_client_by_device_info(self, ha_desc_obj):
+        upper_bound = UtcDateTime(parse(self.crash_utc))
+        lower_bound = UtcDateTime(upper_bound.datetime - timedelta(days=30))
+
+        # query telemetry.device_info for the client. Look for the latest entry no greater than the crash date.
+        # In theory, we should search in reverse, with a limit of 1. That would make the search faster. But scan
+        # doesn't allow reverse searching ironically. We would need to put an index on this, as query DOES allow reverse
+        # searching.
+        query = Query()
+        query.add('device_id', SelectorEqual(ha_desc_obj.device_id))
+        query.add('uploaded_at', SelectorBetween(lower_bound, upper_bound))
+        devices = Query.users(query, self.conn)
+        if not devices:
+            # the search from (crash-1month to crash) didn't give us anything. Try to search for historical data
+            # i.e. < crash-1month
+            self.logger.debug('     No client found in telemetry.device_info within a month of the crash. Expanding search.')
+            query = Query()
+            query.add('device_id', SelectorEqual(ha_desc_obj.device_id))
+            query.add('uploaded_at', SelectorLessThan(lower_bound))
+            devices = Query.users(query, self.conn)
+
+        if devices:
+            last_device = sorted(devices, key=lambda device: device['uploaded_at'])[-1]
+            client = last_device['client']
+            self.logger.debug('     Found client %s in telemetry.device_info', client)
+            return client
+        else:
+            return None
+
     def _determine_client(self):
         """
         Determine the client id from the build info
@@ -55,35 +107,19 @@ class CrashInfo:
         else:
             self.logger.debug('    device id = %s', ha_desc_obj.device_id)
 
-        query = Query()
-        query.add('device_id', SelectorEqual(ha_desc_obj.device_id))
-        # TODO Should probably see if we can also have a lower bound here, i.e. the upper bound is the crash timestamp.
-        query.add('uploaded_at', SelectorLessThan(Event.parse_datetime(UtcDateTime(parse(self.crash_utc)))))
-        # query telemetry.device_info for the client. Look for the latest entry no greater than the crash date.
-        devices = Query.users(query, self.conn)
-        if devices:
-            last_device = sorted(devices, key=lambda device: device['uploaded_at'])[-1]
-            client = last_device['client']
-            self.logger.debug('     Found client %s in telemetry.device_info', client)
-        else:
+        if ha_desc_obj.device_id in CrashInfo.client_cache:
+            self.logger.debug('     Client found in cache')
+            return CrashInfo.client_cache[ha_desc_obj.device_id]
+
+        client = self._determine_client_by_device_info(ha_desc_obj)
+        if not client:
             self.logger.debug('     No client found in telemetry.device_info. Searching in telemetry.log (this could take a while)')
-            # Query telemetry.log for the build info
-            if CrashInfo.device_info_logs is None:
-                query = Query()
-                query.add('event_type', SelectorEqual('INFO'))
-                query.add('message', SelectorStartsWith('Device ID: '))
-                CrashInfo.device_info_logs = Query.events(query, self.conn)
-            events = list()
-            for event in CrashInfo.device_info_logs:
-                if event['message'].startswith('Device ID: ' + ha_desc_obj.device_id):
-                    events.append(event)
-            if len(events) == 0:
-                self.logger.warning('    cannot find build info log for crash %s', self.ha_crash_obj.crash_id)
-                return None
-            assert 'client' in events[0]
-            client = events[0]['client']
-        self.logger.debug('    client = %s', client)
-        return client
+            client = self._determine_client_by_log(ha_desc_obj)
+        if not client:
+            self.logger.warn('      No client found in any search.')
+
+        CrashInfo.client_cache[ha_desc_obj.device_id] = client
+        return CrashInfo.client_cache[ha_desc_obj.device_id]
 
     def _get_trace(self):
         trace = None
