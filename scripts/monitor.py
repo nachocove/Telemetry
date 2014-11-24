@@ -185,16 +185,16 @@ def main():
 
     # Run each monitor
     monitors = list()
+    mapping = {'errors': MonitorErrors,
+               'warnings': MonitorWarnings,
+               'users': MonitorUsers,
+               'events': MonitorEvents,
+               'captures': MonitorCaptures,
+               'counters': MonitorCounters,
+               'crashes': MonitorHockeyApp,
+               'ui': MonitorUi,
+               'support': MonitorSupport}
     for monitor_name in options.monitors:
-        mapping = {'errors': MonitorErrors,
-                   'warnings': MonitorWarnings,
-                   'users': MonitorUsers,
-                   'events': MonitorEvents,
-                   'captures': MonitorCaptures,
-                   'counters': MonitorCounters,
-                   'crashes': MonitorHockeyApp,
-                   'ui': MonitorUi,
-                   'support': MonitorSupport}
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
             continue
