@@ -77,7 +77,7 @@ class SectionConfig:
         cls = type(self)
         if key not in cls.KEYS:
             raise AttributeError('Unknown attribute %s' % key)
-        self.config_file.set(cls.SECITON, key, value)
+        self.config_file.set(cls.SECTION, key, value)
 
     def read(self, options):
         cls = self.__class__
