@@ -40,7 +40,7 @@ class Statistics:
                 raise ValueError('1st moment results in mean less than min.')
             if less_than_beyond_numerical_uncertainty(max_, mean):
                 raise ValueError('1st moment results in mean less than max.')
-            if less_than_beyond_numerical_uncertainty(self.second_moment, self.mean() ** 2):
+            if less_than_beyond_numerical_uncertainty(self.second_moment / float(self.count), self.mean() ** 2):
                 raise ValueError('2nd moment results in negative variance.')
 
     def __add__(self, other):
