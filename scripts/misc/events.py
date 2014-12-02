@@ -30,6 +30,7 @@ IDENT_FIELDS = ['client',
 
 # These fields are arranged in the order they intend to be displayed
 INFO_FIELDS = ['message',  # for logs
+               'thread_id',
 
                'wbxml',  # for wbxml requests / responses
 
