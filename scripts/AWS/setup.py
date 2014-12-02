@@ -37,7 +37,7 @@ def get_table_names(connection):
     return [str(x) for x in tables]
 
 
-def list_tables(connection):
+def list_tables(connection, options):
     tables = connection.list_tables()[u'TableNames']
     for table_name in tables:
         table_cls = TelemetryTable.find_table_class(table_name)
@@ -46,7 +46,7 @@ def list_tables(connection):
         print table
 
 
-def delete_tables(connection):
+def delete_tables(connection, options):
     for table in TABLE_CLASSES:
         table_name = TelemetryTable.full_table_name(table.TABLE_NAME)
         write('Deleting %s...' % table_name)
@@ -69,7 +69,7 @@ def delete_tables(connection):
         poll(is_deleted, 1)
 
 
-def create_tables(connection):
+def create_tables(connection, options):
     for cls in TABLE_CLASSES:
         try:
             table_name = TelemetryTable.full_table_name(cls.TABLE_NAME)
@@ -84,7 +84,7 @@ def create_tables(connection):
                 raise e
 
 
-def show_table_cost(connection):
+def show_table_cost(connection, options):
     rate = 0.0065 / 10.0 * 24 * 31  # For us-west-2. Would be nice to have an API to get the cost
 
     total_read_units = 0
@@ -98,10 +98,20 @@ def show_table_cost(connection):
     print '----- ----- ---------- ----------   ----------------------------'
 
     def format_cost(cost):
-        locale.setlocale(locale.LC_ALL, '')
-        return locale.currency(cost, grouping=True)
+        try:
+            # try setting user's locale
+            locale.setlocale(locale.LC_ALL, '')
+            return locale.currency(cost, grouping=True)
+        except ValueError:
+            # didn't work. Set USA
+            locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+            return locale.currency(cost, grouping=True)
+
 
     for table_name in tables:
+        if options.prefix and not table_name.startswith(options.prefix):
+            continue
+
         table = Table(table_name=table_name, connection=connection)
         info = table.describe()
 
@@ -148,7 +158,7 @@ def main():
                         default=None)
     parser.add_argument('--prefix', '-p',
                         help='Prefix of the table names',
-                        default='dev')
+                        default='')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--local',
                        help='Use local DynamoDB',
@@ -196,7 +206,7 @@ def main():
             print 'Ignore unknown action %s' % action
             continue
         assert callable(action_fn)
-        action_fn(conn)
+        action_fn(conn, options)
 
 if __name__ == '__main__':
     main()
