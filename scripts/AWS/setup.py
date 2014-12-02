@@ -1,13 +1,11 @@
 #!/usr/bin/env python
-import pprint
 
 import sys
 import locale
-from datetime import datetime, timedelta
+from datetime import datetime
 from argparse import ArgumentParser
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.table import Table
-from boto.ec2 import cloudwatch
 
 sys.path.append('../')
 from tables import TelemetryTable, TABLE_CLASSES
@@ -99,21 +97,6 @@ def format_cost(cost):
         locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
         return locale.currency(cost, grouping=True)
 
-def get_stats(cw_conn, table_name, period, start_time, end_time, metric_name, statistics, index='', namespace='AWS/DynamoDB'):
-    dimension = {'TableName': [table_name,]}
-    if index:
-        dimension['GlobalSecondaryIndexName'] = index
-
-    return cw_conn.get_metric_statistics(period=period,
-                                         start_time=start_time,
-                                         end_time=end_time,
-                                         metric_name=metric_name,
-                                         namespace=namespace,
-                                         statistics=statistics,
-                                         dimensions=dimension)
-
-
-
 def show_table_cost(connection, options):
 
     total_read_units = 0
@@ -168,53 +151,6 @@ def show_table_cost(connection, options):
     print 'Total cost = %s' % format_cost(total_read_cost + total_write_cost)
 
 
-def show_usage_cost(connection, options):
-    tables = connection.list_tables()[u'TableNames']
-    print ' Read Write       Read      Write   Table'
-    print ' Unit  Unit       Cost       Cost'
-    print '----- ----- ---------- ----------   ----------------------------'
-
-    end_time = datetime.now()
-    start_time = end_time - timedelta(hours=12)
-    metric_names={'ConsumedWriteCapacityUnits': 'Average',
-                  'ConsumedReadCapacityUnits': 'Average',
-                  }
-    period=60
-    pp = pprint.PrettyPrinter(indent=4)
-    for table_name in tables:
-        if options.prefix and not table_name.startswith(options.prefix):
-            continue
-        if options.table and not table_name.endswith(options.table):
-            continue
-
-        table = Table(table_name=table_name, connection=connection)
-        info = table.describe()['Table']
-
-        indexes = ['', ]  # blank means the table itself.
-        indexes.append([x['IndexName'] for x in info['GlobalSecondaryIndexes']])
-        sum_of_statistic = {}
-        for metric in metric_names:
-            sum_of_statistic[metric] = {}
-            statistic = metric_names[metric]
-            sum_of_statistic[metric][statistic] = []
-            for index in indexes:
-                stats = get_stats(options.cloudwatch,
-                                  table_name,
-                                  period=period,
-                                  start_time=start_time,
-                                  end_time=end_time,
-                                  metric_name=metric,
-                                  statistics=statistic,
-                                  index=index)
-                for item in stats:
-                    sum_of_statistic[metric][statistic].append(item[statistic])
-
-        read_units = info[u'ProvisionedThroughput'][u'ReadCapacityUnits']
-        write_units = info[u'ProvisionedThroughput'][u'WriteCapacityUnits']
-        print read_units, write_units
-        pp.pprint(sum_of_statistic)
-
-
 def main():
     parser = ArgumentParser()
     parser.add_argument('--host',
@@ -252,11 +188,6 @@ def main():
     show_cost_parser.add_argument('--table', help='Specific table to look at',
                                   default='')
 
-    #show_dynamo_usage_parser = subparser.add_parser('show-usage')
-    #show_dynamo_usage_parser.set_defaults(func=show_usage_cost)
-    #show_dynamo_usage_parser.add_argument('--table', help='Specific table to look at',
-    #                              default='')
-
     reset_parser = subparser.add_parser('reset')
     reset_parser.set_defaults(func=delete_tables)
 
@@ -289,12 +220,6 @@ def main():
                               aws_access_key_id=options.aws_access_key_id,
                               region='us-west-2',
                               is_secure=is_secure)
-    cw_conn = cloudwatch.connect_to_region('us-west-2',
-                                           aws_secret_access_key=options.aws_secret_access_key,
-                                           aws_access_key_id=options.aws_access_key_id,
-                                           is_secure=True)
-    options.cloudwatch = cw_conn
-
     if not options.func:
         raise ValueError('no function defined for argument')
 
