@@ -2,7 +2,7 @@ from functools import wraps
 import hashlib
 import sys
 import dateutil.parser
-from datetime import timedelta
+from datetime import timedelta, datetime
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
@@ -12,7 +12,6 @@ from django.http import HttpResponseRedirect
 import logging
 import cgi
 import os
-import tempfile
 import json
 import ConfigParser
 from django.utils.decorators import available_attrs
@@ -234,6 +233,13 @@ def _iso_z_format(date):
         return keep + '.000Z'
     return keep[:-3] + 'Z'
 
+def json_formatter(obj):
+    if isinstance(obj, UtcDateTime):
+        return obj.datetime.isoformat('T')
+    elif isinstance(obj, datetime):
+        return obj.isoformat('T')
+    else:
+        raise TypeError, 'Object of type %s with value of %s is not JSON serializable' % (type(obj), repr(obj))
 
 @nachotoken_required
 def entry_page(request, client='', timestamp='', span=str(default_span)):
@@ -278,8 +284,8 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
     # Save some global parameters for summary table
     params = dict()
-    params['start'] = after.isoformat('T')
-    params['stop'] = before.isoformat('T')
+    params['start'] = after
+    params['stop'] = before
     params['client'] = client
     params['event_count'] = event_count
     # Query the user device info
@@ -300,7 +306,7 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
         return HttpResponse(html)
 
     html += '<script type="text/javascript">\n'
-    html += 'var params = ' + json.dumps(params) + ';\n'
+    html += 'var params = ' + json.dumps(params, default=json_formatter) + ';\n'
 
     # Generate the events JSON
     event_list = [dict(x.items()) for x in obj_list]
@@ -326,7 +332,7 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
         if 'message' in event:
             event['message'] = cgi.escape(event['message'])
 
-    html += 'var events = ' + json.dumps(event_list) + ';\n'
+    html += 'var events = ' + json.dumps(event_list, default=json_formatter) + ';\n'
     html += '</script>\n'
     html += '<script type="text/javascript" src="/static/list.js"></script>\n'
 
