@@ -1,11 +1,14 @@
 #!/usr/bin/env python
+import pprint
 
 import sys
 import locale
-from datetime import datetime
+from datetime import datetime, timedelta
 from argparse import ArgumentParser
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.table import Table
+from boto.ec2 import cloudwatch
+
 sys.path.append('../')
 from tables import TelemetryTable, TABLE_CLASSES
 from boto.exception import JSONResponseError
@@ -84,8 +87,34 @@ def create_tables(connection, options):
                 raise e
 
 
+dynamodb_rate = 0.0065 / 10.0 * 24 * 31  # For us-west-2. Would be nice to have an API to get the cost
+
+def format_cost(cost):
+    try:
+        # try setting user's locale
+        locale.setlocale(locale.LC_ALL, '')
+        return locale.currency(cost, grouping=True)
+    except ValueError:
+        # didn't work. Set USA
+        locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+        return locale.currency(cost, grouping=True)
+
+def get_stats(cw_conn, table_name, period, start_time, end_time, metric_name, statistics, index='', namespace='AWS/DynamoDB'):
+    dimension = {'TableName': [table_name,]}
+    if index:
+        dimension['GlobalSecondaryIndexName'] = index
+
+    return cw_conn.get_metric_statistics(period=period,
+                                         start_time=start_time,
+                                         end_time=end_time,
+                                         metric_name=metric_name,
+                                         namespace=namespace,
+                                         statistics=statistics,
+                                         dimensions=dimension)
+
+
+
 def show_table_cost(connection, options):
-    rate = 0.0065 / 10.0 * 24 * 31  # For us-west-2. Would be nice to have an API to get the cost
 
     total_read_units = 0
     total_write_units = 0
@@ -97,28 +126,19 @@ def show_table_cost(connection, options):
     print ' Unit  Unit       Cost       Cost'
     print '----- ----- ---------- ----------   ----------------------------'
 
-    def format_cost(cost):
-        try:
-            # try setting user's locale
-            locale.setlocale(locale.LC_ALL, '')
-            return locale.currency(cost, grouping=True)
-        except ValueError:
-            # didn't work. Set USA
-            locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
-            return locale.currency(cost, grouping=True)
-
-
     for table_name in tables:
         if options.prefix and not table_name.startswith(options.prefix):
             continue
+        if options.table and not table_name.endswith(options.table):
+            continue
 
         table = Table(table_name=table_name, connection=connection)
-        info = table.describe()
+        info = table.describe()[u'Table']
 
-        read_units = info[u'Table'][u'ProvisionedThroughput'][u'ReadCapacityUnits']
-        write_units = info[u'Table'][u'ProvisionedThroughput'][u'WriteCapacityUnits']
-        read_cost = read_units * rate
-        write_cost = write_units * rate
+        read_units = info[u'ProvisionedThroughput'][u'ReadCapacityUnits']
+        write_units = info[u'ProvisionedThroughput'][u'WriteCapacityUnits']
+        read_cost = read_units * dynamodb_rate
+        write_cost = write_units * dynamodb_rate
 
         total_read_units += read_units
         total_write_units += write_units
@@ -127,20 +147,75 @@ def show_table_cost(connection, options):
 
         print '%5d %5d %10s %10s   %s' % (read_units, write_units, format_cost(read_cost),
                                           format_cost(write_cost), table_name)
+
+        for index_item in info['GlobalSecondaryIndexes']:
+            read_units = index_item[u'ProvisionedThroughput'][u'ReadCapacityUnits']
+            write_units = info[u'ProvisionedThroughput'][u'WriteCapacityUnits']
+            read_cost = read_units * dynamodb_rate
+            write_cost = write_units * dynamodb_rate
+
+            total_read_units += read_units
+            total_write_units += write_units
+            total_read_cost += read_cost
+            total_write_cost += write_cost
+
+            print '%5d %5d %10s %10s   %s' % (read_units, write_units, format_cost(read_cost),
+                                              format_cost(write_cost), "%s-%s" % (table_name, index_item['IndexName']))
+
     print '%5d %5d %10s %10s   TOTAL' % (total_read_units, total_write_units, format_cost(total_read_cost),
                                          format_cost(total_write_cost))
     print '\nTotal number of units = %d' % (total_read_units + total_write_units)
     print 'Total cost = %s' % format_cost(total_read_cost + total_write_cost)
 
 
-def main():
-    action_table = {
-        'list': list_tables,
-        'show-cost': show_table_cost,
-        'reset': delete_tables,
-        'setup': create_tables
-    }
+def show_usage_cost(connection, options):
+    tables = connection.list_tables()[u'TableNames']
+    print ' Read Write       Read      Write   Table'
+    print ' Unit  Unit       Cost       Cost'
+    print '----- ----- ---------- ----------   ----------------------------'
 
+    end_time = datetime.now()
+    start_time = end_time - timedelta(hours=12)
+    metric_names={'ConsumedWriteCapacityUnits': 'Average',
+                  'ConsumedReadCapacityUnits': 'Average',
+                  }
+    period=60
+    pp = pprint.PrettyPrinter(indent=4)
+    for table_name in tables:
+        if options.prefix and not table_name.startswith(options.prefix):
+            continue
+        if options.table and not table_name.endswith(options.table):
+            continue
+
+        table = Table(table_name=table_name, connection=connection)
+        info = table.describe()['Table']
+
+        indexes = ['', ]  # blank means the table itself.
+        indexes.append([x['IndexName'] for x in info['GlobalSecondaryIndexes']])
+        sum_of_statistic = {}
+        for metric in metric_names:
+            sum_of_statistic[metric] = {}
+            statistic = metric_names[metric]
+            sum_of_statistic[metric][statistic] = []
+            for index in indexes:
+                stats = get_stats(options.cloudwatch,
+                                  table_name,
+                                  period=period,
+                                  start_time=start_time,
+                                  end_time=end_time,
+                                  metric_name=metric,
+                                  statistics=statistic,
+                                  index=index)
+                for item in stats:
+                    sum_of_statistic[metric][statistic].append(item[statistic])
+
+        read_units = info[u'ProvisionedThroughput'][u'ReadCapacityUnits']
+        write_units = info[u'ProvisionedThroughput'][u'WriteCapacityUnits']
+        print read_units, write_units
+        pp.pprint(sum_of_statistic)
+
+
+def main():
     parser = ArgumentParser()
     parser.add_argument('--host',
                         help='Host of AWS DynamoDB instance (Default: dynamodb.us-west-2.amazonaws.com)',
@@ -167,12 +242,27 @@ def main():
     group.add_argument('--config', '-c',
                        help='Configuration that contains an AWS section',
                        default=None)
-    actions = sorted(action_table.keys())
-    parser.add_argument('action',
-                        metavar='ACTION',
-                        nargs='+',
-                        help='List of actions. (Choices are: %s)' % ', '.join(actions),
-                        choices=actions)
+    subparser = parser.add_subparsers()
+
+    list_parser = subparser.add_parser('list')
+    list_parser.set_defaults(func=list_tables)
+
+    show_cost_parser = subparser.add_parser('show-cost')
+    show_cost_parser.set_defaults(func=show_table_cost)
+    show_cost_parser.add_argument('--table', help='Specific table to look at',
+                                  default='')
+
+    #show_dynamo_usage_parser = subparser.add_parser('show-usage')
+    #show_dynamo_usage_parser.set_defaults(func=show_usage_cost)
+    #show_dynamo_usage_parser.add_argument('--table', help='Specific table to look at',
+    #                              default='')
+
+    reset_parser = subparser.add_parser('reset')
+    reset_parser.set_defaults(func=delete_tables)
+
+    setup_parser = subparser.add_parser('setup')
+    setup_parser.set_defaults(func=create_tables)
+
     options = parser.parse_args()
 
     if options.local:
@@ -199,14 +289,16 @@ def main():
                               aws_access_key_id=options.aws_access_key_id,
                               region='us-west-2',
                               is_secure=is_secure)
+    cw_conn = cloudwatch.connect_to_region('us-west-2',
+                                           aws_secret_access_key=options.aws_secret_access_key,
+                                           aws_access_key_id=options.aws_access_key_id,
+                                           is_secure=True)
+    options.cloudwatch = cw_conn
 
-    for action in options.action:
-        action_fn = action_table.get(action, None)
-        if action_fn is None:
-            print 'Ignore unknown action %s' % action
-            continue
-        assert callable(action_fn)
-        action_fn(conn, options)
+    if not options.func:
+        raise ValueError('no function defined for argument')
+
+    options.func(conn, options)
 
 if __name__ == '__main__':
     main()
