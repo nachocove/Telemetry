@@ -6,6 +6,9 @@ from monitors.monitor_base import Monitor
 
 
 class MonitorCost(Monitor):
+    """
+    A monitor class for cost analysis.
+    """
     def __init__(self, cloudwatch=None, prefix=None, *args, **kwargs):
         kwargs.setdefault('desc', 'Cost breakdown')
         Monitor.__init__(self, *args, **kwargs)
@@ -44,9 +47,9 @@ class MonitorCost(Monitor):
                 for statistic in statistics[metric]:
                     for table_index in statistics[metric][statistic]:
                         if statistics[metric][statistic][table_index]:
-                            avg = numpy.average([x[statistic] for x in statistics[metric][statistic][table_index]])
+                            avg = numpy.average([float(x[statistic])/float(self.period) for x in statistics[metric][statistic][table_index]])
                             avg_element = TableElement(Text(pretty_number(avg)), align='right')
-                            max = numpy.max([x[statistic] for x in statistics[metric][statistic][table_index]])
+                            max = numpy.max([float(x[statistic])/float(self.period) for x in statistics[metric][statistic][table_index]])
                             max_element = TableElement(Text(pretty_number(max)), align='right')
                         else:
                             avg_element = TableElement(Text('None'))
@@ -85,8 +88,8 @@ class MonitorCost(Monitor):
         pass
 
     def _query(self):
-        metric_names={'ConsumedWriteCapacityUnits': 'Average',
-                      'ConsumedReadCapacityUnits': 'Average',
+        metric_names={'ConsumedWriteCapacityUnits': 'Sum',
+                      'ConsumedReadCapacityUnits': 'Sum',
                       }
         tables = self.conn.list_tables()[u'TableNames']
         for table_name in tables:
