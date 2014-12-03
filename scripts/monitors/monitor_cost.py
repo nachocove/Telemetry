@@ -52,7 +52,7 @@ class MonitorCost(Monitor):
         total_units_used = {'ConsumedWriteCapacityUnits': 0,
                             'ConsumedReadCapacityUnits': 0,
                             }
-        for table_name in self.data:
+        for table_name in sorted(self.data.keys()):
             # format: statistics[metric][statistic][table/index]
             statistics = self.data[table_name]['statistics']
 
@@ -70,9 +70,9 @@ class MonitorCost(Monitor):
 
             # Unlike in the _query, we only loop over select fields here, i.e. self.report_metric_names.
             # We fetched multiple metrics, but we report on only some (and mix in some of the rest).
-            for metric in self.report_metric_names:
-                for statistic in statistics[metric]:
-                    for table_index in statistics[metric][statistic]:
+            for metric in sorted(self.report_metric_names):
+                for statistic in sorted(statistics[metric]):
+                    for table_index in sorted(statistics[metric][statistic].keys()):
                         if statistics[metric][statistic][table_index]:
                             # Create the array of averages, i.e. for each 'Sum' data point, divide the datapoint by the
                             # period (self.period), which gives us the average over that period.
