@@ -8,8 +8,9 @@ from misc.html_elements import *
 
 
 class MonitorUi(Monitor):
-    def __init__(self, conn, start, end):
-        Monitor.__init__(self, conn=conn, desc='UI', start=start, end=end)
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('desc', 'UI')
+        Monitor.__init__(self, *args, **kwargs)
         self.events = []
         self.view_controller_sets = dict()
         self.num_vc_events = 0
@@ -43,6 +44,7 @@ class MonitorUi(Monitor):
             vc_set.aggregate_samples()
 
     def run(self):
+        self.logger.info('Querying %s...', self.desc)
         self._query()
         self._analyze()
 

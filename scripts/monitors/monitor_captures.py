@@ -45,8 +45,9 @@ class CaptureKind:
 
 
 class MonitorCaptures(Monitor):
-    def __init__(self, conn, start, end):
-        Monitor.__init__(self, conn=conn, desc='captures', start=start, end=end)
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('desc', 'captures')
+        Monitor.__init__(self, *args, **kwargs)
         self.events = []
 
     def _query(self):

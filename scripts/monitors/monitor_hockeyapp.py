@@ -187,8 +187,9 @@ def CrashInfoFactory(ha_crash_obj, conn):
         raise CrashInfoUnknownPlatformException("Unsupported (unimplemented) crash platform %s" % platform)
 
 class MonitorHockeyApp(Monitor):
-    def __init__(self, conn, start=None, end=None, ha_app_obj=None):
-        Monitor.__init__(self, conn, "crashes", start, end)
+    def __init__(self, ha_app_obj=None, *args, **kwargs):
+        kwargs.setdefault('desc', 'crashes')
+        Monitor.__init__(self, *args, **kwargs)
         assert isinstance(ha_app_obj, HockeyApp.app.App)
         self.ha_app_obj = ha_app_obj
         self.crashes = list()

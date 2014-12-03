@@ -6,14 +6,14 @@ from misc.number_formatter import pretty_number
 
 
 class MonitorCount(Monitor):
-    def __init__(self, conn, desc, rate_desc=None, start=None, end=None):
-        Monitor.__init__(self, conn, desc, start, end)
+    def __init__(self, rate_desc=None, *args, **kwargs):
+        Monitor.__init__(self, *args, **kwargs)
         self.count = 0
         self.rate_desc = rate_desc
 
         # Create the query
         self.query = Query()
-        self.query.add_range('uploaded_at', start, end)
+        self.query.add_range('uploaded_at', self.start, self.end)
         self.query.count = True
 
     def run(self):
@@ -36,8 +36,10 @@ class MonitorCount(Monitor):
 
 
 class MonitorUsers(MonitorCount):
-    def __init__(self, conn, start=None, end=None):
-        MonitorCount.__init__(self, conn, 'New user count', 'New user rate', start, end)
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('desc', 'New user count')
+        kwargs.setdefault('rate_desc', 'New user rate')
+        MonitorCount.__init__(self, *args, **kwargs)
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
@@ -45,8 +47,10 @@ class MonitorUsers(MonitorCount):
 
 
 class MonitorEvents(MonitorCount):
-    def __init__(self, conn, start=None, end=None):
-        MonitorCount.__init__(self, conn, 'Event count', 'Event rate', start, end)
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('desc', 'Event count')
+        kwargs.setdefault('rate_desc', 'Event rate')
+        MonitorCount.__init__(self, *args, **kwargs)
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
