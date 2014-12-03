@@ -1,6 +1,8 @@
 # Copyright 2014, NachoCove, Inc
+import locale
 from boto.dynamodb2.table import Table as DynamoTable
 from datetime import timedelta
+from AWS.pricing import dynamodb_rate
 from misc.number_formatter import pretty_number
 from monitors.monitor_base import Monitor
 
@@ -19,16 +21,35 @@ class MonitorCost(Monitor):
         self.data = {}
         self.table = None  # set this for debugging a single table, if needed
 
+    get_metric_names={'ConsumedWriteCapacityUnits': 'Sum',
+                      'ConsumedReadCapacityUnits': 'Sum',
+                      'WriteThrottleEvents': 'Sum',
+                      'ReadThrottleEvents': 'Sum',
+                      }
+    report_metric_names = ['ConsumedWriteCapacityUnits', 'ConsumedReadCapacityUnits']
+
     def run(self):
         self.logger.info('Querying %s...', self.desc)
         self._query()
         self._analyze()
 
+    def per_user_cost_rounded_to_next_hour(self, cost, users, time_interval):
+        assert(isinstance(time_interval, (float, int)))
+        hours, seconds = divmod(int(time_interval), 3600)
+        rounded_to_next_hour = hours + 1 if seconds > 0 else hours
+        return (cost/users) * dynamodb_rate * rounded_to_next_hour
+
     def report(self, summary, **kwargs):
         from misc.html_elements import Table, TableHeader, Bold, TableRow, Paragraph, TableElement, Text
         import numpy
         title = self.title()
+        time_interval = self.end - self.start
         paragraphs = []
+        user_estimate = 10
+
+        total_units_used = {'ConsumedWriteCapacityUnits': 0,
+                            'ConsumedReadCapacityUnits': 0,
+                            }
         for table_name in self.data:
             # format: statistics[metric][statistic][table/index]
             statistics = self.data[table_name]['statistics']
@@ -38,22 +59,27 @@ class MonitorCost(Monitor):
                                     TableHeader(Bold('Metric')),
                                     TableHeader(Bold('Statistic')),
                                     TableHeader(Bold('Count')),
-                                    TableHeader(Bold('Average')),
-                                    TableHeader(Bold('Max')),
+                                    TableHeader(Bold('Average (period %ds)' % self.period)),
+                                    TableHeader(Bold('Max (period %ds)' % self.period)),
                                     TableHeader(Bold('Provisioned')),
+                                    TableHeader(Bold('Throttled Count Avg (period %ds)' % self.period)),
+                                    TableHeader(Bold('Throttled Count Max (period %ds)' % self.period)),
                                     ]))
 
-            for metric in statistics:
+            for metric in self.report_metric_names:
                 for statistic in statistics[metric]:
                     for table_index in statistics[metric][statistic]:
                         if statistics[metric][statistic][table_index]:
-                            avg = numpy.average([float(x[statistic])/float(self.period) for x in statistics[metric][statistic][table_index]])
-                            avg_element = TableElement(Text(pretty_number(avg)), align='right')
-                            max = numpy.max([float(x[statistic])/float(self.period) for x in statistics[metric][statistic][table_index]])
-                            max_element = TableElement(Text(pretty_number(max)), align='right')
+                            values = [float(x[statistic])/float(self.period) for x in statistics[metric][statistic][table_index]]
+                            avg = numpy.average(values)
+                            total_units_used[metric] += numpy.sum(values)
+                            avg_element = Text(pretty_number(avg))
+                            max = numpy.max(values)
+                            max_element = Text(pretty_number(max))
                         else:
-                            avg_element = TableElement(Text('None'))
-                            max_element = TableElement(Text('None'))
+                            avg_element = Text('-')
+                            max_element = Text('-')
+
                         if table_index == table_name:
                             provisioned_throughput = self.data[table_name]['info']['ProvisionedThroughput']
                             table_str = table_name
@@ -65,21 +91,53 @@ class MonitorCost(Monitor):
                                     provisioned_throughput = x['ProvisionedThroughput']
                                     break
                         provisioned = 0.0
+                        avg_throttle_element = Text('-')
+                        max_throttle_element = Text('-')
+                        throttle_values = None
                         if provisioned_throughput:
                             if metric == 'ConsumedWriteCapacityUnits':
                                 provisioned = provisioned_throughput['WriteCapacityUnits']
+                                if 'WriteThrottleEvents' in statistics and statistics['WriteThrottleEvents'][statistic][table_index]:
+                                    throttle_values = [float(x[self.get_metric_names['WriteThrottleEvents']])/float(self.period) for x in statistics['WriteThrottleEvents'][statistic][table_index]]
                             elif metric == 'ConsumedReadCapacityUnits':
                                 provisioned = provisioned_throughput['ReadCapacityUnits']
+                                if 'ReadThrottleEvents' in statistics and statistics['ReadThrottleEvents'][statistic][table_index]:
+                                    throttle_values = [float(x[self.get_metric_names['ReadThrottleEvents']])/float(self.period) for x in statistics['ReadThrottleEvents'][statistic][table_index]]
+                        if throttle_values:
+                            avg_throttle = numpy.average(throttle_values)
+                            avg_throttle_element = Text(pretty_number(avg_throttle))
+                            max_throttle = numpy.max(throttle_values)
+                            max_throttle_element = Text(pretty_number(max_throttle))
+
                         table.add_row(TableRow([TableElement(Text(table_str)),
                                                 TableElement(Text(metric)),
                                                 TableElement(Text(statistic)),
-                                                TableElement(Text(pretty_number(len(statistics[metric][statistic][table_index])))),
-                                                avg_element,
-                                                max_element,
-                                                TableElement(Text(pretty_number(provisioned)))
+                                                TableElement(Text(pretty_number(len(statistics[metric][statistic][table_index]))), align='right'),
+                                                TableElement(avg_element, align='right'),
+                                                TableElement(max_element, align='right'),
+                                                TableElement(Text(pretty_number(provisioned)), align='right'),
+                                                TableElement(avg_throttle_element, align='right'),
+                                                TableElement(max_throttle_element, align='right'),
                                                 ]))
             paragraphs.append(Paragraph([Bold(title + " " + table_name), table]))
+        summary.add_entry('Estimated number of total users', pretty_number(user_estimate))
+        for k in total_units_used:
+            summary.add_entry('Consumed %s average' % k, pretty_number(total_units_used[k]))
+            summary.add_entry('Per user %s average' % k, pretty_number(total_units_used[k]/user_estimate))
+            summary.add_entry('Cost %s Per user' % k, self.format_cost(self.per_user_cost_rounded_to_next_hour(total_units_used[k], user_estimate, time_interval)))
+
+
         return paragraphs
+
+    def format_cost(self, cost):
+        try:
+            # try setting user's locale
+            locale.setlocale(locale.LC_ALL, '')
+            return locale.currency(cost, grouping=True)
+        except ValueError:
+            # didn't work. Set USA
+            locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+            return locale.currency(cost, grouping=True)
 
     def attachment(self):
         return None
@@ -88,9 +146,6 @@ class MonitorCost(Monitor):
         pass
 
     def _query(self):
-        metric_names={'ConsumedWriteCapacityUnits': 'Sum',
-                      'ConsumedReadCapacityUnits': 'Sum',
-                      }
         tables = self.conn.list_tables()[u'TableNames']
         for table_name in tables:
             if self.prefix and not table_name.startswith(self.prefix):
@@ -105,13 +160,17 @@ class MonitorCost(Monitor):
                                      'statistics': {},
             }
             indexes = [x['IndexName'] for x in info['GlobalSecondaryIndexes']]
-            for metric in metric_names:
+            for metric in self.get_metric_names:
                 statistics[metric] = {}
-                statistic = metric_names[metric]
+                statistic = self.get_metric_names[metric]
                 statistics[metric][statistic] = {}
                 stats = self._get_stats(table_name,
                                         metric_name=metric,
                                         statistics=statistic)
+                stats = self._get_stats(table_name,
+                                        metric_name='WriteThrottled',
+                                        statistics=statistic)
+
                 statistics[metric][statistic] = {table_name: stats}
                 for index in indexes:
                     stats = self._get_stats(table_name,
