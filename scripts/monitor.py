@@ -173,7 +173,7 @@ def main():
     summary_table = Summary()
     summary_table.colors = [None, '#f0f0f0']
     if options.email:
-        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email(debug=options.debug)
+        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email()
         if smtp_server is None:
             logger.error('no email configuration')
             exit(1)
