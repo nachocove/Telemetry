@@ -5,15 +5,17 @@ import dateutil.parser
 from datetime import timedelta, datetime
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.urlresolvers import reverse
 from django.http import HttpResponse
 from django import forms
-from django.shortcuts import render
+from django.shortcuts import render, render_to_response
 from django.http import HttpResponseRedirect
 import logging
 import cgi
 import os
 import json
 import ConfigParser
+from django.template import RequestContext
 from django.utils.decorators import available_attrs
 
 sys.path.append('../scripts')
@@ -190,12 +192,32 @@ def home(request):
                 events = Query.events(query, conn)
                 email_events = Support.get_sha256_email_address(events, loc['email'])[1]
                 if len(email_events) != 0:
-                    loc['client'] = email_events[-1].client
-                    if 'timestamp' not in loc:
-                        loc['timestamp'] = email_events[-1].timestamp
-                    loc['span'] = str(default_span)
-                    logger.debug('client=%(client)s, span=%(span)s', loc)
-                    return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/%(span)s/" % loc)
+                    clients = {}
+                    # loop over the sorted email events, oldest first. The result is a dict of client-id's
+                    # where the value is a dict containing the first time we've seen this client-id and
+                    # the last time we saw this client-id.
+                    for ev in sorted(email_events, reverse=False, key=lambda x: x.timestamp):
+                        if ev.client not in clients:
+                            clients[ev.client] = {'first': ev.timestamp,
+                                                  'timestamp': ev.timestamp,
+                                                  'client': ev.client,
+                                                  'span': str(default_span),
+                                                  }
+                        clients[ev.client]['timestamp'] = ev.timestamp
+                    # fill in the URL's for each client item.
+                    for k in clients:
+                        clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
+                                                                        'timestamp': clients[k]['timestamp'],
+                                                                        'span': clients[k]['span']})
+                    # make it into a list
+                    clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
+                    # if we found only one, just redirect.
+                    if len(clients) == 1:
+                        client = clients[0]
+                        logger.debug('client=%(client)s, span=%(span)s', client)
+                        return HttpResponseRedirect(client['url'])
+                    else:
+                        return render_to_response('client_picker.html', {'clients': clients}, context_instance=RequestContext(request))
                 else:
                     message = 'Cannot find client ID for email %s' % loc['email']
                     logger.warn(message)
