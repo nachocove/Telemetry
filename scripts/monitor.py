@@ -250,20 +250,22 @@ def main():
         if attachment_path is not None and email:
             email.attachments.append(attachment_path)
 
-    # Send the email
+    # Save the HTML and plain text body to files
+    end_time_suffix = datetime_tostr(options.end)
+    with open('monitor-email.%s.html' % end_time_suffix, 'w') as f:
+        f.write(email.content.html())
+    with open('monitor-email.%s.txt' % end_time_suffix, 'w') as f:
+        f.write(email.content.plain_text())
+
+    # Add title
+    email.subject = '%s [%s]' % (options.profile_name, str(options.end))
+
     if options.email and (summary_table.num_entries > 2 or email.content):
-        logger.info('Sending email to %s...', ', '.join(email.to_addresses))
-        # Save the HTML and plain text body to files
-        end_time_suffix = datetime_tostr(options.end)
-        with open('monitor-email.%s.html' % end_time_suffix, 'w') as f:
-            print >>f, email.content.html()
-        with open('monitor-email.%s.txt' % end_time_suffix, 'w') as f:
-            print >>f, email.content.plain_text()
-        # Add title
-        email.subject = '%s [%s]' % (options.profile_name, str(options.end))
+        # Send the email
         num_retries = 0
         while num_retries < 5:
             try:
+                logger.info('Sending email to %s...', ', '.join(email.to_addresses))
                 email.send(smtp_server)
                 break
             except Exception, e:
