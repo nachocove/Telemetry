@@ -4,6 +4,7 @@ import locale
 from boto.dynamodb2.table import Table as DynamoTable
 from datetime import timedelta, datetime
 from AWS.pricing import dynamodb_rate
+from AWS.query import Query
 from misc.number_formatter import pretty_number
 from monitors.monitor_base import Monitor
 
@@ -47,7 +48,6 @@ class MonitorCost(Monitor):
         title = self.title()
         time_interval = self.end - self.start
         paragraphs = []
-        user_estimate = 10
 
         total_units_used = {'ConsumedWriteCapacityUnits': 0,
                             'ConsumedReadCapacityUnits': 0,
@@ -75,9 +75,17 @@ class MonitorCost(Monitor):
                     for table_index in sorted(statistics[metric][statistic].keys()):
                         if statistics[metric][statistic][table_index]:
                             # Create the array of averages, i.e. for each 'Sum' data point, divide the datapoint by the
-                            # period (self.period), which gives us the average over that period.
+                            # period (self.period), which gives us the average over that period, i.e. 5-minute averages.
                             values = [float(x[statistic])/float(self.period) for x in statistics[metric][statistic][table_index]]
+
                             # then use numpy.average() to get the average over the 5 minute (or whatever self.period is) averages.
+                            # WARNING: we're averaging only over datapoints with non-zero values! Cloudwatch does not
+                            #   return datapoints for all the intervening points that are essentially 0. I wonder
+                            #   if this skews the values upwards too much.
+
+                            # pad out the values array so there's values for every self.period-mark?
+                            #values.extend([ 0 for x in xrange(int((self.end-self.start)/self.period)-len(values))])
+
                             avg = numpy.average(values)
                             # create the average element for the report.
                             avg_element = Text(pretty_number(avg))
@@ -149,12 +157,12 @@ class MonitorCost(Monitor):
                                                 ]))
             paragraphs.append(Paragraph([Bold(title + " " + table_name), table]))
 
-        summary.add_entry('Estimated number of total users', pretty_number(user_estimate))
+        summary.add_entry('Estimated number of total users', pretty_number(self.user_count))
         for k in total_units_used:
-            #summary.add_entry('Consumed %s average' % k, pretty_number(total_units_used[k]))
-            #summary.add_entry('Per user %s average' % k, pretty_number(total_units_used[k]/user_estimate))
+            summary.add_entry('Consumed %s average' % k, pretty_number(total_units_used[k]))
+            summary.add_entry('Per user %s average' % k, pretty_number(total_units_used[k]/self.user_count))
             label = 'ReadUnits' if k == 'ConsumedReadCapacityUnits' else 'WriteUnits'
-            summary.add_entry('Cost of consumed %s units per user' % label, self.format_cost(self.per_user_cost_rounded_to_next_hour(total_units_used[k], user_estimate, time_interval)))
+            summary.add_entry('Cost of consumed %s units per user' % label, self.format_cost(self.per_user_cost_rounded_to_next_hour(total_units_used[k], self.user_count, time_interval)))
 
 
         return paragraphs
@@ -285,6 +293,11 @@ class MonitorCost(Monitor):
                                                 index=index)
                         statistics[metric][statistic][index] = stats
             self.data[table_name]['statistics'] = statistics
+
+        query = Query()
+        query.add_range('uploaded_at', self.start, self.end)
+        query.count = True
+        self.user_count = Query.users(query, self.conn)
 
     def _get_stats(self, table_name, metric_name, statistics, index='',
                    namespace='AWS/DynamoDB'):
