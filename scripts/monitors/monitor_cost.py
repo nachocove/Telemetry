@@ -1,10 +1,10 @@
 # Copyright 2014, NachoCove, Inc
 import copy
-import locale
 from boto.dynamodb2.table import Table as DynamoTable
 from datetime import timedelta, datetime
-from AWS.pricing import dynamodb_rate
+from AWS.pricing import dynamodb_write_rate, dynamodb_read_rate
 from AWS.query import Query
+from AWS.tables import DeviceInfoTable
 from misc.number_formatter import pretty_number
 from monitors.monitor_base import Monitor
 
@@ -22,11 +22,12 @@ class MonitorCost(Monitor):
         self.chunk = 60*6  # in minutes
         self.data = {}
         self.table = None  # set this for debugging a single table, if needed
+        self._user_count = None
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self._query()
-        self._analyze()
+        self._query_cloudwatch()
+        self._get_user_count()  # this populates the self._user_count for later use.
 
     report_metric_names = ['ConsumedWriteCapacityUnits', 'ConsumedReadCapacityUnits']
     def report(self, summary, **kwargs):
@@ -146,36 +147,38 @@ class MonitorCost(Monitor):
 
         summary.add_entry('Estimated number of total users', pretty_number(self.user_count))
         for k in total_units_used:
-            label = 'ReadUnits' if k == 'ConsumedReadCapacityUnits' else 'WriteUnits'
+            if k == 'ConsumedReadCapacityUnits':
+                label = 'ReadUnits'
+                rate = dynamodb_read_rate
+            else:
+                label = 'WriteUnits'
+                rate = dynamodb_write_rate
+
             summary.add_entry('Total Consumed Average %s/period' % label, pretty_number(total_units_used[k]))
             summary.add_entry('Per User %s Average/period' % label, pretty_number(total_units_used[k]/self.user_count))
-            summary.add_entry('Cost/%s Per User/period' % label, self.format_cost((total_units_used[k]/self.user_count)*dynamodb_rate))
+            summary.add_entry('Cost/%s Per User/period' % label, "$" + pretty_number(self.per_user_cost(total_units_used[k], rate)))
 
 
         return paragraphs
 
-    def format_cost(self, cost):
-        try:
-            # try setting user's locale
-            locale.setlocale(locale.LC_ALL, '')
-            return locale.currency(cost, grouping=True)
-        except ValueError:
-            # didn't work. Set USA
-            locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
-            return locale.currency(cost, grouping=True)
+    @property
+    def user_count(self):
+        return self._get_user_count()
+
+    def per_user_cost(self, units_per_second, rate):
+        # the rate is per hour. Each sample is a 5 (or rather self.period) minute sample.
+        # So we need to normalize the 5 minute samples into the hourly rate.
+        return (units_per_second/self.user_count) * (rate/(60*60/self.period))
 
     def attachment(self):
         return None
 
-    def _analyze(self):
-        pass
-
-    query_metric_names={'ConsumedWriteCapacityUnits': ['Sum',],
+    QUERY_METRIC_NAMES={'ConsumedWriteCapacityUnits': ['Sum',],
                         'ConsumedReadCapacityUnits': ['Sum',],
                         'WriteThrottleEvents': ['Sum',],
                         'ReadThrottleEvents': ['Sum',],
                         }
-    def _query(self):
+    def _query_cloudwatch(self):
         """
         This will assemble a deeply nested dict of dicts of dicts:
 
@@ -261,9 +264,9 @@ class MonitorCost(Monitor):
                                      'statistics': {},
             }
 
-            for metric in self.query_metric_names:
+            for metric in self.QUERY_METRIC_NAMES:
                 statistics[metric] = {}
-                for statistic in self.query_metric_names[metric]:
+                for statistic in self.QUERY_METRIC_NAMES[metric]:
                     statistics[metric][statistic] = {}
 
                     # Get the stats for the table.
@@ -281,10 +284,20 @@ class MonitorCost(Monitor):
                         statistics[metric][statistic][index] = stats
             self.data[table_name]['statistics'] = statistics
 
-        query = Query()
-        query.add_range('uploaded_at', self.start, self.end)
-        query.count = True
-        self.user_count = Query.users(query, self.conn)
+
+    def _get_user_count(self):
+        if self._user_count is None:
+            query = Query()
+            query.add_range('uploaded_at', self.start, self.end)
+            table = DeviceInfoTable(self.conn)
+            table_query = DeviceInfoTable.should_handle(query)
+            events = Query._query(table, table_query, False, query.limit)
+            # Only want the # of unique client id
+            device_ids = set()
+            for event in events:
+                device_ids.add(event['device_id'])
+            self._user_count = len(device_ids)
+        return self._user_count
 
     def _get_stats(self, table_name, metric_name, statistics, index='',
                    namespace='AWS/DynamoDB'):
