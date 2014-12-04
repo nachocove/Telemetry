@@ -147,9 +147,9 @@ class MonitorCost(Monitor):
         summary.add_entry('Estimated number of total users', pretty_number(self.user_count))
         for k in total_units_used:
             label = 'ReadUnits' if k == 'ConsumedReadCapacityUnits' else 'WriteUnits'
-            summary.add_entry('Total Consumed Average %s' % label, pretty_number(total_units_used[k]))
-            summary.add_entry('Per User %s Average' % label, pretty_number(total_units_used[k]/self.user_count))
-            summary.add_entry('Cost/%s Per User (for report interval)' % label, self.format_cost((total_units_used[k]/self.user_count)*dynamodb_rate))
+            summary.add_entry('Total Consumed Average %s/period' % label, pretty_number(total_units_used[k]))
+            summary.add_entry('Per User %s Average/period' % label, pretty_number(total_units_used[k]/self.user_count))
+            summary.add_entry('Cost/%s Per User/period' % label, self.format_cost((total_units_used[k]/self.user_count)*dynamodb_rate))
 
 
         return paragraphs

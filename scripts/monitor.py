@@ -189,6 +189,7 @@ def main():
     logger.info('End time: %s', options.end)
     summary_table.add_entry('Start time', str(options.start))
     summary_table.add_entry('End time', str(options.end))
+    summary_table.add_entry('Report period', str(options.end.datetime - options.start.datetime))
 
     # Run each monitor
     monitors = list()
