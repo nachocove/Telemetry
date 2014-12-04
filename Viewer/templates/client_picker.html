@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Multiple Clients were found. Please select one from the list</h1>
+<table>
+    <thead>
+    <tr>
+        <th>Client ID</th>
+        <th>First Seen</th>
+        <th>Last Seen</th>
+    </tr>
+    </thead>
+    <tbody>
+{% for client in clients %}
+       <tr>
+           <td><a href="{{client.url}}">{{ client.client}}</a></td>
+           <td>{{ client.first }}</td>
+           <td>{{ client.timestamp }}</td>
+       </tr>
+{% endfor %}
+    </tbody>
+</table>
+{% endblock %}

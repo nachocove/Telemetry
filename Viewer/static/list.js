@@ -243,7 +243,10 @@ function refreshEvents() {
             case 'INFO':
             case 'WARN':
             case 'ERROR': {
-                row = getRowWithCommonFields(i, event, 1);
+                row = getRowWithCommonFields(i, event, 2);
+                addFieldToRow(row, 'thread_id', event.thread_id);
+                table.appendChild(row)
+                row = getRow(event);
                 addFieldToRow(row, 'message', event.message);
                 break;
             }
