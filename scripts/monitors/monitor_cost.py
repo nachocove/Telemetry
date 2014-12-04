@@ -28,12 +28,6 @@ class MonitorCost(Monitor):
         self._query()
         self._analyze()
 
-    def per_user_cost_rounded_to_next_hour(self, cost, users, time_interval):
-        assert(isinstance(time_interval, (float, int)))
-        hours, seconds = divmod(int(time_interval), 3600)
-        rounded_to_next_hour = hours + 1 if seconds > 0 else hours
-        return (cost/users) * dynamodb_rate * rounded_to_next_hour
-
     report_metric_names = ['ConsumedWriteCapacityUnits', 'ConsumedReadCapacityUnits']
     def report(self, summary, **kwargs):
         """
@@ -60,12 +54,12 @@ class MonitorCost(Monitor):
             table.add_row(TableRow([TableHeader(Bold('Table/Index')),
                                     TableHeader(Bold('Metric')),
                                     TableHeader(Bold('Statistic')),
-                                    TableHeader(Bold('Count')),
-                                    TableHeader(Bold('Average (period %ds)' % self.period)),
-                                    TableHeader(Bold('Max (period %ds)' % self.period)),
-                                    TableHeader(Bold('Provisioned')),
-                                    TableHeader(Bold('Throttled Count Avg (period %ds)' % self.period)),
-                                    TableHeader(Bold('Throttled Count Max (period %ds)' % self.period)),
+                                    TableHeader(Bold('Count/sec')),
+                                    TableHeader(Bold('Average/sec (period %ds)' % self.period)),
+                                    TableHeader(Bold('Max/sec (period %ds)' % self.period)),
+                                    TableHeader(Bold('Provisioned/sec')),
+                                    TableHeader(Bold('Throttled/sec Count Avg (period %ds)' % self.period)),
+                                    TableHeader(Bold('Throttled/sec Count Max (period %ds)' % self.period)),
                                     ]))
 
             # Unlike in the _query, we only loop over select fields here, i.e. self.report_metric_names.
@@ -79,13 +73,6 @@ class MonitorCost(Monitor):
                             values = [float(x[statistic])/float(self.period) for x in statistics[metric][statistic][table_index]]
 
                             # then use numpy.average() to get the average over the 5 minute (or whatever self.period is) averages.
-                            # WARNING: we're averaging only over datapoints with non-zero values! Cloudwatch does not
-                            #   return datapoints for all the intervening points that are essentially 0. I wonder
-                            #   if this skews the values upwards too much.
-
-                            # pad out the values array so there's values for every self.period-mark?
-                            #values.extend([ 0 for x in xrange(int((self.end-self.start)/self.period)-len(values))])
-
                             avg = numpy.average(values)
                             # create the average element for the report.
                             avg_element = Text(pretty_number(avg))
@@ -159,10 +146,10 @@ class MonitorCost(Monitor):
 
         summary.add_entry('Estimated number of total users', pretty_number(self.user_count))
         for k in total_units_used:
-            summary.add_entry('Consumed %s average' % k, pretty_number(total_units_used[k]))
-            summary.add_entry('Per user %s average' % k, pretty_number(total_units_used[k]/self.user_count))
             label = 'ReadUnits' if k == 'ConsumedReadCapacityUnits' else 'WriteUnits'
-            summary.add_entry('Cost of consumed %s units per user' % label, self.format_cost(self.per_user_cost_rounded_to_next_hour(total_units_used[k], self.user_count, time_interval)))
+            summary.add_entry('Total Consumed Average %s' % label, pretty_number(total_units_used[k]))
+            summary.add_entry('Per User %s Average' % label, pretty_number(total_units_used[k]/self.user_count))
+            summary.add_entry('Cost/%s Per User (for report interval)' % label, self.format_cost((total_units_used[k]/self.user_count)*dynamodb_rate))
 
 
         return paragraphs
