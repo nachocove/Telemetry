@@ -6,7 +6,7 @@ from datetime import datetime
 from argparse import ArgumentParser
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.table import Table
-from AWS.pricing import dynamodb_rate
+from AWS.pricing import dynamodb_write_rate, dynamodb_read_rate
 
 sys.path.append('../')
 from tables import TelemetryTable, TABLE_CLASSES
@@ -118,8 +118,8 @@ def show_table_cost(connection, options):
 
         read_units = info[u'ProvisionedThroughput'][u'ReadCapacityUnits']
         write_units = info[u'ProvisionedThroughput'][u'WriteCapacityUnits']
-        read_cost = read_units * dynamodb_rate * 24 * 31
-        write_cost = write_units * dynamodb_rate * 24 * 31
+        read_cost = read_units * dynamodb_read_rate * 24 * 31
+        write_cost = write_units * dynamodb_write_rate * 24 * 31
 
         total_read_units += read_units
         total_write_units += write_units
@@ -132,8 +132,8 @@ def show_table_cost(connection, options):
         for index_item in info['GlobalSecondaryIndexes']:
             read_units = index_item[u'ProvisionedThroughput'][u'ReadCapacityUnits']
             write_units = info[u'ProvisionedThroughput'][u'WriteCapacityUnits']
-            read_cost = read_units * dynamodb_rate * 24 * 31
-            write_cost = write_units * dynamodb_rate * 24 * 31
+            read_cost = read_units * dynamodb_read_rate * 24 * 31
+            write_cost = write_units * dynamodb_write_rate * 24 * 31
 
             total_read_units += read_units
             total_write_units += write_units
