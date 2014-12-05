@@ -7,7 +7,7 @@ from datetime import timedelta, datetime
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
-from django.http import HttpResponse
+from django.http import HttpResponseBadRequest
 from django import forms
 from django.shortcuts import render, render_to_response
 from django.http import HttpResponseRedirect
@@ -183,11 +183,13 @@ def home(request):
             loc = _parse_error_report(form.cleaned_data['tele_paste'])
             if loc is not None:
                 loc['span'] = str(default_span)
-                return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/%(span)s/" % loc)
+                return HttpResponseRedirect(reverse(entry_page, kwargs={'client': loc['client'],
+                                                                        'timestamp': loc['timestamp'],
+                                                                        'span': loc['span']}))
             loc = _parse_support_email(form.cleaned_data['tele_paste'])
             if loc is not None:
                 loc['span'] = str(default_span)
-                # From the email, we need to find the Parse client ID
+                # From the email, we need to find the client ID
                 conn = _aws_connection()
                 query = Query()
                 query.add('event_type', SelectorEqual('SUPPORT'))
@@ -224,7 +226,7 @@ def home(request):
                     message = 'Cannot find client ID for email %s' % loc['email']
                     logger.warn(message)
             loc = _parse_crash_report(form.cleaned_data['tele_paste'])
-            if None != loc:
+            if loc is not None:
                 # From the crash log device ID, we need to find the Parse client ID
                 conn = _aws_connection()
                 query = Query()
@@ -238,12 +240,15 @@ def home(request):
                     loc['client'] = client
                     loc['span'] = str(default_span)
                     logger.debug('client=%(client)s, span=%(span)s', loc)
-                    return HttpResponseRedirect("/bugfix/logs/%(client)s/%(timestamp)s/%(span)s/" % loc)
+                    return HttpResponseRedirect(reverse(entry_page, kwargs={'client': loc['client'],
+                                                                            'timestamp': loc['timestamp'],
+                                                                            'span': loc['span']}))
                 else:
                     message = 'Cannot find client ID for device ID %s' % loc['device_id']
                     logger.warn(message)
             else:
-                logger.warn('unable to parse pasted info.')
+                logger.warn('Nnable to parse pasted info.')
+                message = 'unable to parse pasted info'
         else:
             logger.warn('invalid form data')
     form = VectorForm()
@@ -294,18 +299,12 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     iso_go_earlier = _iso_z_format(go_earlier)
     iso_go_later = _iso_z_format(go_later)
 
-    # Just build a HTML page by hand
-    def add_ctrl_button(text, url):
-        return '<td><table class="button_table">' \
-               '<td class="button_cell"><a href=%s><font class="button_text">%s</font></a></td></table><td>\n' % \
-               (url, text)
-
     def ctrl_url(client_, time_, span_):
-        return '/bugfix/logs/%s/%s/%s/' % (client_, time_, span_)
+        return reverse(entry_page, kwargs={'client': client_,
+                                           'timestamp': time_,
+                                           'span': span_})
 
-    # Set up style sheet
-    html = '<link rel="stylesheet" type="text/css" href="/static/list.css">\n'
-
+    context = {}
     # Save some global parameters for summary table
     params = dict()
     params['start'] = after
@@ -325,12 +324,9 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
             params['device_model'] = client_list[0]['device_model']
             params['build_version'] = client_list[0]['build_version']
     except DynamoDBError, e:
-        logger.error('fail to query device info - %s', str(e))
-        html += '<body><h1>ERROR</h1>%s</body>' % str(e)
-        return HttpResponse(html)
+        return HttpResponseBadRequest('fail to query device info - %s', str(e))
 
-    html += '<script type="text/javascript">\n'
-    html += 'var params = ' + json.dumps(params, default=json_formatter) + ';\n'
+    context['params'] = json.dumps(params, default=json_formatter)
 
     # Generate the events JSON
     event_list = [dict(x.items()) for x in obj_list]
@@ -350,27 +346,22 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
         if 'message' in event:
             event['message'] = cgi.escape(event['message'])
 
-    html += 'var events = ' + json.dumps(event_list, default=json_formatter) + ';\n'
-    html += '</script>\n'
-    html += '<script type="text/javascript" src="/static/list.js"></script>\n'
+    context['events'] = json.dumps(event_list, default=json_formatter)
 
     # Add 3 buttons
-    html += '<body onload="refresh()">\n'
-    html += '<h1>%s</h1><hr>' % project
-    html += '<table><tr>\n'
+    context['buttons'] = []
     zoom_in_span = max(1, span/2)
-    html += add_ctrl_button('Zoom in (%d min)' % zoom_in_span, ctrl_url(client, iso_center, zoom_in_span))
-    html += add_ctrl_button('Zoom out (%d min)' % (span*2), ctrl_url(client, iso_center, span*2))
-    html += add_ctrl_button('Go back %d min' % (2*span), ctrl_url(client, iso_go_earlier, span))
-    html += add_ctrl_button('Go forward %d min' % (2*span), ctrl_url(client, iso_go_later, span))
-    html += '</tr></table><br/>\n'
-
-    # Add a summary table that describes some basic parameters of the query
-    html += '<table id="table_summary" class="table"></table><br/>\n'
-
-    # Add an event table
-    html += '<table id="table_events" class="table"></table>\n'
-    html += '<a href="/logout/">Logout</a>'
-    html += '</body>\n'
-
-    return HttpResponse(html)
+    context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
+                               'url': ctrl_url(client, iso_center, zoom_in_span),
+                               })
+    context['buttons'].append({'text': 'Zoom out (%d min)' % (span*2),
+                               'url': ctrl_url(client, iso_center, span*2),
+                               })
+    context['buttons'].append({'text': 'Go back %d min' % (2*span),
+                               'url': ctrl_url(client, iso_go_earlier, span),
+                               })
+    context['buttons'].append({'text': 'Go forward %d min' % (2*span),
+                               'url': ctrl_url(client, iso_go_later, span),
+                               })
+    context['body_args'] = 'onload=refresh()'
+    return render_to_response('entry_page.html', context, context_instance=RequestContext(request))
