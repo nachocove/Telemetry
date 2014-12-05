@@ -4,6 +4,7 @@ import argparse
 import ConfigParser
 import logging
 from datetime import timedelta
+from boto.ec2 import cloudwatch
 
 from AWS.config import AwsConfig
 from AWS.tables import TelemetryTable
@@ -11,10 +12,12 @@ from AWS.connection import Connection
 import HockeyApp
 from HockeyApp.config import HockeyAppConfig
 from misc import config
+from misc.emails import Email
 from misc.html_elements import *
 from misc.utc_datetime import UtcDateTime
 from misc.config import Config
 from monitors.monitor_base import Summary, Monitor
+from monitors.monitor_cost import MonitorCost
 from monitors.monitor_log import MonitorErrors, MonitorWarnings
 from monitors.monitor_count import MonitorUsers, MonitorEvents
 from monitors.monitor_captures import MonitorCaptures
@@ -70,7 +73,7 @@ def datetime_tostr(iso_datetime):
 def main():
     logging.basicConfig(format='%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('monitor')
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     parser = argparse.ArgumentParser(add_help=False)
     config_group = parser.add_argument_group(title='Configuration Options',
@@ -163,25 +166,30 @@ def main():
         options.end.datetime += timedelta(days=1)
         do_update_timestamp = True
 
+    if options.debug:
+        logger.setLevel(logging.DEBUG)
+
     # If send email, we want to make sure that the email credential is there
     summary_table = Summary()
     summary_table.colors = [None, '#f0f0f0']
     if options.email:
-        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email(debug=options.debug)
+        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email()
         if smtp_server is None:
             logger.error('no email configuration')
             exit(1)
-        email.content = Html()
-        email.content.add(Paragraph([Bold('Summary'), summary_table]))
     else:
-        email = None
+        email = Email()
         smtp_server = None
+
+    email.content = Html()
+    email.content.add(Paragraph([Bold('Summary'), summary_table]))
 
     # Start processing
     logger.info('Start time: %s', options.start)
     logger.info('End time: %s', options.end)
     summary_table.add_entry('Start time', str(options.start))
     summary_table.add_entry('End time', str(options.end))
+    summary_table.add_entry('Report period', str(options.end.datetime - options.start.datetime))
 
     # Run each monitor
     monitors = list()
@@ -193,16 +201,25 @@ def main():
                'counters': MonitorCounters,
                'crashes': MonitorHockeyApp,
                'ui': MonitorUi,
-               'support': MonitorSupport}
+               'support': MonitorSupport,
+               'cost': MonitorCost,
+               }
+
     for monitor_name in options.monitors:
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
             continue
-        extra_params = list()
+        extra_params = dict()
         if monitor_name == 'crashes':
             ha_obj = HockeyApp.hockeyapp.HockeyApp(options.hockeyapp_api_token)
             ha_app_obj = ha_obj.app(options.hockeyapp_app_id)
-            extra_params.append(ha_app_obj)
+            extra_params['ha_app_obj'] = ha_app_obj
+        if monitor_name == 'cost':
+            extra_params['cloudwatch'] = cloudwatch.connect_to_region('us-west-2',
+                                                                      aws_secret_access_key=options.aws_secret_access_key,
+                                                                      aws_access_key_id=options.aws_access_key_id,
+                                                                      is_secure=True)
+            extra_params['prefix'] = options.aws_prefix
 
         # Run the monitor with retries to robustly handle service failures
         def run_monitor():
@@ -213,7 +230,7 @@ def main():
                               region='us-west-2',
                               is_secure=True)
             monitor_cls = mapping[monitor_name]
-            new_monitor = monitor_cls(conn, options.start, options.end, *extra_params)
+            new_monitor = monitor_cls(conn=conn, start=options.start, end=options.end, **extra_params)
             new_monitor.run()
             return new_monitor
         monitor = Monitor.run_with_retries(run_monitor, 'monitor %s' % monitor_name, 5)
@@ -223,30 +240,32 @@ def main():
     for monitor in monitors:
         summary_table.toggle_color()
         output = monitor.report(summary_table, debug=options.debug)
-        if options.email and output is not None:
+        if email and output is not None:
             if isinstance(output, list):
                 for element in output:
                     email.content.add(element)
             else:
                 email.content.add(output)
         attachment_path = monitor.attachment()
-        if attachment_path is not None and options.email:
+        if attachment_path is not None and email:
             email.attachments.append(attachment_path)
 
-    # Send the email
-    if options.email and summary_table.num_entries > 2:
-        logger.info('Sending email to %s...', ', '.join(email.to_addresses))
-        # Save the HTML and plain text body to files
-        end_time_suffix = datetime_tostr(options.end)
-        with open('monitor-email.%s.html' % end_time_suffix, 'w') as f:
-            print >>f, email.content.html()
-        with open('monitor-email.%s.txt' % end_time_suffix, 'w') as f:
-            print >>f, email.content.plain_text()
-        # Add title
-        email.subject = '%s [%s]' % (options.profile_name, str(options.end))
+    # Save the HTML and plain text body to files
+    end_time_suffix = datetime_tostr(options.end)
+    with open('monitor-email.%s.html' % end_time_suffix, 'w') as f:
+        f.write(email.content.html())
+    with open('monitor-email.%s.txt' % end_time_suffix, 'w') as f:
+        f.write(email.content.plain_text())
+
+    # Add title
+    email.subject = '%s [%s]' % (options.profile_name, str(options.end))
+
+    if options.email and (summary_table.num_entries > 2 or email.content):
+        # Send the email
         num_retries = 0
         while num_retries < 5:
             try:
+                logger.info('Sending email to %s...', ', '.join(email.to_addresses))
                 email.send(smtp_server)
                 break
             except Exception, e:
@@ -254,6 +273,8 @@ def main():
                 num_retries += 1
         else:
             logger.error('fail to send email after %d retries' % num_retries)
+    elif options.debug:
+        print email.content.plain_text()
 
     # Update timestamp in config if necessary after we have successfully
     # send the notification email

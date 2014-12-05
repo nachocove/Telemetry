@@ -133,7 +133,7 @@ class Monitor:
                 t1 = time.time()
                 retval = func()
                 t2 = time.time()
-                logger.debug("Successful Query took %s seconds", t2-t1)
+                logger.debug("Successful run took %s seconds", t2-t1)
                 break
             except DynamoDBError, e:
                 logger.error('fail to run %s (DynamoDb:%s)' % (desc, e.message))

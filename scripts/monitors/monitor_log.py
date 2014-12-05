@@ -36,8 +36,8 @@ class MonitorLogTraceThread(ThreadPoolThread):
 
 
 class MonitorLog(Monitor):
-    def __init__(self, conn, event_type, desc, msg, rate_msg, start=None, end=None):
-        Monitor.__init__(self, conn, desc, start, end)
+    def __init__(self, event_type=None, msg=None, rate_msg=None, *args, **kwargs):
+        Monitor.__init__(self, *args, **kwargs)
         self.event_type = event_type
         self.events = list()  # events returned from the query
         self.report_ = dict()  # an analysis structure derived from raw events
@@ -183,15 +183,19 @@ class MonitorLog(Monitor):
 
 
 class MonitorErrors(MonitorLog):
-    def __init__(self, conn, start=None, end=None):
-        MonitorLog.__init__(self, conn, event_type='ERROR', desc='errors',
-                            msg='Error count', rate_msg='Error rate',
-                            start=start, end=end)
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('event_type', 'ERROR')
+        kwargs.setdefault('desc', 'errors')
+        kwargs.setdefault('msg', 'Error count')
+        kwargs.setdefault('rate_msg', 'ERROR rate')
+        MonitorLog.__init__(self, *args, **kwargs)
         self.trace_enabled = True
 
 
 class MonitorWarnings(MonitorLog):
-    def __init__(self, conn, start=None, end=None):
-        MonitorLog.__init__(self, conn, event_type='WARN', desc='warnings',
-                            msg='Warning count', rate_msg='Warning rate',
-                            start=start, end=end)
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('event_type', 'WARN')
+        kwargs.setdefault('desc', 'warnings')
+        kwargs.setdefault('msg', 'Warning count')
+        kwargs.setdefault('rate_msg', 'Warning rate')
+        MonitorLog.__init__(self, *args, **kwargs)

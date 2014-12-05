@@ -7,8 +7,9 @@ from misc.html_elements import *
 
 
 class MonitorSupport(Monitor):
-    def __init__(self, conn, start, end):
-        Monitor.__init__(self, conn, 'support requests', start, end)
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('desc', 'support requests')
+        Monitor.__init__(self, *args, **kwargs)
 
     def _query(self):
         query = Query()
@@ -21,6 +22,7 @@ class MonitorSupport(Monitor):
         self.requests = Support.get_support_requests(self.events)
 
     def run(self):
+        self.logger.info('Querying %s...', self.desc)
         self._query()
         self._analyze()
 

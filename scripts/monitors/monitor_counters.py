@@ -22,8 +22,9 @@ class CounterInfo:
 
 
 class MonitorCounters(Monitor):
-    def __init__(self, conn, start, end):
-        Monitor.__init__(self, conn=conn, desc='counters', start=start, end=end)
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('desc', 'counters')
+        Monitor.__init__(self, *args, **kwargs)
         self.events = list()
         self.counters = dict()
         self.client_count = 0
