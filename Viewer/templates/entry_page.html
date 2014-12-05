@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" type="text/css" href="/static/css/list.css">
+{% endblock %}
+{% block javascript %}
+<script type="text/javascript">
+var params = {{ params|safe }};
+var events = {{ events|safe }};
+</script>
+<script type="text/javascript" src="/static/list.js"></script>
+{% endblock %}
+{% block navbar %}
+{% endblock %}
+{% block content %}
+<div class="btn-group" role="group" aria-label="Large button group">
+    {% for button in buttons %}
+    <button type="button" class="btn btn-default"><a href={{ button.url }}>{{ button.text }}</a></button>
+    {% endfor %}
+</div>
+<br/><br/>
+<table id="table_summary" class="table"></table><br/>
+<table id="table_events" class="table"></table>
+{% endblock %}

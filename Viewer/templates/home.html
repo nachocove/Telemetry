@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<form action="/bugfix/" method="post">{% csrf_token %}
+<form action={% url 'bugfix-home' %} method="post">{% csrf_token %}
 {{ form.as_p }}
 <input type="submit" value="Submit" />
 </form>

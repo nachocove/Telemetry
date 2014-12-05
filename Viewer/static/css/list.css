@@ -1,6 +1,7 @@
 .table {
     border-collapse: collapse;
     border: 1px solid black;
+    width: 50% !important;
 }
 
 .cell {
@@ -9,20 +10,6 @@
     align: left;
     vertical-align: top;
     word-wrap: break-word;
-}
-
-.button_table {
-    border-collapse: collapse;
-    border: 1px solid black;
-}
-
-.button_cell {
-    background-color: blue;
-    padding: 5px;
-}
-
-.button_text {
-    color: white;
 }
 
 .debug {
