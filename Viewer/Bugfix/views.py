@@ -1,3 +1,4 @@
+import base64
 from functools import wraps
 import hashlib
 import sys
@@ -20,6 +21,7 @@ from django.utils.decorators import available_attrs
 
 sys.path.append('../scripts')
 
+from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.query import Query
@@ -339,18 +341,12 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
         if event['event_type'] in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
             def decode_wbxml(wbxml_):
-                # possibly look into https://github.com/davidpshaw/PyWBXMLDecoder
-                import subprocess
-                cmd = ['mono', os.path.realpath('./WbxmlTool.Mac.exe'), '-d', '-b', wbxml_]
-                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                output, errors = process.communicate()
-                if process.returncode != 0 or errors:
-                    logger.error('Could not run command. cmd=%s, errors=%s', " ".join(cmd), errors)
-                    raise Exception('mono failure')
-                return output
-            base64 = event['wbxml'].encode()
-            event['wbxml_base64'] = cgi.escape(base64)
-            event['wbxml'] = cgi.escape(decode_wbxml(base64))
+                instance = ASCommandResponse(base64.b64decode(wbxml_))
+                return instance.xmlString
+
+            b64 = event['wbxml'].encode()
+            event['wbxml_base64'] = cgi.escape(b64)
+            event['wbxml'] = cgi.escape(decode_wbxml(b64))
         if 'message' in event:
             event['message'] = cgi.escape(event['message'])
 
