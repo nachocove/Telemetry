@@ -210,8 +210,9 @@ def main():
     TelemetryTable.PREFIX = options.prefix
 
     if not options.aws_access_key_id or not options.aws_secret_access_key:
-            print "ERROR: No access-key or secret key. Need either a config or aws_access_key_id and aws_secret_access_key."
-            sys.exit(1)
+        print "ERROR: No access-key or secret key. Need either a config or aws_access_key_id and aws_secret_access_key."
+        sys.exit(1)
+
     conn = DynamoDBConnection(host=options.host,
                               port=options.port,
                               aws_secret_access_key=options.aws_secret_access_key,
