@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
-<span class="search" style="float:left;margin:10px;display: inline-block">
-    <form action="{% url 'bugfix-home' %}" method="post">{% csrf_token %}
-    {{ form.as_p }}
+<span class="search-form">
+    <form role="form" action="{% url 'bugfix-home' %}" method="post">
+        <table>
+    {{ form.as_table }}
+            <tr><td>{% csrf_token %}</td></tr>
+    </table>
     <input type="submit" value="Submit" />
     </form>
 </span>
-<div class="help" style="margin:10px;display: inline-block">
+<div class="search-help">
     <br/>
     All entries must be tag:value.
     <br/>

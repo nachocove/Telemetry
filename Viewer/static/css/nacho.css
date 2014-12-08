@@ -127,3 +127,14 @@ body {
 .summary-table {
    width: initial;
 }
+
+.search-form {
+    float:left;
+    margin:10px;
+    display: inline-block;
+}
+
+.search-help {
+    margin:10px;
+    display: inline-block;
+}
