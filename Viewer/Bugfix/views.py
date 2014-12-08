@@ -25,7 +25,7 @@ from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorStartsWith
+from AWS.selectors import SelectorEqual, SelectorLessThanEqual
 from AWS.tables import TelemetryTable
 from monitors.monitor_base import Monitor
 from misc.support import Support
@@ -98,8 +98,8 @@ def _parse_junk(junk, mapping):
         splitty = line.split(':', 1)
         if 2 != len(splitty):
             continue
-        key = splitty[0]
-        value = splitty[1]
+        key = splitty[0].strip()
+        value = splitty[1].strip()
         if key in mapping:
             retval[mapping[key]] = value.strip()
     logger = logging.getLogger('telemetry').getChild('_parse_junk')
@@ -170,89 +170,135 @@ def logout(request):
         pass
     return HttpResponseRedirect(settings.LOGIN_URL)
 
+def process_error_report(request, form, loc, logger):
+    loc['span'] = str(default_span)
+    return HttpResponseRedirect(reverse(entry_page, kwargs={'client': loc['client'],
+                                                            'timestamp': loc['timestamp'],
+                                                            'span': loc['span']}))
+
+def process_email(request, form, loc, logger):
+    loc['span'] = str(default_span)
+    # From the email, we need to find the client ID
+    conn = _aws_connection()
+    query = Query()
+    query.add('event_type', SelectorEqual('SUPPORT'))
+    events = Query.events(query, conn)
+    email_events = Support.get_sha256_email_address(events, loc['email'])[1]
+    if len(email_events) != 0:
+        clients = {}
+        # loop over the sorted email events, oldest first. The result is a dict of client-id's
+        # where the value is a dict containing the first time we've seen this client-id and
+        # the last time we saw this client-id.
+        for ev in sorted(email_events, reverse=False, key=lambda x: x.timestamp):
+            if ev.client not in clients:
+                clients[ev.client] = {'first': ev.timestamp,
+                                      'timestamp': ev.timestamp,
+                                      'client': ev.client,
+                                      'span': str(default_span),
+                                      }
+            clients[ev.client]['timestamp'] = ev.timestamp
+        # fill in the URL's for each client item.
+        for k in clients:
+            clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
+                                                            'timestamp': clients[k]['timestamp'],
+                                                            'span': clients[k]['span']})
+        # make it into a list
+        clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
+        # if we found only one, just redirect.
+        if len(clients) == 1:
+            client = clients[0]
+            logger.debug('client=%(client)s, span=%(span)s', client)
+            return HttpResponseRedirect(client['url'])
+        else:
+            return render_to_response('client_picker.html', {'clients': clients},
+                                      context_instance=RequestContext(request))
+    else:
+        message = 'Cannot find client ID for email %s' % loc['email']
+        logger.warn(message)
+    return render_to_response('home.html', {'form': form, 'message': message},
+                              context_instance=RequestContext(request))
+
+def process_crash_report(request, form, loc, logger):
+    loc['span'] = str(default_span)
+
+    # From the crash log device ID, we need to find the client ID
+    conn = _aws_connection()
+
+    # first, see if the device-id can be found in the device_info table
+    query = Query()
+    query.add('device_id', SelectorEqual(loc['device_id']))
+    if 'timestamp' in loc:
+        utc_timestamp = UtcDateTime(loc['timestamp'])
+        query.add('uploaded_at', SelectorLessThanEqual(utc_timestamp))
+    devices = Query.users(query, conn)
+    if not devices:
+        message = 'Cannot find client ID for device ID %s' % loc['device_id']
+        logger.warn(message)
+        return render_to_response('home.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+
+    clients = {}
+
+    # Violating DRY here (see process_email()). Should refactor this when I have time.
+    for device in sorted(devices, reverse=False, key=lambda x: x['timestamp']):
+        if device['client'] not in clients:
+            clients[device['client']] = {'first': device['timestamp'],
+                                         'timestamp': device['timestamp'],
+                                         'client': device['client'],
+                                         'span': str(default_span),
+                                         }
+        clients[device['client']]['timestamp'] = device['timestamp']
+    # fill in the URL's for each client item.
+    for k in clients:
+        clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
+                                                        'timestamp': clients[k]['timestamp'],
+                                                        'span': clients[k]['span']})
+    # make it into a list
+    clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
+    # if we found only one, just redirect.
+    if len(clients) == 1:
+        client = clients[0]
+        logger.debug('client=%(client)s, span=%(span)s', client)
+        return HttpResponseRedirect(client['url'])
+    else:
+        return render_to_response('client_picker.html', {'clients': clients},
+                                  context_instance=RequestContext(request))
+
 @nachotoken_required
 def home(request):
     logger = logging.getLogger('telemetry').getChild('home')
     # Any message set in 'message' will be displayed as a red error message.
     # Used for reporting error in any POST.
     message = ''
-    if request.method == 'POST':
-        form = VectorForm(request.POST)
-        if form.is_valid():
-            logger.debug('tele_paste=%s', form.cleaned_data['tele_paste'])
-            loc = _parse_error_report(form.cleaned_data['tele_paste'])
-            if loc is not None:
-                loc['span'] = str(default_span)
-                return HttpResponseRedirect(reverse(entry_page, kwargs={'client': loc['client'],
-                                                                        'timestamp': loc['timestamp'],
-                                                                        'span': loc['span']}))
-            loc = _parse_support_email(form.cleaned_data['tele_paste'])
-            if loc is not None:
-                loc['span'] = str(default_span)
-                # From the email, we need to find the client ID
-                conn = _aws_connection()
-                query = Query()
-                query.add('event_type', SelectorEqual('SUPPORT'))
-                events = Query.events(query, conn)
-                email_events = Support.get_sha256_email_address(events, loc['email'])[1]
-                if len(email_events) != 0:
-                    clients = {}
-                    # loop over the sorted email events, oldest first. The result is a dict of client-id's
-                    # where the value is a dict containing the first time we've seen this client-id and
-                    # the last time we saw this client-id.
-                    for ev in sorted(email_events, reverse=False, key=lambda x: x.timestamp):
-                        if ev.client not in clients:
-                            clients[ev.client] = {'first': ev.timestamp,
-                                                  'timestamp': ev.timestamp,
-                                                  'client': ev.client,
-                                                  'span': str(default_span),
-                                                  }
-                        clients[ev.client]['timestamp'] = ev.timestamp
-                    # fill in the URL's for each client item.
-                    for k in clients:
-                        clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
-                                                                        'timestamp': clients[k]['timestamp'],
-                                                                        'span': clients[k]['span']})
-                    # make it into a list
-                    clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
-                    # if we found only one, just redirect.
-                    if len(clients) == 1:
-                        client = clients[0]
-                        logger.debug('client=%(client)s, span=%(span)s', client)
-                        return HttpResponseRedirect(client['url'])
-                    else:
-                        return render_to_response('client_picker.html', {'clients': clients}, context_instance=RequestContext(request))
-                else:
-                    message = 'Cannot find client ID for email %s' % loc['email']
-                    logger.warn(message)
-            loc = _parse_crash_report(form.cleaned_data['tele_paste'])
-            if None != loc:
-                # From the crash log device ID, we need to find the Parse client ID
-                conn = _aws_connection()
-                query = Query()
-                query.add('event_type', SelectorEqual('INFO'))
-                search_key = 'Device ID: ' + str(loc['device_id'])
-                query.add('message', SelectorStartsWith(search_key))
-                events = Query.events(query, conn)
-                if len(events) != 0:
-                    assert 'client' in events[-1]
-                    client = events[-1]['client']
-                    loc['client'] = client
-                    loc['span'] = str(default_span)
-                    logger.debug('client=%(client)s, span=%(span)s', loc)
-                    return HttpResponseRedirect(reverse(entry_page, kwargs={'client': loc['client'],
-                                                                            'timestamp': loc['timestamp'],
-                                                                            'span': loc['span']}))
-                else:
-                    message = 'Cannot find client ID for device ID %s' % loc['device_id']
-                    logger.warn(message)
-            else:
-                logger.warn('unable to parse pasted info.')
-        else:
-            logger.warn('invalid form data')
-    form = VectorForm()
-    return render(request, 'home.html', {'form': form, 'message': message, 'project': project})
+    if request.method != 'POST':
+        form = VectorForm()
+        return render_to_response('home.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
 
+    form = VectorForm(request.POST)
+    if not form.is_valid():
+        logger.warn('invalid form data')
+        return render_to_response('home.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+
+    logger.debug('tele_paste=%s', form.cleaned_data['tele_paste'])
+    loc = _parse_error_report(form.cleaned_data['tele_paste'])
+    if loc is not None:
+        return process_error_report(request, form, loc, logger)
+
+    loc = _parse_support_email(form.cleaned_data['tele_paste'])
+    if loc is not None:
+        return process_email(request, form, loc, logger)
+
+    loc = _parse_crash_report(form.cleaned_data['tele_paste'])
+    if loc is not None:
+        return process_crash_report(request, form, loc, logger)
+
+    # if we got here, we couldn't figure out what to process
+    logger.warn('Unable to parse pasted info.')
+    message = 'Unable to parse pasted info. Please Try again.'
+    return render_to_response('home.html', {'form': form, 'message': message},
+                              context_instance=RequestContext(request))
 
 def _iso_z_format(date):
     raw = date.isoformat()
@@ -298,11 +344,6 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     iso_go_earlier = _iso_z_format(go_earlier)
     iso_go_later = _iso_z_format(go_later)
 
-    def ctrl_url(client_, time_, span_):
-        return reverse(entry_page, kwargs={'client': client_,
-                                           'timestamp': time_,
-                                           'span': span_})
-
     context = {}
     # Save some global parameters for summary table
     params = dict()
@@ -347,7 +388,11 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
 
     context['events'] = json.dumps(event_list, default=json_formatter)
 
-    # Add 3 buttons
+    # Add buttons
+    def ctrl_url(client_, time_, span_):
+        return reverse(entry_page, kwargs={'client': client_,
+                                           'timestamp': time_,
+                                           'span': span_})
     context['buttons'] = []
     zoom_in_span = max(1, span/2)
     context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
@@ -363,4 +408,5 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
                                'url': ctrl_url(client, iso_go_later, span),
                                })
     context['body_args'] = 'onload=refresh()'
-    return render_to_response('entry_page.html', context, context_instance=RequestContext(request))
+    return render_to_response('entry_page.html', context,
+                              context_instance=RequestContext(request))

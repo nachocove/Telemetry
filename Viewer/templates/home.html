@@ -1,7 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
-<form action={% url 'bugfix-home' %} method="post">{% csrf_token %}
-{{ form.as_p }}
-<input type="submit" value="Submit" />
-</form>
+<span class="search" style="float:left;margin:10px;display: inline-block">
+    <form action="{% url 'bugfix-home' %}" method="post">{% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Submit" />
+    </form>
+</span>
+<div class="help" style="margin:10px;display: inline-block">
+    <br/>
+    All entries must be tag:value.
+    <br/>
+    Example 1:
+    <pre>
+    email:user@example.com
+    timestamp:timestamp: 2014-08-10T08:24:00.152Z
+    </pre>
+    If timestamp is omitted, latest entry is used.
+    <br/>
+    Example 2:
+    <pre>
+    client:us-east-1:02a35223-8bea-420d-abe5-5e61cdc8b7ce
+    timestamp:2014-12-02T14:15:00.000Z
+    </pre>
+    Example 3:
+    <pre>
+    Date/Time:       2014-08-11T18:26:13Z
+    Device ID: Ncho39D6C69AXBC8EX4C81XBEB0X
+    </pre>
+</div>
 {% endblock %}

@@ -56,8 +56,10 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.static",
     "django.core.context_processors.tz",
     "django.contrib.messages.context_processors.messages",
-    "core.context_processors.globals",
+    "core.context_processors.process_globals",
 )
+
+
 ROOT_URLCONF = 'Viewer.urls'
 
 WSGI_APPLICATION = 'Viewer.wsgi.application'

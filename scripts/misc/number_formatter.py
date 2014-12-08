@@ -36,6 +36,8 @@ def pretty_number(value, width=6, decimal_place=2):
         raise TypeError('value must be a float or an int.')
 
     s = str(value)
+    if not valid_number_str(s):
+        s = "{:.6f}".format(value)
     if len(s) > width and '.' in s:
         idx = s.find('.')
         integral = s[:idx]
