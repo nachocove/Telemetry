@@ -46,12 +46,73 @@ class DeletePools(ArgFunc):
     def run(self, session, args, **kwargs):
         if not args.name_prefix and not args.pool_id:
             print "ERROR: Need a name prefix or a pool-id."
-        self.delete_pools(session, args.pool_id, args.name_prefix, args.verbose)
+        self.delete_pools(session, args.pool_id, name_prefix=args.name_prefix, s3_bucket=args.aws_s3_bucket, verbose=args.verbose)
         self.delete_roles(session, args.name_prefix, SetupPool.role_name_path, args.verbose)
         return True
 
     @classmethod
-    def delete_pools(cls, session, pool_id=None, name_prefix=None, verbose=False):
+    def delete_s3_objects(cls, s3_conn, s3_bucket, prefix):
+        s3_marker = None
+        while True:
+            s3_list_kwargs = {'Bucket': s3_bucket, 'Prefix': prefix, 'Delimiter': '/'}
+            if s3_marker:
+                s3_list_kwargs['Marker'] = s3_marker
+            print "Listing Bucket: %s" % s3_list_kwargs
+            response = s3_conn.list_object_versions(**s3_list_kwargs)
+            cls.check_response(response)
+            if 'Versions' not in response:
+                break
+
+            s3_marker = response.get('VersionIdMarker', None)
+            delete_dict = {'Quiet': True,
+                           'Objects': [],
+                           }
+            for k in response['Contents']:
+                k_dict = {'Key': k['Key']}
+                if 'VersionId' in k:
+                    k_dict['VersionId'] = k['VersionId']
+                delete_dict['Objects'].append(k_dict)
+            response = s3_conn.delete_objects(Bucket=s3_bucket, Delete=delete_dict)
+            cls.check_response(response)
+            if not s3_marker:
+                break
+        return True
+
+    @classmethod
+    def delete_s3_user_resources(cls, session, pool_id, s3_bucket, bucket_prefix, verbose):
+        conn = session.client('cognito-identity')
+        s3 = session.resource('s3')
+        bucket = s3.Bucket(s3_bucket)
+        next_token = None
+        while True:
+            list_kwargs = {'IdentityPoolId': pool_id, 'MaxResults': 60}
+            if next_token:
+                list_kwargs['NextToken'] = next_token
+            response = conn.list_identities(**list_kwargs)
+            cls.check_response(response)
+            next_token = response.get('Marker', None)
+            identity_list = response['Identities']
+            for cognito_id in identity_list:
+                prefix = "/".join([bucket_prefix, cognito_id['IdentityId'], ''])
+                if verbose:
+                    print "DELETE_S3_FILES: cognito-id: %s, s3://%s/%s" % (cognito_id, s3_bucket, prefix)
+                delete_list = {'Quiet': True,
+                               'Objects': []}
+                if bucket.BucketVersioning().status == 'Enabled':
+                    versions = bucket.object_versions.filter(Prefix=prefix)
+                    for version in versions:
+                        delete_list['Objects'].append({'Key': version.object_key, 'VersionId': version.id})
+                objects = bucket.objects.filter(Prefix=prefix)
+                for object in objects:
+                    delete_list['Objects'].append({'Key': object.key})
+                response = bucket.delete_objects(Delete=delete_list)
+                cls.check_response(response)
+
+            if not next_token:
+                break
+
+    @classmethod
+    def delete_pools(cls, session, pool_id=None, name_prefix=None, s3_bucket=None, verbose=False):
         conn = session.client('cognito-identity')
         pool_list = []
         if pool_id:
@@ -67,6 +128,9 @@ class DeletePools(ArgFunc):
                     if verbose:
                         print "DELETE_POOLS: Found Pool %(IdentityPoolId)s with name %(IdentityPoolName)s" % pool
         for pool in pool_list:
+            if s3_bucket:
+                cls.delete_s3_user_resources(session, pool['IdentityPoolId'], s3_bucket,
+                                             SetupPool.default_bucket_prefix, verbose)
             if verbose:
                 print "DELETE_POOLS: id %s" % pool['IdentityPoolId']
             response = conn.delete_identity_pool(IdentityPoolId=pool['IdentityPoolId'])
@@ -135,6 +199,16 @@ class ListPools(ArgFunc):
 
 
 class SetupPool(ArgFunc):
+    """
+    Sets up everything needed for a NachoMail Cognito setup.
+
+    - Cognito Identity pool with name given on command line
+    - If unauthenticated is allowed (default=True), create an IAM Role and attach a Trust-policy for it
+      - Also create a policy for dynamoDb and S3 for the unauthenticated access
+    - If authenticated is allowed (default=True), create an IAM Role and attach a Trust-policy for it
+      - Also create a policy for dynamoDb and S3 for the authenticated access (identical to unauth, currently)
+
+    """
     trust_dict = {
         "Action": "sts:AssumeRoleWithWebIdentity",
         "Principal": {
@@ -163,6 +237,7 @@ class SetupPool(ArgFunc):
                         "dynamodb:DescribeTable",
                         "dynamodb:BatchWriteItem"]
     dynamo_arn_table_template = "arn:aws:dynamodb:%(RegionName)s:%(AccountId)s:table/%(DynamoTableName)s"
+    dynamo_region = 'us-west-2'
 
     s3_ops = ["s3:PutObject",
               "s3:GetObject",
@@ -194,6 +269,7 @@ class SetupPool(ArgFunc):
         sub = subparser.add_parser('setup-pool')
         sub.add_argument('name', help="the identity pool name", type=str)
         sub.add_argument('--no-unauth', help='Do not allow unauth access.', action='store_true', default=False)
+        sub.add_argument('--no-auth', help='Disallow authenticated access.', action='store_true', default=False)
         sub.add_argument('--developer-provider-name',
                          help='The DeveloperProviderName, if we do our own authenticating.', type=str)
         sub.add_argument('--s3-bucket', help='The nachomail accessible per-id bucket',
@@ -205,22 +281,57 @@ class SetupPool(ArgFunc):
 
     def run(self, session, args, **kwargs):
         unauth_policy_supported = False if args.no_unauth else True
+        auth_policy_supported = False if args.no_auth else True
         pool = self.create_identity_pool(session, args.name,
                                          developer_provider_name=args.developer_provider_name,
-                                         unauth_policy_supported=unauth_policy_supported, verbose=args.verbose)
+                                         unauth_policy_supported=unauth_policy_supported,
+                                         verbose=args.verbose)
         if not pool:
             print "ERROR: Could not create pool."
             return False
+        self.create_or_adjust_s3_bucket(session, args.aws_s3_bucket)
         self.create_identity_roles_and_policy(session, pool, args.aws_account_id,
                                               self.role_name_path,
                                               [x % {'project': args.aws_prefix} for x in self.default_dynamo_tables],
                                               args.aws_s3_bucket,
                                               args.s3_bucket_prefix,
-                                              developer_provider_name=None,
-                                              unauth_policy_supported=True,
-                                              dynamo_table_op_perms=None,
-                                              s3_op_perms=None,
+                                              unauth_policy_supported=unauth_policy_supported,
+                                              auth_policy_supported=auth_policy_supported,
+                                              dynamo_table_op_perms=None, # use default
+                                              s3_op_perms=None, # use defaults
                                               verbose=args.verbose)
+        return True
+
+    @classmethod
+    def create_or_adjust_s3_bucket(cls, session, bucket_name, path_prefix=None):
+        if path_prefix is None:
+            path_prefix = cls.default_bucket_prefix
+        s3_conn = session.client('s3')
+        response = s3_conn.list_buckets()
+        cls.check_response(response, expected_keys=('Buckets',))
+        found = False
+        for bucket in response['Buckets']:
+            if bucket['Name'] == bucket_name:
+                found = True
+                break
+        s3 = session.resource('s3')
+        bucket = s3.Bucket(bucket_name)
+        if not found:
+            bucket.create()
+        versioning = bucket.BucketVersioning()
+        if not versioning.status == 'Enabled':
+            response = versioning.enable()
+            cls.check_response(response)
+        if path_prefix:
+            prefix = bucket.Object(path_prefix+'/')
+            try:
+                prefix.get()
+            except ClientError as e:
+                if not 'NoSuchKey' in str(e):
+                    raise
+                response = prefix.put()
+                cls.check_response(response)
+
 
     @classmethod
     def create_cognito_role(cls, pool, iam_client, role_path, actions, resources, auth=False, verbose=False):
@@ -267,7 +378,8 @@ class SetupPool(ArgFunc):
         return role
 
     @classmethod
-    def create_identity_pool(cls, session, name, developer_provider_name=None, unauth_policy_supported=True, verbose=False):
+    def create_identity_pool(cls, session, name, developer_provider_name=None, unauth_policy_supported=True,
+                             verbose=False):
         conn = session.client('cognito-identity')
 
         response = conn.list_identity_pools(MaxResults=60)
@@ -297,8 +409,8 @@ class SetupPool(ArgFunc):
                                          dynamo_tables_names,
                                          bucket_name,
                                          bucket_path_prefix,
-                                         developer_provider_name=None,
                                          unauth_policy_supported=True,
+                                         auth_policy_supported=False,
                                          dynamo_table_op_perms=None,
                                          s3_op_perms=None,
                                          verbose=False):
@@ -312,10 +424,10 @@ class SetupPool(ArgFunc):
 
         iam = session.client('iam')
         roles_created = []
-        if developer_provider_name:
+        if auth_policy_supported:
             resources = []
             for table in dynamo_tables_names:
-                resources.append(cls.dynamo_arn_table_template % {'RegionName': 'us-west-2',
+                resources.append(cls.dynamo_arn_table_template % {'RegionName': cls.dynamo_region,
                                                                    'AccountId': aws_account_id,
                                                                    'DynamoTableName': table})
             for s3 in cls.s3_bucket_path_template:
@@ -329,7 +441,7 @@ class SetupPool(ArgFunc):
         if unauth_policy_supported:
             resources = []
             for table in dynamo_tables_names:
-                resources.append(cls.dynamo_arn_table_template % {'RegionName': 'us-west-2',
+                resources.append(cls.dynamo_arn_table_template % {'RegionName': cls.dynamo_region,
                                                                    'AccountId': aws_account_id,
                                                                    'DynamoTableName': table})
             for s3 in cls.s3_bucket_path_template:
@@ -515,6 +627,8 @@ def main():
                        help='Configuration that contains an AWS section',
                        default=None)
     parser.add_argument('-v', '--verbose', help='Verbose output', action='store_true', default=False)
+    parser.add_argument('-d', '--debug', help='Debug output', action='store_true', default=False)
+    parser.add_argument('--boto-debug', help='Debug output from boto/botocore', action='store_true', default=False)
     subparser = parser.add_subparsers()
 
     for sub in sub_modules:
@@ -541,6 +655,8 @@ def main():
     session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
                                     aws_secret_access_key=args.aws_secret_access_key,
                                     region_name=args.region)
+    if args.boto_debug:
+        session._session.set_debug_logger()
 
     ret = args.func(session, args)
     if ret is None:
