@@ -260,7 +260,7 @@ def main():
     # Add title
     email.subject = '%s [%s]' % (options.profile_name, str(options.end))
 
-    if options.email and (summary_table.num_entries > 2 or email.content):
+    if options.email and (summary_table.num_entries > 3 or email.content):
         # Send the email
         num_retries = 0
         while num_retries < 5:

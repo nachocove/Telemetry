@@ -6,7 +6,7 @@ from datetime import datetime
 from argparse import ArgumentParser
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.table import Table
-from AWS.pricing import dynamodb_write_rate, dynamodb_read_rate
+from pricing import dynamodb_write_rate, dynamodb_read_rate
 
 sys.path.append('../')
 from tables import TelemetryTable, TABLE_CLASSES
