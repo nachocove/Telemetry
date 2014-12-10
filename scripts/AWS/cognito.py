@@ -2,11 +2,14 @@
 from argparse import ArgumentParser
 import copy
 import json
+import logging
 import sys
 import boto3
 from botocore.exceptions import ClientError
 from AWS.config import AwsConfig
 from misc.config import Config
+
+logger = logging.getLogger('cognito-setup')
 
 class ArgFunc(object):
     class ResponseCheckException(Exception):
@@ -45,9 +48,9 @@ class DeletePools(ArgFunc):
 
     def run(self, session, args, **kwargs):
         if not args.name_prefix and not args.pool_id:
-            print "ERROR: Need a name prefix or a pool-id."
-        self.delete_pools(session, args.pool_id, name_prefix=args.name_prefix, s3_bucket=args.aws_s3_bucket, verbose=args.verbose)
-        self.delete_roles(session, args.name_prefix, SetupPool.role_name_path, args.verbose)
+            logger.error("Need a name prefix or a pool-id.")
+        self.delete_pools(session, args.pool_id, name_prefix=args.name_prefix, s3_bucket=args.aws_s3_bucket)
+        self.delete_roles(session, args.name_prefix, SetupPool.role_name_path)
         return True
 
     @classmethod
@@ -57,7 +60,7 @@ class DeletePools(ArgFunc):
             s3_list_kwargs = {'Bucket': s3_bucket, 'Prefix': prefix, 'Delimiter': '/'}
             if s3_marker:
                 s3_list_kwargs['Marker'] = s3_marker
-            print "Listing Bucket: %s" % s3_list_kwargs
+            logger.info("Listing Bucket: %s", s3_list_kwargs)
             response = s3_conn.list_object_versions(**s3_list_kwargs)
             cls.check_response(response)
             if 'Versions' not in response:
@@ -79,7 +82,7 @@ class DeletePools(ArgFunc):
         return True
 
     @classmethod
-    def delete_s3_user_resources(cls, session, pool_id, s3_bucket, bucket_prefix, verbose):
+    def delete_s3_user_resources(cls, session, pool_id, s3_bucket, bucket_prefix):
         conn = session.client('cognito-identity')
         s3 = session.resource('s3')
         bucket = s3.Bucket(s3_bucket)
@@ -94,8 +97,7 @@ class DeletePools(ArgFunc):
             identity_list = response['Identities']
             for cognito_id in identity_list:
                 prefix = "/".join([bucket_prefix, cognito_id['IdentityId'], ''])
-                if verbose:
-                    print "DELETE_S3_FILES: cognito-id: %s, s3://%s/%s" % (cognito_id, s3_bucket, prefix)
+                logger.info("DELETE_S3_FILES: cognito-id: %s, s3://%s/%s", cognito_id, s3_bucket, prefix)
                 delete_list = {'Quiet': True,
                                'Objects': []}
                 if bucket.BucketVersioning().status == 'Enabled':
@@ -112,7 +114,7 @@ class DeletePools(ArgFunc):
                 break
 
     @classmethod
-    def delete_pools(cls, session, pool_id=None, name_prefix=None, s3_bucket=None, verbose=False):
+    def delete_pools(cls, session, pool_id, name_prefix, s3_bucket):
         conn = session.client('cognito-identity')
         pool_list = []
         if pool_id:
@@ -125,22 +127,19 @@ class DeletePools(ArgFunc):
             for pool in id_pools['IdentityPools']:
                 if pool['IdentityPoolName'].startswith(name_prefix):
                     pool_list.append(pool)
-                    if verbose:
-                        print "DELETE_POOLS: Found Pool %(IdentityPoolId)s with name %(IdentityPoolName)s" % pool
+                    logger.info("DELETE_POOLS: Found Pool %(IdentityPoolId)s with name %(IdentityPoolName)s", pool)
         for pool in pool_list:
             if s3_bucket:
                 cls.delete_s3_user_resources(session, pool['IdentityPoolId'], s3_bucket,
-                                             SetupPool.default_bucket_prefix, verbose)
-            if verbose:
-                print "DELETE_POOLS: id %s" % pool['IdentityPoolId']
+                                             SetupPool.default_bucket_prefix)
+            logger.info("DELETE_POOLS: id %s", pool['IdentityPoolId'])
             response = conn.delete_identity_pool(IdentityPoolId=pool['IdentityPoolId'])
             cls.check_response(response)
-        if verbose:
-            print "DELETE_POOLS: %d pools deleted" % len(pool_list)
+        logger.info("DELETE_POOLS: %d pools deleted", len(pool_list))
 
 
     @classmethod
-    def delete_roles(cls, session, role_name, role_path, verbose=False):
+    def delete_roles(cls, session, role_name, role_path):
         iam = session.client('iam')
         response = iam.list_roles(PathPrefix=role_path)
         roles = cls.check_response(response, expected_keys=('Roles',))
@@ -149,15 +148,14 @@ class DeletePools(ArgFunc):
             if not role['RoleName'].startswith(role_name):
                 continue
             policy_name = role['RoleName']+'Policy'
-            print 'DELETE_ROLE_POLICY: %s: PolicyName=%s' % (role['RoleName'], policy_name)
+            logger.info('DELETE_ROLE_POLICY: %s: PolicyName=%s', role['RoleName'], policy_name)
             response = iam.delete_role_policy(RoleName=role['RoleName'], PolicyName=policy_name)
             cls.check_response(response)
-            print 'DELETE_ROLES: %(RoleName)s: id=%(RoleId)s, Path=%(Path)s, Arn=%(Arn)s' % role
+            logger.info('DELETE_ROLES: %(RoleName)s: id=%(RoleId)s, Path=%(Path)s, Arn=%(Arn)s', role)
             response = iam.delete_role(RoleName=role['RoleName'])
             cls.check_response(response)
             count += 1
-        if verbose:
-            print "DELETE_ROLES: %d roles deleted" % count
+        logger.info("DELETE_ROLES: %d roles deleted", count)
 
 class ListPools(ArgFunc):
     def add_arguments(self, parser, subparser):
@@ -168,12 +166,13 @@ class ListPools(ArgFunc):
 
     def run(self, session, args, **kwargs):
         conn = session.client('cognito-identity')
+        logger.setLevel(logging.INFO)
 
         identity_pools = conn.list_identity_pools(MaxResults=60)
         for ip in identity_pools['IdentityPools']:
             pool = conn.describe_identity_pool(IdentityPoolId=ip['IdentityPoolId'])
-            print "%(IdentityPoolName)s: id=%(IdentityPoolId)s " \
-                  "AllowUnauthenticatedIdentities=%(AllowUnauthenticatedIdentities)s" % pool
+            logger.info("%(IdentityPoolName)s: id=%(IdentityPoolId)s "
+                        "AllowUnauthenticatedIdentities=%(AllowUnauthenticatedIdentities)s", pool)
             if args.list_ids:
                 next_token = None
                 while True:
@@ -185,16 +184,15 @@ class ListPools(ArgFunc):
                     if not ids:
                         break
                     id_list = [x['IdentityId'] for x in ids['Identities']]
-                    print ",".join(id_list)
+                    logger.info(",".join(id_list))
                     next_token = ids['NextToken']
         iam = session.client('iam')
         response = iam.list_roles()
         self.check_response(response, expected_keys=('Roles',))
-        print "Roles:"
+        logger.info("Roles:")
         for role in response['Roles']:
-            print '%(RoleName)s: id=%(RoleId)s, Path=%(Path)s, Arn=%(Arn)s' % role
-            if args.verbose:
-                print "Policy=%s" % json.dumps(role[u'AssumeRolePolicyDocument']['Statement'], indent=4)
+            logger.info('%(RoleName)s: id=%(RoleId)s, Path=%(Path)s, Arn=%(Arn)s', role)
+            logger.debug("Policy=%s", json.dumps(role[u'AssumeRolePolicyDocument']['Statement'], indent=4))
         return True
 
 
@@ -284,10 +282,9 @@ class SetupPool(ArgFunc):
         auth_policy_supported = False if args.no_auth else True
         pool = self.create_identity_pool(session, args.name,
                                          developer_provider_name=args.developer_provider_name,
-                                         unauth_policy_supported=unauth_policy_supported,
-                                         verbose=args.verbose)
+                                         unauth_policy_supported=unauth_policy_supported)
         if not pool:
-            print "ERROR: Could not create pool."
+            logger.error("Could not create pool.")
             return False
         self.create_or_adjust_s3_bucket(session, args.aws_s3_bucket)
         self.create_identity_roles_and_policy(session, pool, args.aws_account_id,
@@ -298,8 +295,7 @@ class SetupPool(ArgFunc):
                                               unauth_policy_supported=unauth_policy_supported,
                                               auth_policy_supported=auth_policy_supported,
                                               dynamo_table_op_perms=None, # use default
-                                              s3_op_perms=None, # use defaults
-                                              verbose=args.verbose)
+                                              s3_op_perms=None) # use defaults
         return True
 
     @classmethod
@@ -334,7 +330,7 @@ class SetupPool(ArgFunc):
 
 
     @classmethod
-    def create_cognito_role(cls, pool, iam_client, role_path, actions, resources, auth=False, verbose=False):
+    def create_cognito_role(cls, pool, iam_client, role_path, actions, resources, auth=False):
         auth_role = {}
         auth_role['RoleName'] = cls.role_name_template % {'Auth_or_Unauth': 'Auth' if auth else 'UnAuth',
                                                            'Pool_Name': pool['IdentityPoolName']
@@ -352,13 +348,13 @@ class SetupPool(ArgFunc):
         try:
             response = iam_client.create_role(**auth_role)
         except ClientError as e:
-            print auth_role
-            print e
+            import traceback
+            logger.error(auth_role)
+            logger.error("%s\n%s", e, traceback.format_exc())
             raise
         role = cls.check_response(response, expected_keys=('Role',))
         role = role['Role']
-        if verbose:
-            print "CREATE_ROLE: %(RoleName)s: id=%(RoleId)s Path=%(Path)s" % role
+        logger.info("CREATE_ROLE: %(RoleName)s: id=%(RoleId)s Path=%(Path)s", role)
 
         auth_role_policy = copy.deepcopy(cls.policy_dict_template)
         statement = copy.deepcopy(cls.policy_dict_statement_template)
@@ -369,8 +365,7 @@ class SetupPool(ArgFunc):
         auth_role_policy['Statement'].append(statement)
 
         policy_name = role['RoleName']+'Policy'
-        if verbose:
-            print "CREATE_ROLE_POLICY: %s: PolicyName=%s" % (role['RoleName'], policy_name)
+        logger.info("CREATE_ROLE_POLICY: %s: PolicyName=%s", role['RoleName'], policy_name)
         response = iam_client.put_role_policy(RoleName=role['RoleName'],
                                               PolicyName=policy_name,
                                               PolicyDocument=json.dumps(auth_role_policy, indent=4))
@@ -378,15 +373,15 @@ class SetupPool(ArgFunc):
         return role
 
     @classmethod
-    def create_identity_pool(cls, session, name, developer_provider_name=None, unauth_policy_supported=True,
-                             verbose=False):
+    def create_identity_pool(cls, session, name, developer_provider_name=None, unauth_policy_supported=True):
         conn = session.client('cognito-identity')
 
         response = conn.list_identity_pools(MaxResults=60)
         pools = cls.check_response(response, expected_keys=('IdentityPools',))
         for p in pools['IdentityPools']:
             if p['IdentityPoolName'] == name:
-                print "ERROR: Identity Pool with name %s already exists. Pick a new name or delete the pool first." % name
+                logger.error("Identity Pool with name %s already exists. Pick a new name or delete the pool first.",
+                             name)
                 return False
 
         create_kwargs = {'IdentityPoolName': name,
@@ -395,12 +390,10 @@ class SetupPool(ArgFunc):
         }
         if developer_provider_name:
             create_kwargs['DeveloperProviderName'] = developer_provider_name
-        if verbose:
-            print "CREATE_IDENTITY_POOL: %s" % create_kwargs
+        logger.info("CREATE_IDENTITY_POOL: %s", create_kwargs)
         response = conn.create_identity_pool(**create_kwargs)
         pool = cls.check_response(response, expected_keys=('IdentityPoolId', 'IdentityPoolName'))
-        if verbose:
-            print "CREATE_IDENTITY_POOL: %(IdentityPoolId)s: Name=%(IdentityPoolName)s" % pool
+        logger.info("CREATE_IDENTITY_POOL: %(IdentityPoolId)s: Name=%(IdentityPoolName)s", pool)
         return pool
 
     @classmethod
@@ -412,8 +405,7 @@ class SetupPool(ArgFunc):
                                          unauth_policy_supported=True,
                                          auth_policy_supported=False,
                                          dynamo_table_op_perms=None,
-                                         s3_op_perms=None,
-                                         verbose=False):
+                                         s3_op_perms=None):
         if dynamo_table_op_perms is None:
             dynamo_table_op_perms = cls.dynamo_table_ops
         if s3_op_perms is None:
@@ -436,7 +428,7 @@ class SetupPool(ArgFunc):
 
             roles_created.append(cls.create_cognito_role(pool, iam, cls.role_name_path,
                                                          cls.dynamo_table_ops + cls.s3_ops,
-                                                         resources, auth=True, verbose=verbose))
+                                                         resources, auth=True))
 
         if unauth_policy_supported:
             resources = []
@@ -450,9 +442,9 @@ class SetupPool(ArgFunc):
 
             roles_created.append(cls.create_cognito_role(pool, iam, role_path,
                                                          dynamo_table_op_perms + s3_op_perms,
-                                                         resources, auth=False, verbose=verbose))
+                                                         resources, auth=False))
         if not roles_created:
-            print "ERROR: No roles created"
+            logger.error("No roles created")
             return False
         return roles_created
 
@@ -478,7 +470,7 @@ class TestAccess(ArgFunc):
                 pool = p
                 break
         if not pool:
-            print "ERROR: Could not find identity pool with name %s" % args.name
+            logger.error("Could not find identity pool with name %s", args.name)
             return False
 
         iam = session.client('iam')
@@ -492,7 +484,7 @@ class TestAccess(ArgFunc):
                 role = r
                 break
         if not role:
-            print "ERROR: Could not find role for Identity Pool"
+            logger.error("Could not find role for Identity Pool")
             return False
 
         anon_session = boto3.session.Session(aws_access_key_id='', aws_secret_access_key='', region_name=args.region)
@@ -501,7 +493,7 @@ class TestAccess(ArgFunc):
         response = anon_conn.get_id(AccountId=args.aws_account_id, IdentityPoolId=pool['IdentityPoolId'])
         self.check_response(response, expected_keys=('IdentityId',))
         my_id = response['IdentityId']
-        print "My ID: %s" % my_id
+        logger.info("My ID: %s", my_id)
         try:
             response = anon_conn.get_open_id_token(IdentityId=my_id)
             self.check_response(response, expected_keys=('Token',))
@@ -516,7 +508,7 @@ class TestAccess(ArgFunc):
                                                               )
             self.check_response(response, expected_keys=('Credentials',))
             if response['SubjectFromWebIdentityToken'] != my_id:
-                print "WARN: SubjectFromWebIdentityToken %s != my id %s" % (response['Audience'], my_id)
+                logger.warn("SubjectFromWebIdentityToken %s != my id %s", response['Audience'], my_id)
             my_creds = response
 
             new_session = boto3.session.Session(aws_access_key_id=my_creds['Credentials']['AccessKeyId'],
@@ -533,7 +525,8 @@ class TestAccess(ArgFunc):
                 raise Exception("Should not have been able to do that!")
             except ClientError as e:
                 if not 'AccessDenied' in str(e):
-                    print e
+                    import traceback
+                    logger.error("%s\n%s", e, traceback.format_exc())
                     raise
 
             try:
@@ -541,7 +534,8 @@ class TestAccess(ArgFunc):
                 raise Exception("Should not have been able to do that!")
             except ClientError as e:
                 if not 'AccessDenied' in str(e):
-                    print e
+                    import traceback
+                    logger.error("%s\n%s", e, traceback.format_exc())
                     raise
 
             if args.s3_bucket_prefix:
@@ -550,7 +544,8 @@ class TestAccess(ArgFunc):
                     raise Exception("Should not have been able to do that!")
                 except ClientError as e:
                     if not 'AccessDenied' in str(e):
-                        print e
+                        import traceback
+                        logger.error("%s\n%s", e, traceback.format_exc())
                         raise
 
             bad_prefix = "/".join([args.s3_bucket_prefix, my_id])+"1233456"
@@ -559,7 +554,8 @@ class TestAccess(ArgFunc):
                 raise Exception("Should not have been able to do that!")
             except ClientError as e:
                     if not 'AccessDenied' in str(e):
-                        print e
+                        import traceback
+                        logger.error("%s\n%s", e, traceback.format_exc())
                         raise
 
             #
@@ -582,21 +578,24 @@ class TestAccess(ArgFunc):
                 response = s3_conn.put_object(Bucket=args.aws_s3_bucket, Key=file, Body="foo12345\n")
                 self.check_response(response)
             except ClientError as e:
-                print "Could not access what I should be able to access!: PutObject s3://%s/%s" % (args.aws_s3_bucket, prefix)
-                print e
+                logger.error("Could not access what I should be able to access!: PutObject s3://%s/%s", args.aws_s3_bucket, prefix)
+                import traceback
+                logger.error("%s\n%s", e, traceback.format_exc())
                 return False
 
             try:
                 response = s3_conn.list_objects(Bucket=args.aws_s3_bucket, MaxKeys=60, Prefix=prefix)
                 self.check_response(response)
             except ClientError as e:
-                print "Could not access what I should be able to access!: ListBucket s3://%s/%s" % (args.aws_s3_bucket, prefix)
-                print e
+                logger.error("Could not access what I should be able to access!: ListBucket s3://%s/%s", args.aws_s3_bucket, prefix)
+                import traceback
+                logger.error("%s\n%s", e, traceback.format_exc())
                 return False
 
 
         except Exception as e:
-            print e
+            import traceback
+            logger.error("%s\n%s", e, traceback.format_exc())
 
         finally:
             # clean up
@@ -635,22 +634,31 @@ def main():
         s = sub.add_arguments(parser, subparser)
         s.set_defaults(func=sub.run)
 
-
+    logger.setLevel(logging.DEBUG)
     args = parser.parse_args()
-
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(levelname)s:%(message)s')
+    if args.debug:
+        handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s:%(message)s')
+    elif args.verbose:
+        handler.setLevel(logging.INFO)
+    else:
+        handler.setLevel(logging.WARN)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
     if args.config:
         config_file = Config(args.config)
         AwsConfig(config_file).read(args)
 
     if not args.aws_access_key_id or not args.aws_secret_access_key:
-        print "ERROR: No access-key or secret key. Need either a config or aws_access_key_id and aws_secret_access_key."
+        logger.error("No access-key or secret key. Need either a config or aws_access_key_id and aws_secret_access_key.")
         sys.exit(1)
 
     if not args.func:
         raise ValueError('no function defined for argument')
 
-    if args.verbose:
-        print "Using AWS Key Id %s" % args.aws_access_key_id
+    logger.info("Using AWS Key Id %s" % args.aws_access_key_id)
 
     session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
                                     aws_secret_access_key=args.aws_secret_access_key,
