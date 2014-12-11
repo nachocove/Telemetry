@@ -1,4 +1,75 @@
 # Copyright 2014, NachoCove, Inc
+"""
+Cognito Setup Program
+=====================
+
+This program is used to setup, list, test, and delete cognito setups.
+
+A cognito setup consists of the following items:
+
+* A cognito identity-pool with a name we pick, with authentication settings, most of which we
+  don't use (google openid, etc..), except for setting (or not) the flag that allows
+  unauthenticated access (default is True for us).
+
+* One or more IAM Roles that are linked to the Identity Pool, each of which have a policy applied
+  that determines what the cognito user may or may not do.
+
+* A set of DynamoDB tables the user can write to (but not read).
+
+* An AWS S3 bucket and subdirectory, where cognito users may read or write anything they want.
+  Note that each user is constrained to a sub-directory matching their cognito-id. They may
+  NOT see or list any other objects.
+
+setup-pool
+----------
+
+Using the option 'setup-pool', we create:
+
+* The Cognito Identity Pool
+* The IAM Roles and policies
+
+We also check that the S3 bucket exists, and that it has versioning turned on (we turn it on, if it doesn't,
+but we do NOT create the bucket).
+
+We do not do any checking of the DynamoDB (Should be added, i think).
+
+Using the Identity Pool Id, we create any number of IAM Roles, each of which contains
+a linkage policy that defines which role is applied to a cognito user under which conditions,
+and a policy that gives the user permissions to access whatever AWS resources we want.
+
+In our case we create two roles (though technically one would suffice since the role-policy
+is the same in all cases (for now)): One for authenticated users, and one for unauthenticated users.
+
+.. note:: These roles do not show up in the cognito console! The only way to determine the exist (and
+  apply to the cognito identity pool) is to go to the IAM console -> Roles and check the 'Trust Relationships'
+  setting for each role. The Trust Entity will be 'cognito-identity.amazonaws.com', and the Conditions make
+  mention of cognito-identity.amazonaws.com:aud, which must match the Identity Pool's ID. An additional condition
+  specifies whether this role pertains to authenticated or unauthenticated users.
+
+.. note:: AWS does not restrict the creation of multiple identity pools with the same name. This script,
+    however, does. We first check that the pool does not already exist. If it does, we print the fact and exit.
+
+list-pools
+----------
+
+This lists all the identity pools and the policies and roles pertaining to it.
+
+delete-pools
+------------
+
+Deletes all pools that start with the given string. In practice there will usually only be one (See note about
+identity pool naming in the 'setup-pool' section).
+
+test-access
+-----------
+
+Used to test access to resources that a client should have access to, as well as test to make sure the client
+does NOT have access to resources it shouldn't have access to.
+
+.. note:: This creates an ID and some files in S3, which we leave behind (partly to test the delete-pools command).
+
+
+"""
 from argparse import ArgumentParser
 import copy
 import json
