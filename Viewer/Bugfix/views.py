@@ -1,5 +1,6 @@
 import base64
 from functools import wraps
+from gettext import gettext as _
 import hashlib
 import os
 import sys
@@ -44,22 +45,26 @@ default_span = 1
 
 
 class LoginForm(forms.Form):
-    username = forms.CharField()
+    #username = forms.CharField()
     password = forms.CharField(widget=forms.PasswordInput)
 
-    def validate_password(self, password):
+    def clean_password(self):
+        password = self.cleaned_data.get('password', '')
         if hashlib.sha256(password).hexdigest() != settings.NACHO_PASSWORD_DIGEST:
             self.add_error('password', 'Incorrect Password')
-            raise ValidationError('Incorrect Password')
-
-    def clean(self):
-        if 'password' in self.cleaned_data:
-            self.validate_password(self.cleaned_data['password'])
-        return self.cleaned_data
+        return password
 
 class VectorForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
     tele_paste = forms.CharField(widget=forms.Textarea)
+
+    def clean_project(self):
+        project = self.cleaned_data.get('project', '')
+        if project not in projects:
+            self.add_error('project', 'Unknown Project')
+            raise ValidationError(_('Unknown Project: %(project)s'),
+                                  code='unknown',
+                                  params={'project': projects})
 
 
 _aws_connection_cache = {}
