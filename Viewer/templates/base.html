@@ -6,10 +6,9 @@
 {% endblock %}
 {% block javascript %}
 {% endblock %}
-<title>{{ project }}</title>
+<title>Telemetry Viewer</title>
 </head>
 <body {{ body_args }}>
-<div><h1>Project: {{ project }}</h1></div>
 <span style="float:right;"><a href="{% url 'logout' %}">Logout</a></span>
 <span style="float:left;"><a href="{% url 'bugfix-home' %}">Back to search window</a></span>
 <hr style="clear:both;">

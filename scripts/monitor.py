@@ -214,11 +214,13 @@ def main():
             ha_obj = HockeyApp.hockeyapp.HockeyApp(options.hockeyapp_api_token)
             ha_app_obj = ha_obj.app(options.hockeyapp_app_id)
             extra_params['ha_app_obj'] = ha_app_obj
-        if monitor_name == 'cost':
+        elif monitor_name == 'cost':
             extra_params['cloudwatch'] = cloudwatch.connect_to_region('us-west-2',
                                                                       aws_secret_access_key=options.aws_secret_access_key,
                                                                       aws_access_key_id=options.aws_access_key_id,
                                                                       is_secure=True)
+            extra_params['prefix'] = options.aws_prefix
+        elif monitor_name == 'support':
             extra_params['prefix'] = options.aws_prefix
 
         # Run the monitor with retries to robustly handle service failures

@@ -7,9 +7,11 @@ from misc.html_elements import *
 
 
 class MonitorSupport(Monitor):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, prefix=None, *args, **kwargs):
         kwargs.setdefault('desc', 'support requests')
         Monitor.__init__(self, *args, **kwargs)
+        self.prefix = prefix
+        self.telemetry_viewer_url_prefix = 'http://localhost:8000/'
 
     def _query(self):
         query = Query()
@@ -37,7 +39,8 @@ class MonitorSupport(Monitor):
         table.add_row(TableRow([TableHeader(Bold('Time (UTC)')),
                                 TableHeader(Bold('Client Id')),
                                 TableHeader(Bold('Contact Info')),
-                                TableHeader(Bold('Message'))]))
+                                TableHeader(Bold('Message')),
+                                TableHeader(Bold(''))]))
         for request in self.requests:
             self.logger.info('\n' + request.display())
             match = re.match('(?P<date>.+)T(?P<time>.+)Z', request.timestamp)
@@ -45,7 +48,8 @@ class MonitorSupport(Monitor):
             table.add_row(TableRow([TableElement(Text(match.group('date') + ' ' + match.group('time'))),
                                     TableElement(Text(request.client)),
                                     TableElement(Text(request.contact_info)),
-                                    TableElement(Text(request.message))]))
+                                    TableElement(Text(request.message)),
+                                    TableElement(Link("%s Telemetry link" % self.prefix.capitalize(), '%sbugfix/%s/logs/%s/%s/1/' % (self.telemetry_viewer_url_prefix, self.prefix, request.client, request.timestamp)))]))
 
         title = self.title()
         paragraph = Paragraph([Bold(title), table])

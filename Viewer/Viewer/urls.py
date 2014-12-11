@@ -12,7 +12,8 @@ urlpatterns = patterns('',
     url(r'^logout/$', 'Bugfix.views.logout', name='logout'),
     url(r'^$', 'Bugfix.views.home'),
     url(r'^bugfix/$', 'Bugfix.views.home', name="bugfix-home"),
-    url(r'^bugfix/logs/(?P<client>\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+)/(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)/(?P<span>\d+)/$', 'Bugfix.views.entry_page'),
+    url(r'^bugfix/logs/(?P<client>\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+)/(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)/(?P<span>\d+)/$', 'Bugfix.views.entry_page_legacy'),
+    url(r'^bugfix/(?P<project>\w+)/logs/(?P<client>\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+)/(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)/(?P<span>\d+)/$', 'Bugfix.views.entry_page'),
 )
 
 urlpatterns += staticfiles_urlpatterns()
