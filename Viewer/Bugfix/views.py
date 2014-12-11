@@ -38,6 +38,7 @@ projects_cfg.read('projects.cfg')
 projects = projects_cfg.sections()
 if not projects:
     raise ValueError('No projects defined')
+default_project = os.environ.get('PROJECT', projects[0])
 
 tmp_logger = logging.getLogger('telemetry')
 
@@ -55,7 +56,7 @@ class LoginForm(forms.Form):
         return password
 
 class VectorForm(forms.Form):
-    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
+    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects], initial=default_project)
     tele_paste = forms.CharField(widget=forms.Textarea)
 
     def clean_project(self):
