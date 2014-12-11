@@ -225,10 +225,6 @@ class SetupPool(ArgFunc):
         },
     }
 
-    policy_dict_statement_template = {"Action": [],
-                                      "Effect": "Allow",
-                                      "Resource": [],
-    }
     policy_dict_template = {
         "Version": "2012-10-17",
         "Statement": []
@@ -365,7 +361,6 @@ class SetupPool(ArgFunc):
         logger.info("CREATE_ROLE: %(RoleName)s: id=%(RoleId)s Path=%(Path)s", role)
 
         auth_role_policy = copy.deepcopy(cls.policy_dict_template)
-        statement = copy.deepcopy(cls.policy_dict_statement_template)
         auth_role_policy['Statement'] = statements
 
         policy_name = role['RoleName']+'Policy'
