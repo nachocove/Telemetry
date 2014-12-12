@@ -12,6 +12,7 @@ var events = {{ events|safe }};
 {% block navbar %}
 {% endblock %}
 {% block content %}
+<div><h1>Project: {{ project }}</h1></div>
 <div class="btn-group" role="group" aria-label="Large button group">
     {% for button in buttons %}
     <button type="button" class="btn btn-default"><a href={{ button.url }}>{{ button.text }}</a></button>
