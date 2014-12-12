@@ -6,7 +6,7 @@ from datetime import datetime
 from argparse import ArgumentParser
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.table import Table
-from AWS.pricing import dynamodb_write_rate, dynamodb_read_rate
+from pricing import dynamodb_write_rate, dynamodb_read_rate
 
 sys.path.append('../')
 from tables import TelemetryTable, TABLE_CLASSES
@@ -210,8 +210,9 @@ def main():
     TelemetryTable.PREFIX = options.prefix
 
     if not options.aws_access_key_id or not options.aws_secret_access_key:
-            print "ERROR: No access-key or secret key. Need either a config or aws_access_key_id and aws_secret_access_key."
-            sys.exit(1)
+        print "ERROR: No access-key or secret key. Need either a config or aws_access_key_id and aws_secret_access_key."
+        sys.exit(1)
+
     conn = DynamoDBConnection(host=options.host,
                               port=options.port,
                               aws_secret_access_key=options.aws_secret_access_key,

@@ -8,7 +8,8 @@ class AwsConfig(SectionConfig):
         'account_id',
         'identity_pool_id',
         'prefix',
-        'secret_access_key'
+        'secret_access_key',
+        's3_bucket',
     )
 
     def __init__(self, config_file):

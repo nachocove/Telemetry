@@ -214,11 +214,13 @@ def main():
             ha_obj = HockeyApp.hockeyapp.HockeyApp(options.hockeyapp_api_token)
             ha_app_obj = ha_obj.app(options.hockeyapp_app_id)
             extra_params['ha_app_obj'] = ha_app_obj
-        if monitor_name == 'cost':
+        elif monitor_name == 'cost':
             extra_params['cloudwatch'] = cloudwatch.connect_to_region('us-west-2',
                                                                       aws_secret_access_key=options.aws_secret_access_key,
                                                                       aws_access_key_id=options.aws_access_key_id,
                                                                       is_secure=True)
+            extra_params['prefix'] = options.aws_prefix
+        elif monitor_name == 'support':
             extra_params['prefix'] = options.aws_prefix
 
         # Run the monitor with retries to robustly handle service failures
@@ -260,7 +262,7 @@ def main():
     # Add title
     email.subject = '%s [%s]' % (options.profile_name, str(options.end))
 
-    if options.email and (summary_table.num_entries > 2 or email.content):
+    if options.email and (summary_table.num_entries > 3):
         # Send the email
         num_retries = 0
         while num_retries < 5:

@@ -46,3 +46,7 @@
     background-color: #ff6633;
     color: white;
 }
+
+.id_cell {
+    display:none;
+}
