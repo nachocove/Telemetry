@@ -1,6 +1,8 @@
 import base64
 from functools import wraps
+from gettext import gettext as _
 import hashlib
+import os
 import sys
 import dateutil.parser
 from datetime import timedelta, datetime
@@ -13,7 +15,6 @@ from django.shortcuts import render, render_to_response
 from django.http import HttpResponseRedirect
 import logging
 import cgi
-import os
 import json
 import ConfigParser
 from django.template import RequestContext
@@ -31,64 +32,57 @@ from monitors.monitor_base import Monitor
 from misc.support import Support
 from misc.utc_datetime import UtcDateTime
 
-
-username = 'monitor'
-
 # Get the list of project
-projects = ConfigParser.ConfigParser()
-projects.read('projects.cfg')
+projects_cfg = ConfigParser.ConfigParser()
+projects_cfg.read('projects.cfg')
+projects = projects_cfg.sections()
+if not projects:
+    raise ValueError('No projects defined')
+default_project = os.environ.get('PROJECT', projects[0])
 
-# Get the project name from the environment variable
-project = os.getenv('PROJECT')
-TelemetryTable.PREFIX = project
-
-access_key_id = None
-secret_access_key = None
-
-ACCESS_KEY_ID = 'access_key_id'
-SECRET_ACCESS_KEY = 'secret_access_key'
-if not project:
-    project = projects.sections()[0]
-    access_key_id = projects.get(project, ACCESS_KEY_ID)
-    secret_access_key = projects.get(project, SECRET_ACCESS_KEY)
-else:
-    for p in projects.sections():
-        if p == project:
-            access_key_id = projects.get(p, ACCESS_KEY_ID)
-            secret_access_key = projects.get(p, SECRET_ACCESS_KEY)
-assert access_key_id and secret_access_key
 tmp_logger = logging.getLogger('telemetry')
-tmp_logger.info('project = %s', project)
-#tmp_logger.info('access_key = %s', access_key_id)
-#tmp_logger.info('secret_access_key = %s', secret_access_key)
 
 default_span = 1
 
 
 class LoginForm(forms.Form):
+    #username = forms.CharField()
     password = forms.CharField(widget=forms.PasswordInput)
 
-    def validate_password(self, password):
+    def clean_password(self):
+        password = self.cleaned_data.get('password', '')
         if hashlib.sha256(password).hexdigest() != settings.NACHO_PASSWORD_DIGEST:
             self.add_error('password', 'Incorrect Password')
-            raise ValidationError('Incorrect Password')
-
-    def clean(self):
-        if 'password' in self.cleaned_data:
-            self.validate_password(self.cleaned_data['password'])
-        return self.cleaned_data
+        return password
 
 class VectorForm(forms.Form):
+    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
     tele_paste = forms.CharField(widget=forms.Textarea)
 
+    def clean_project(self):
+        project = self.cleaned_data.get('project', '')
+        if project not in projects:
+            self.add_error('project', 'Unknown Project')
+            raise ValidationError(_('Unknown Project: %(project)s'),
+                                  code='unknown',
+                                  params={'project': projects})
+        return project
 
-def _aws_connection():
-    return DynamoDBConnection(host='dynamodb.us-west-2.amazonaws.com',
-                              port=443,
-                              aws_secret_access_key=secret_access_key,
-                              aws_access_key_id=access_key_id,
-                              region='us-west-2',
-                              is_secure=True)
+
+_aws_connection_cache = {}
+def _aws_connection(project):
+    global _aws_connection_cache
+    if not project in _aws_connection_cache:
+        if not project in projects:
+            raise ValueError('Project %s is not present in projects.cfg' % project)
+        _aws_connection_cache[project] = DynamoDBConnection(host='dynamodb.us-west-2.amazonaws.com',
+                                                            port=443,
+                                                            aws_secret_access_key=projects_cfg.get(project, 'secret_access_key'),
+                                                            aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
+                                                            region='us-west-2',
+                                                            is_secure=True)
+    TelemetryTable.PREFIX = project
+    return _aws_connection_cache[project]
 
 
 def _parse_junk(junk, mapping):
@@ -161,7 +155,7 @@ def login(request):
                 message = 'Cannot log in (%s). Please enter the password again.' % e
     else:
         form = LoginForm()
-    return render(request, 'login.html', {'form': form, 'message': message, 'project': project})
+    return render(request, 'login.html', {'form': form, 'message': message})
 
 def logout(request):
     try:
@@ -170,16 +164,17 @@ def logout(request):
         pass
     return HttpResponseRedirect(settings.LOGIN_URL)
 
-def process_error_report(request, form, loc, logger):
+def process_error_report(request, project, form, loc, logger):
     loc['span'] = str(default_span)
     return HttpResponseRedirect(reverse(entry_page, kwargs={'client': loc['client'],
                                                             'timestamp': loc['timestamp'],
-                                                            'span': loc['span']}))
+                                                            'span': loc['span'],
+                                                            'project': project}))
 
-def process_email(request, form, loc, logger):
+def process_email(request, project, form, loc, logger):
     loc['span'] = str(default_span)
     # From the email, we need to find the client ID
-    conn = _aws_connection()
+    conn = _aws_connection(project)
     query = Query()
     query.add('event_type', SelectorEqual('SUPPORT'))
     events = Query.events(query, conn)
@@ -201,7 +196,8 @@ def process_email(request, form, loc, logger):
         for k in clients:
             clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
                                                             'timestamp': clients[k]['timestamp'],
-                                                            'span': clients[k]['span']})
+                                                            'span': clients[k]['span'],
+                                                            'project': project})
         # make it into a list
         clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
         # if we found only one, just redirect.
@@ -210,7 +206,7 @@ def process_email(request, form, loc, logger):
             logger.debug('client=%(client)s, span=%(span)s', client)
             return HttpResponseRedirect(client['url'])
         else:
-            return render_to_response('client_picker.html', {'clients': clients},
+            return render_to_response('client_picker.html', {'clients': clients, 'project': project},
                                       context_instance=RequestContext(request))
     else:
         message = 'Cannot find client ID for email %s' % loc['email']
@@ -218,11 +214,11 @@ def process_email(request, form, loc, logger):
     return render_to_response('home.html', {'form': form, 'message': message},
                               context_instance=RequestContext(request))
 
-def process_crash_report(request, form, loc, logger):
+def process_crash_report(request, project, form, loc, logger):
     loc['span'] = str(default_span)
 
     # From the crash log device ID, we need to find the client ID
-    conn = _aws_connection()
+    conn = _aws_connection(project)
 
     # first, see if the device-id can be found in the device_info table
     query = Query()
@@ -252,7 +248,8 @@ def process_crash_report(request, form, loc, logger):
     for k in clients:
         clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
                                                         'timestamp': clients[k]['timestamp'],
-                                                        'span': clients[k]['span']})
+                                                        'span': clients[k]['span'],
+                                                        'project': project})
     # make it into a list
     clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
     # if we found only one, just redirect.
@@ -261,7 +258,7 @@ def process_crash_report(request, form, loc, logger):
         logger.debug('client=%(client)s, span=%(span)s', client)
         return HttpResponseRedirect(client['url'])
     else:
-        return render_to_response('client_picker.html', {'clients': clients},
+        return render_to_response('client_picker.html', {'clients': clients, 'project': project},
                                   context_instance=RequestContext(request))
 
 @nachotoken_required
@@ -272,6 +269,7 @@ def home(request):
     message = ''
     if request.method != 'POST':
         form = VectorForm()
+        form.fields['project'].initial = request.session.get('project', default_project)
         return render_to_response('home.html', {'form': form, 'message': message},
                                   context_instance=RequestContext(request))
 
@@ -283,16 +281,19 @@ def home(request):
 
     logger.debug('tele_paste=%s', form.cleaned_data['tele_paste'])
     loc = _parse_error_report(form.cleaned_data['tele_paste'])
+    project = form.cleaned_data['project']
+    request.session['project'] = project
+    paste_data = form.cleaned_data['tele_paste']
     if loc is not None:
-        return process_error_report(request, form, loc, logger)
+        return process_error_report(request, project, form, loc, logger)
 
-    loc = _parse_support_email(form.cleaned_data['tele_paste'])
+    loc = _parse_support_email(paste_data)
     if loc is not None:
-        return process_email(request, form, loc, logger)
+        return process_email(request, project, form, loc, logger)
 
-    loc = _parse_crash_report(form.cleaned_data['tele_paste'])
+    loc = _parse_crash_report(paste_data)
     if loc is not None:
-        return process_crash_report(request, form, loc, logger)
+        return process_crash_report(request, project, form, loc, logger)
 
     # if we got here, we couldn't figure out what to process
     logger.warn('Unable to parse pasted info.')
@@ -316,7 +317,14 @@ def json_formatter(obj):
         raise TypeError, 'Object of type %s with value of %s is not JSON serializable' % (type(obj), repr(obj))
 
 @nachotoken_required
-def entry_page(request, client='', timestamp='', span=str(default_span)):
+def entry_page_legacy(request, client='', timestamp='', span=str(default_span)):
+    project = os.environ.get('PROJECT', '')
+    if not project:
+        project = projects[0]
+    return entry_page(request, project, client=client, timestamp=timestamp, span=span)
+
+@nachotoken_required
+def entry_page(request, project='', client='', timestamp='', span=str(default_span)):
     logger = logging.getLogger('telemetry').getChild('entry_page')
     logger.info('client=%s, timestamp=%s, span=%s', client, timestamp, span)
     span = int(span)
@@ -328,7 +336,7 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     go_earlier = after - spread
     go_later = before + spread
 
-    context = entry_page_base(client, after, before, logger)
+    context = entry_page_base(project, client, after, before, logger)
 
     iso_center = _iso_z_format(center)
     iso_go_earlier = _iso_z_format(go_earlier)
@@ -337,7 +345,8 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     def ctrl_url(client_, time_, span_):
         return reverse(entry_page, kwargs={'client': client_,
                                            'timestamp': time_,
-                                           'span': span_})
+                                           'span': span_,
+                                           'project': project})
     context['buttons'] = []
     zoom_in_span = max(1, span/2)
     context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
@@ -356,16 +365,16 @@ def entry_page(request, client='', timestamp='', span=str(default_span)):
     return render_to_response('entry_page.html', context,
                               context_instance=RequestContext(request))
 
-def entry_page_by_timestamps(request, client='', after='', before=''):
+def entry_page_by_timestamps(request, project, client='', after='', before=''):
     logger = logging.getLogger('telemetry').getChild('entry_page')
     logger.info('client=%s, after=%s, before=%s', client, after, before)
-    context = entry_page_base(client, after, before, logger)
+    context = entry_page_base(project, client, after, before, logger)
     context['body_args'] = 'onload=refresh()'
     return render_to_response('entry_page.html', context,
                               context_instance=RequestContext(request))
 
-def entry_page_base(client, after, before, logger):
-    conn = _aws_connection()
+def entry_page_base(project, client, after, before, logger):
+    conn = _aws_connection(project)
     query = Query()
     query.limit = 100000
     query.add('client', SelectorEqual(client))
@@ -373,13 +382,13 @@ def entry_page_base(client, after, before, logger):
     ###### FIXME - logger.debug('query=%s', str(query.where()))
     obj_list = list()
     event_count = 0
+    logger.info('project = %s', project)
     try:
         (obj_list, event_count) = Monitor.query_events(conn, query, False, logger)
         logger.info('%d objects found', len(obj_list))
     except DynamoDBError, e:
         logger.error('fail to query events - %s', str(e))
 
-    context = {}
     # Save some global parameters for summary table
     params = dict()
     params['start'] = after
@@ -401,7 +410,9 @@ def entry_page_base(client, after, before, logger):
     except DynamoDBError, e:
         return HttpResponseBadRequest('fail to query device info - %s', str(e))
 
-    context['params'] = json.dumps(params, default=json_formatter)
+    context = {'project': project,
+               'params': json.dumps(params, default=json_formatter),
+               }
 
     # Generate the events JSON
     event_list = [dict(x.items()) for x in obj_list]

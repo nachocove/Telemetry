@@ -45,7 +45,7 @@ class MonitorSupport(Monitor):
             self.logger.info('\n' + request.display())
             match = re.match('(?P<date>.+)T(?P<time>.+)Z', request.timestamp)
             assert match
-            telemetry_link = '%sbugfix/logs/%s/%s/2/' % (self.telemetry_viewer_url_prefix, request.client, request.timestamp)
+            telemetry_link = '%sbugfix/%s/logs/%s/%s/2/' % (self.telemetry_viewer_url_prefix, self.prefix, request.client, request.timestamp)
             table.add_row(TableRow([TableElement(Text(match.group('date') + ' ' + match.group('time'))),
                                     TableElement(Text(request.client)),
                                     TableElement(Text(request.contact_info)),
