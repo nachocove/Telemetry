@@ -103,8 +103,8 @@ function getRowWithCommonFields (id, event, num_rows) {
     return tr;
 }
 
-function getPre(html) {
-    return '<pre>' + html + '</pre>';
+function getPre(html, className) {
+    return '<pre class="' + className + '">' + html + '</pre>';
 }
 
 function addFieldToRow(row, field, value) {
@@ -153,7 +153,7 @@ function beautifyBase64(b64) {
         stop += N;
     }
     out += b64.slice(start, stop);
-    return getPre(out);
+    return getPre(out, 'wbxmlb64');
 }
 
 function refreshSummary() {
@@ -269,7 +269,7 @@ function refreshEvents() {
                 valueCell.onclick = function() {
                     var event = events[this.id];
                     if (this.innerHTML == beautifyBase64(event.wbxml_base64)) {
-                        this.innerHTML = getPre(event.wbxml);
+                        this.innerHTML = getPre(event.wbxml, 'wbxml');
                     } else {
                         this.innerHTML = beautifyBase64(event.wbxml_base64);
                     }
