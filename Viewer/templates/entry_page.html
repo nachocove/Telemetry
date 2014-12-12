@@ -31,7 +31,7 @@ var events = {{ events|safe }};
 <div><h1>Project: {{ project }}</h1></div>
 <div class="btn-group" role="group" aria-label="Large button group">
     {% for button in buttons %}
-    <button type="button" class="btn btn-default"><a href={{ button.url }}>{{ button.text }}</a></button>
+    <button type="button" class="btn btn-default"><a href="{{ button.url }}">{{ button.text }}</a></button>
     {% endfor %}
 </div>
 <br/><br/>
