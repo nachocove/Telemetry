@@ -30,6 +30,9 @@
     background-color: #99ddff;
 }
 
+.wbxml pre {
+    border: 0px;
+}
 .wbxmlb64 {
     background-color: #99ddff;
 }
