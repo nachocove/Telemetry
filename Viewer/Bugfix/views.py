@@ -416,12 +416,14 @@ def entry_page_base(project, client, after, before, logger):
 
     # Generate the events JSON
     event_list = [dict(x.items()) for x in obj_list]
+    show_hide_list = set()
     for event in event_list:
         event['timestamp'] = str(event['timestamp'])
         for field in ['uploaded_at', 'client']:
             del event[field]
 
         if event['event_type'] in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
+            show_hide_list.add('wbxml')
             def decode_wbxml(wbxml_):
                 instance = ASCommandResponse(base64.b64decode(wbxml_))
                 return instance.xmlString
@@ -429,9 +431,12 @@ def entry_page_base(project, client, after, before, logger):
             b64 = event['wbxml'].encode()
             event['wbxml_base64'] = cgi.escape(b64)
             event['wbxml'] = cgi.escape(decode_wbxml(b64))
+        else:
+            show_hide_list.add(event['event_type'].lower())
+
         if 'message' in event:
             event['message'] = cgi.escape(event['message'])
 
     context['events'] = json.dumps(event_list, default=json_formatter)
-
+    context['dropdown'] = show_hide_list
     return context
