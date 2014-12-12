@@ -69,6 +69,7 @@ function getRow(event) {
             break;
     }
     tr.className = event_type;
+    tr.id = event.id;
     return tr;
 }
 
@@ -96,6 +97,9 @@ function getRowWithCommonFields (id, event, num_rows) {
     tr.appendChild(time);
 
     tr.appendChild(getCell(event.event_type.replace('_', ' '), num_rows));
+    id_cell = getCell(event.id, num_rows)
+    id_cell.className += " id_cell"
+    tr.appendChild(id_cell);
     return tr;
 }
 
@@ -216,6 +220,11 @@ function createTitleBar() {
     eventType.className = 'cell';
     eventType.innerHTML = 'Event Type';
     tr.appendChild(eventType);
+
+    var field = document.createElement('th');
+    field.className = 'cell id_cell';
+    field.innerHTML = 'Telemetry ID';
+    tr.appendChild(field);
 
     var field = document.createElement('th');
     field.className = 'cell';

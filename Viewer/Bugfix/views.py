@@ -332,6 +332,45 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
     before = center + spread
     go_earlier = after - spread
     go_later = before + spread
+
+    context = entry_page_base(project, client, after, before, logger)
+
+    iso_center = _iso_z_format(center)
+    iso_go_earlier = _iso_z_format(go_earlier)
+    iso_go_later = _iso_z_format(go_later)
+    # Add buttons
+    def ctrl_url(client_, time_, span_):
+        return reverse(entry_page, kwargs={'client': client_,
+                                           'timestamp': time_,
+                                           'span': span_,
+                                           'project': project})
+    context['buttons'] = []
+    zoom_in_span = max(1, span/2)
+    context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
+                               'url': ctrl_url(client, iso_center, zoom_in_span),
+                               })
+    context['buttons'].append({'text': 'Zoom out (%d min)' % (span*2),
+                               'url': ctrl_url(client, iso_center, span*2),
+                               })
+    context['buttons'].append({'text': 'Go back %d min' % (2*span),
+                               'url': ctrl_url(client, iso_go_earlier, span),
+                               })
+    context['buttons'].append({'text': 'Go forward %d min' % (2*span),
+                               'url': ctrl_url(client, iso_go_later, span),
+                               })
+    context['body_args'] = 'onload=refresh()'
+    return render_to_response('entry_page.html', context,
+                              context_instance=RequestContext(request))
+
+def entry_page_by_timestamps(request, project, client='', after='', before=''):
+    logger = logging.getLogger('telemetry').getChild('entry_page')
+    logger.info('client=%s, after=%s, before=%s', client, after, before)
+    context = entry_page_base(project, client, after, before, logger)
+    context['body_args'] = 'onload=refresh()'
+    return render_to_response('entry_page.html', context,
+                              context_instance=RequestContext(request))
+
+def entry_page_base(project, client, after, before, logger):
     conn = _aws_connection(project)
     query = Query()
     query.limit = 100000
@@ -346,9 +385,6 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
         logger.info('%d objects found', len(obj_list))
     except DynamoDBError, e:
         logger.error('fail to query events - %s', str(e))
-    iso_center = _iso_z_format(center)
-    iso_go_earlier = _iso_z_format(go_earlier)
-    iso_go_later = _iso_z_format(go_later)
 
     # Save some global parameters for summary table
     params = dict()
@@ -395,26 +431,4 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
 
     context['events'] = json.dumps(event_list, default=json_formatter)
 
-    # Add buttons
-    def ctrl_url(client_, time_, span_):
-        return reverse(entry_page, kwargs={'client': client_,
-                                           'timestamp': time_,
-                                           'span': span_,
-                                           'project': project})
-    context['buttons'] = []
-    zoom_in_span = max(1, span/2)
-    context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
-                               'url': ctrl_url(client, iso_center, zoom_in_span),
-                               })
-    context['buttons'].append({'text': 'Zoom out (%d min)' % (span*2),
-                               'url': ctrl_url(client, iso_center, span*2),
-                               })
-    context['buttons'].append({'text': 'Go back %d min' % (2*span),
-                               'url': ctrl_url(client, iso_go_earlier, span),
-                               })
-    context['buttons'].append({'text': 'Go forward %d min' % (2*span),
-                               'url': ctrl_url(client, iso_go_later, span),
-                               })
-    context['body_args'] = 'onload=refresh()'
-    return render_to_response('entry_page.html', context,
-                              context_instance=RequestContext(request))
+    return context
