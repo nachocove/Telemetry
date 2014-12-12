@@ -56,7 +56,7 @@ class LoginForm(forms.Form):
         return password
 
 class VectorForm(forms.Form):
-    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects], initial=default_project)
+    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
     tele_paste = forms.CharField(widget=forms.Textarea)
 
     def clean_project(self):
@@ -66,6 +66,7 @@ class VectorForm(forms.Form):
             raise ValidationError(_('Unknown Project: %(project)s'),
                                   code='unknown',
                                   params={'project': projects})
+        return project
 
 
 _aws_connection_cache = {}
@@ -73,7 +74,7 @@ def _aws_connection(project):
     global _aws_connection_cache
     if not project in _aws_connection_cache:
         if not project in projects:
-            raise ValueError('Project %s is not present in projects.cfg')
+            raise ValueError('Project %s is not present in projects.cfg' % project)
         _aws_connection_cache[project] = DynamoDBConnection(host='dynamodb.us-west-2.amazonaws.com',
                                                             port=443,
                                                             aws_secret_access_key=projects_cfg.get(project, 'secret_access_key'),
@@ -268,6 +269,7 @@ def home(request):
     message = ''
     if request.method != 'POST':
         form = VectorForm()
+        form.fields['project'].initial = request.session.get('project', default_project)
         return render_to_response('home.html', {'form': form, 'message': message},
                                   context_instance=RequestContext(request))
 
@@ -280,6 +282,7 @@ def home(request):
     logger.debug('tele_paste=%s', form.cleaned_data['tele_paste'])
     loc = _parse_error_report(form.cleaned_data['tele_paste'])
     project = form.cleaned_data['project']
+    request.session['project'] = project
     paste_data = form.cleaned_data['tele_paste']
     if loc is not None:
         return process_error_report(request, project, form, loc, logger)
