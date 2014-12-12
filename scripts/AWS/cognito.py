@@ -14,11 +14,17 @@ A cognito setup consists of the following items:
 * One or more IAM Roles that are linked to the Identity Pool, each of which have a policy applied
   that determines what the cognito user may or may not do.
 
-* A set of DynamoDB tables the user can write to (but not read).
+* A set of DynamoDB tables the user can write to (but not read). The permissions to the tables can be found in
+  SetupPool.dynamo_table_permissions
 
 * An AWS S3 bucket and subdirectory, where cognito users may read or write anything they want.
   Note that each user is constrained to a sub-directory matching their cognito-id. They may
   NOT see or list any other objects.
+
+  The S3 bucket-name is a uuid4 hex-string (because I see no need to name it anything that gives away
+  what it's for or who it belongs to), and the NachoMail add is restricted to the NachoMail subdirectory (i.e. prefix).
+  Each client is restricted to the NachoMail/<cognito-id>/ sub-directory (i.e. prefix). The details of the policy
+  can be seen in SetupPool.s3_object_permissions and SetupPool.s3_bucket_permissions.
 
 setup-pool
 ----------
@@ -36,6 +42,10 @@ We do not do any checking of the DynamoDB (Should be added, i think).
 Using the Identity Pool Id, we create any number of IAM Roles, each of which contains
 a linkage policy that defines which role is applied to a cognito user under which conditions,
 and a policy that gives the user permissions to access whatever AWS resources we want.
+
+.. note:: aws allows us to name roles in a subdirectory structure. I've opted to put the nachomail roles
+  under SetupPool.role_name_path (currently set to /nachomail/cognito/). This makes it easier to list all
+  nachomail cognito roles: Just list with prefix '/nachomail/cognito/'.
 
 In our case we create two roles (though technically one would suffice since the role-policy
 is the same in all cases (for now)): One for authenticated users, and one for unauthenticated users.
