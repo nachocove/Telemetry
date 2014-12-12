@@ -40,16 +40,18 @@ class MonitorSupport(Monitor):
                                 TableHeader(Bold('Client Id')),
                                 TableHeader(Bold('Contact Info')),
                                 TableHeader(Bold('Message')),
-                                TableHeader(Bold(''))]))
+                                TableHeader(Bold('%s telemetry' % self.prefix.capitalize()))]))
         for request in self.requests:
             self.logger.info('\n' + request.display())
             match = re.match('(?P<date>.+)T(?P<time>.+)Z', request.timestamp)
             assert match
+            telemetry_link = '%sbugfix/logs/%s/%s/2/' % (self.telemetry_viewer_url_prefix, request.client, request.timestamp)
             table.add_row(TableRow([TableElement(Text(match.group('date') + ' ' + match.group('time'))),
                                     TableElement(Text(request.client)),
                                     TableElement(Text(request.contact_info)),
                                     TableElement(Text(request.message)),
-                                    TableElement(Link("%s Telemetry link" % self.prefix.capitalize(), '%sbugfix/%s/logs/%s/%s/1/' % (self.telemetry_viewer_url_prefix, self.prefix, request.client, request.timestamp)))]))
+                                    TableElement(Link("Telemetry", telemetry_link))]))
+
 
         title = self.title()
         paragraph = Paragraph([Bold(title), table])
