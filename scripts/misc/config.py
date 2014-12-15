@@ -84,7 +84,9 @@ class SectionConfig:
         for key in cls.KEYS:
             value = getattr(self, key)
             if value is not None:
-                setattr(options, cls.SECTION + '_' + key, value)
+                xkey = cls.SECTION + '_' + key
+                if not hasattr(options, xkey) or getattr(options, xkey, None) is None:
+                    setattr(options, xkey, value)
 
 
 class ColorsConfig(SectionConfig):
