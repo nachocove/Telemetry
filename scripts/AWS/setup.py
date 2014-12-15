@@ -44,7 +44,7 @@ def list_tables(connection, options):
     for table_name in tables:
         table_cls = TelemetryTable.find_table_class(table_name)
         print '-' * 72
-        table = table_cls(connection)
+        table = table_cls(connection, table_name)
         print table
 
 
@@ -108,7 +108,7 @@ def show_table_cost(connection, options):
     print '----- ----- ---------- ----------   ----------------------------'
 
     for table_name in tables:
-        if options.prefix and not table_name.startswith(options.prefix):
+        if options.aws_prefix and not table_name.startswith(options.aws_prefix):
             continue
         if options.table and not table_name.endswith(options.table):
             continue
@@ -167,7 +167,7 @@ def main():
                         default=None)
     parser.add_argument('--prefix', '-p',
                         help='Prefix of the table names',
-                        default='')
+                        default='', dest='aws_prefix')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--local',
                        help='Use local DynamoDB',
@@ -207,7 +207,7 @@ def main():
     if options.host == 'localhost':
         is_secure = False
 
-    TelemetryTable.PREFIX = options.prefix
+    TelemetryTable.PREFIX = options.aws_prefix
 
     if not options.aws_access_key_id or not options.aws_secret_access_key:
         print "ERROR: No access-key or secret key. Need either a config or aws_access_key_id and aws_secret_access_key."

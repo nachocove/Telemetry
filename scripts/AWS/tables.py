@@ -24,7 +24,7 @@ class TelemetryTable(Table):
 
     @staticmethod
     def full_table_name(table):
-        if TelemetryTable.PREFIX is None:
+        if not TelemetryTable.PREFIX:
             raise ValueError('Prefix is not set yet.')
         return TelemetryTable.PREFIX + '.telemetry.' + table
 
