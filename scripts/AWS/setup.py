@@ -67,7 +67,7 @@ def delete_tables(connection, options):
                 raise e
 
         def is_deleted():
-            return table_name not in get_table_names(connection)
+            return table_name not in get_table_names(connection, options.aws_prefix)
         poll(is_deleted, 1)
 
 
