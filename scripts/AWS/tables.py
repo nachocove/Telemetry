@@ -224,7 +224,7 @@ class TelemetryTable(Table):
 
 class DeviceInfoTable(TelemetryTable):
     TABLE_NAME = 'device_info'
-    FIELDS_NAMES = ['os_type', 'os_version', 'device_model', 'build_version', 'build_number']
+    FIELD_NAMES = ['os_type', 'os_version', 'device_model', 'build_version', 'build_number', 'device_id']
 
     def __init__(self, connection):
         TelemetryTable.__init__(self, connection=connection, table_name=DeviceInfoTable.TABLE_NAME)
@@ -237,7 +237,7 @@ class DeviceInfoTable(TelemetryTable):
 class LogTable(TelemetryTable):
     TABLE_NAME = 'log'
     EVENT_TYPES = ['ERROR', 'WARN', 'INFO', 'DEBUG']
-    FIELD_NAMES = ['event_type', 'message']
+    FIELD_NAMES = ['event_type', 'message', 'thread_id']
     EVENT_TYPE_TIMESTAMP_INDEX = 'index.event_type-timestamp'
 
     def __init__(self, connection):
@@ -333,7 +333,7 @@ class CounterTable(TelemetryTable):
 class CaptureTable(TelemetryTable):
     TABLE_NAME = 'capture'
     EVENT_TYPES = ['CAPTURE']
-    FIELD_NAMES = ['event_type', 'capture_name', 'count', 'min', 'max', 'average', 'stddev']
+    FIELD_NAMES = ['event_type', 'capture_name', 'count', 'min', 'max', 'sum', 'sum2']
     CAPTURE_NAME_TIMESTAMP_INDEX = 'index.capture_name-timestamp'
 
     def __init__(self, connection):
