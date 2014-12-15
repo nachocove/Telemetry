@@ -14,3 +14,10 @@ class AwsConfig(SectionConfig):
 
     def __init__(self, config_file):
         SectionConfig.__init__(self, config_file)
+
+class CliFunc(object):
+    def add_arguments(self, parser, subparser):
+        pass
+
+    def run(self, args, **kwargs):
+        pass

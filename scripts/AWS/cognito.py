@@ -88,19 +88,21 @@ import sys
 import uuid
 import boto3
 from botocore.exceptions import ClientError
-from AWS.config import AwsConfig
+from AWS.config import AwsConfig, CliFunc
 from misc.config import Config
 
 logger = logging.getLogger('cognito-setup')
 
-class ArgFunc(object):
+class Boto3CliFunc(CliFunc):
+    def run(self, args, **kwargs):
+        super(Boto3CliFunc, self).run(args, **kwargs)
+        self.session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
+                                             aws_secret_access_key=args.aws_secret_access_key,
+                                             region_name=args.region)
+        if args.boto_debug:
+            self.session._session.set_debug_logger()
+
     class ResponseCheckException(Exception):
-        pass
-
-    def add_arguments(self, parser, subparser):
-        pass
-
-    def run(self, session, args, **kwargs):
         pass
 
     @classmethod
@@ -121,18 +123,21 @@ class ArgFunc(object):
         del response['ResponseMetadata']
         return response
 
-class DeletePools(ArgFunc):
+
+class DeletePools(Boto3CliFunc):
     def add_arguments(self, parser, subparser):
+        super(DeletePools, self).add_arguments(parser, subparser)
         sub = subparser.add_parser('delete-pools')
         sub.add_argument('--name-prefix', help="delete all pools starting with the prefix.", type=str, default='')
         sub.add_argument('--pool-id', help="delete specific pool with id.", type=str, default='')
-        return sub
+        sub.set_defaults(func=self.run)
 
-    def run(self, session, args, **kwargs):
+    def run(self, args, **kwargs):
+        super(DeletePools, self).run(args, **kwargs)
         if not args.name_prefix and not args.pool_id:
             logger.error("Need a name prefix or a pool-id.")
-        self.delete_pools(session, args.pool_id, name_prefix=args.name_prefix, s3_bucket=args.aws_s3_bucket)
-        self.delete_roles(session, args.name_prefix, SetupPool.role_name_path)
+        self.delete_pools(self.session, args.pool_id, name_prefix=args.name_prefix, s3_bucket=args.aws_s3_bucket)
+        self.delete_roles(self.session, args.name_prefix, SetupPool.role_name_path)
         return True
 
     @classmethod
@@ -240,15 +245,16 @@ class DeletePools(ArgFunc):
             count += 1
         logger.info("DELETE_ROLES: %d roles deleted", count)
 
-class ListPools(ArgFunc):
+class ListPools(Boto3CliFunc):
     def add_arguments(self, parser, subparser):
         list_parser = subparser.add_parser('list-pools')
         list_parser.add_argument('--list-ids', help="List all ids. Could be a lot.",
                                  action='store_true', default=False)
-        return list_parser
+        list_parser.set_defaults(func=self.run)
 
-    def run(self, session, args, **kwargs):
-        conn = session.client('cognito-identity')
+    def run(self, args, **kwargs):
+        super(ListPools, self).run(args, **kwargs)
+        conn = self.session.client('cognito-identity')
         logger.setLevel(logging.INFO)
 
         identity_pools = conn.list_identity_pools(MaxResults=60)
@@ -269,7 +275,7 @@ class ListPools(ArgFunc):
                     id_list = [x['IdentityId'] for x in ids['Identities']]
                     logger.info(",".join(id_list))
                     next_token = ids['NextToken']
-        iam = session.client('iam')
+        iam = self.session.client('iam')
         response = iam.list_roles()
         self.check_response(response, expected_keys=('Roles',))
         logger.info("Roles:")
@@ -279,7 +285,7 @@ class ListPools(ArgFunc):
         return True
 
 
-class SetupPool(ArgFunc):
+class SetupPool(Boto3CliFunc):
     """
     Sets up everything needed for a NachoMail Cognito setup.
 
@@ -362,26 +368,34 @@ class SetupPool(ArgFunc):
         sub.add_argument('--s3-bucket-prefix', help='The nachomail accessible per-id bucket',
                                         default=self.default_bucket_prefix)
         sub.add_argument('--aws_prefix', help='The aws project prefix', default='dev')
-        return sub
+        sub.set_defaults(func=self.run)
 
-    def run(self, session, args, **kwargs):
+    def run(self, args, **kwargs):
+        super(SetupPool, self).run(args, **kwargs)
         unauth_policy_supported = False if args.no_unauth else True
         auth_policy_supported = False if args.no_auth else True
-        pool = self.create_identity_pool(session, args.name,
-                                         developer_provider_name=args.developer_provider_name,
+        return self.setup_cognito(self.session, args.name, unauth_policy_supported, auth_policy_supported,
+                                  args.developer_provider_name, args.aws_s3_bucket, args.s3_bucket_prefix,
+                                  args.aws_account_id, args.aws_prefix)
+
+    def setup_cognito(self, session, name, unauth_policy_supported, auth_policy_supported, developer_provider_name,
+                      aws_s3_bucket, s3_bucket_prefix, aws_account_id, aws_prefix):
+        pool = self.create_identity_pool(session, name,
+                                         developer_provider_name=developer_provider_name,
                                          unauth_policy_supported=unauth_policy_supported)
         if not pool:
             logger.error("Could not create pool.")
             return False
-        self.create_or_adjust_s3_bucket(session, args.aws_s3_bucket)
-        self.create_identity_roles_and_policy(session, pool, args.aws_account_id,
+        self.create_or_adjust_s3_bucket(session, aws_s3_bucket)
+        self.create_identity_roles_and_policy(session, pool, aws_account_id,
                                               self.role_name_path,
-                                              [x % {'project': args.aws_prefix} for x in self.default_dynamo_tables],
-                                              args.aws_s3_bucket,
-                                              args.s3_bucket_prefix,
+                                              [x % {'project': aws_prefix} for x in self.default_dynamo_tables],
+                                              aws_s3_bucket,
+                                              s3_bucket_prefix,
                                               unauth_policy_supported=unauth_policy_supported,
                                               auth_policy_supported=auth_policy_supported)
         return True
+
 
     @classmethod
     def create_or_adjust_s3_bucket(cls, session, bucket_name, path_prefix=None):
@@ -536,18 +550,19 @@ class SetupPool(ArgFunc):
                                                                           'PathPrefix': bucket_path_prefix}))
         return statements
 
-class TestAccess(ArgFunc):
+class TestAccess(Boto3CliFunc):
     def add_arguments(self, parser, subparser):
-        sub = subparser.add_parser('test-access')
+        sub = subparser.add_parser('test-pool')
         sub.add_argument('name', help='the identity pool name')
         sub.add_argument('--s3-bucket', help='The nachomail accessible per-id bucket',
                                         default=None)
         sub.add_argument('--s3-bucket-prefix', help='The nachomail accessible per-id bucket',
                                         default=SetupPool.default_bucket_prefix)
-        return sub
+        sub.set_defaults(func=self.run)
 
-    def run(self, session, args, **kwargs):
-        conn = session.client('cognito-identity')
+    def run(self, args, **kwargs):
+        super(TestAccess, self).run(args, **kwargs)
+        conn = self.session.client('cognito-identity')
         response = conn.list_identity_pools(MaxResults=60)
         id_pools = self.check_response(response, expected_keys=('IdentityPools',))
         pool = None
@@ -559,7 +574,7 @@ class TestAccess(ArgFunc):
             logger.error("Could not find identity pool with name %s", args.name)
             return False
 
-        iam = session.client('iam')
+        iam = self.session.client('iam')
 
         response = iam.list_roles(PathPrefix=SetupPool.role_name_path)
         roles = self.check_response(response, expected_keys=('Roles',))
@@ -582,7 +597,7 @@ class TestAccess(ArgFunc):
         logger.info("Got Cognito ID: %s", my_id)
         test_bucket = None
         try:
-            s3 = session.resource('s3')
+            s3 = self.session.resource('s3')
             test_bucket = s3.Bucket('SomeTestBucket' + uuid.uuid4().hex)
             test_bucket.create()
             response = anon_conn.get_open_id_token(IdentityId=my_id)
@@ -743,8 +758,7 @@ def main():
     subparser = parser.add_subparsers()
 
     for sub in sub_modules:
-        s = sub.add_arguments(parser, subparser)
-        s.set_defaults(func=sub.run)
+        sub.add_arguments(parser, subparser)
 
     logger.setLevel(logging.DEBUG)
     args = parser.parse_args()
@@ -772,13 +786,7 @@ def main():
 
     logger.info("Using AWS Key Id %s" % args.aws_access_key_id)
 
-    session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
-                                    aws_secret_access_key=args.aws_secret_access_key,
-                                    region_name=args.region)
-    if args.boto_debug:
-        session._session.set_debug_logger()
-
-    ret = args.func(session, args)
+    ret = args.func(args)
     if ret is None:
         sys.exit(0)
 
