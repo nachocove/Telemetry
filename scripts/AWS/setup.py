@@ -34,17 +34,17 @@ def poll(fn, duration):
     write('\n')
 
 
-def get_table_names(connection):
+def get_table_names(connection, prefix=None):
     tables = connection.list_tables()[u'TableNames']
-    return [str(x) for x in tables]
+    return [str(x) for x in tables if prefix and x.startswith(prefix)]
 
 
 def list_tables(connection, options):
-    tables = connection.list_tables()[u'TableNames']
+    tables = get_table_names(connection, options.aws_prefix)
     for table_name in tables:
         table_cls = TelemetryTable.find_table_class(table_name)
         print '-' * 72
-        table = table_cls(connection, table_name)
+        table = table_cls(connection)
         print table
 
 
@@ -102,14 +102,12 @@ def show_table_cost(connection, options):
     total_read_cost = 0.0
     total_write_cost = 0.0
 
-    tables = connection.list_tables()[u'TableNames']
+    tables = get_table_names(connection, options.aws_prefix)
     print ' Read Write       Read      Write   Table'
     print ' Unit  Unit       Cost       Cost'
     print '----- ----- ---------- ----------   ----------------------------'
 
     for table_name in tables:
-        if options.aws_prefix and not table_name.startswith(options.aws_prefix):
-            continue
         if options.table and not table_name.endswith(options.table):
             continue
 
