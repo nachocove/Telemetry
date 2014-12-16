@@ -1,3 +1,4 @@
+import uuid
 from boto.dynamodb2.table import Table
 from boto.dynamodb2.fields import HashKey, RangeKey, GlobalAllIndex
 from boto.dynamodb2.types import NUMBER, STRING
@@ -221,6 +222,16 @@ class TelemetryTable(Table):
                 return cls
         return TelemetryTable
 
+    @classmethod
+    def format_item(cls, client, timestamp, uploaded_at, **kwargs):
+        item = {'client': {'S': str(client)},
+                'timestamp': {'N': str(timestamp)},
+                'uploaded_at': {'N': str(uploaded_at)},
+                'id': {'S': uuid.uuid4().hex},
+                }
+        for k in cls.FIELD_NAMES:
+            item[k] = {'S': str(kwargs[k])}
+        return item
 
 class DeviceInfoTable(TelemetryTable):
     TABLE_NAME = 'device_info'
