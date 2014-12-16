@@ -747,7 +747,7 @@ def main():
                         help='AWS access key id',
                         dest='aws_access_key_id',
                         default=None)
-    parser.add_argument('--aws-account-id', help='AWS Account ID. A number.', default='610813048224')
+    parser.add_argument('--aws-account-id', help='AWS Account ID. A number.', default=None)
     parser.add_argument('--region', help='Set the region for the connection. Default: us-east-1', default='us-east-1', type=str)
     parser.add_argument('--config', '-c',
                        help='Configuration that contains an AWS section',
