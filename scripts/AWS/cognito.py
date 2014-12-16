@@ -731,7 +731,7 @@ class TestAccess(Boto3CliFunc):
                                        Key={'id': item['id']})
 
         suite = TestLoader().loadTestsFromTestCase(TestCases)
-        runner = TextTestRunner()
+        runner = TextTestRunner(verbosity=2)
         runner.run(suite)
 
 def main():
