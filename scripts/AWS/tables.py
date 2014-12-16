@@ -18,6 +18,7 @@ class TelemetryTable(Table):
     COMMON_FIELD_NAMES = ['id', 'client', 'timestamp', 'uploaded_at']
     CLIENT_TIMESTAMP_INDEX = 'index.client-timestamp'
     EVENT_TYPE_UPLOADED_AT_INDEX = 'index.event_type-uploaded_at'
+    TABLE_THROUGHPUT = {'read': 5, 'write': 5}
 
     def __init__(self, connection, table_name):
         Table.__init__(self, table_name=TelemetryTable.full_table_name(table_name),
@@ -42,6 +43,9 @@ class TelemetryTable(Table):
     @classmethod
     def _create(cls, connection, local_secondary_indexes=None, global_secondary_indexes=None, throughput=None,
                 polling_fn=None):
+        if throughput is None:
+            throughput = cls.TABLE_THROUGHPUT
+
         # Schema is common for all tables - hash key on client id and range key on timestamp
         schema = [
             HashKey('id', data_type=STRING),
