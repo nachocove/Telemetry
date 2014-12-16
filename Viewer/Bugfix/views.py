@@ -102,7 +102,9 @@ def _parse_junk(junk, mapping):
 
 
 def _parse_crash_report(junk):
-    dict_ = _parse_junk(junk, {'Device ID': 'device_id', 'Date/Time': 'timestamp'})
+    dict_ = _parse_junk(junk, {'Device ID': 'device_id',
+                               'Date/Time': 'timestamp',
+                               'Launch Time': 'timestamp'})
     if 'device_id' in dict_ and 'timestamp' in dict_:
         return dict_
     return None
