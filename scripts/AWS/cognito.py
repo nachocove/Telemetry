@@ -110,20 +110,20 @@ class Boto3CliFunc(CliFunc):
         pass
 
     @classmethod
-    def check_response(self, response, status_code=200, expected_keys=None):
+    def check_response(cls, response, status_code=200, expected_keys=None):
         try:
             if response['ResponseMetadata']['HTTPStatusCode'] != status_code:
                 msg=str(response)
-                raise self.ResponseCheckException(msg)
+                raise cls.ResponseCheckException(msg)
         except KeyError:
             msg=str(response)
-            raise self.ResponseCheckException(msg)
+            raise cls.ResponseCheckException(msg)
 
         if expected_keys:
             for k in expected_keys:
                 if not k in response:
                     msg="Missing key %s in response" % k
-                    raise self.ResponseCheckException(msg)
+                    raise cls.ResponseCheckException(msg)
         del response['ResponseMetadata']
         return response
 
@@ -145,32 +145,19 @@ class DeletePools(Boto3CliFunc):
         return True
 
     @classmethod
-    def delete_s3_objects(cls, s3_conn, s3_bucket, prefix):
-        s3_marker = None
-        while True:
-            s3_list_kwargs = {'Bucket': s3_bucket, 'Prefix': prefix, 'Delimiter': '/'}
-            if s3_marker:
-                s3_list_kwargs['Marker'] = s3_marker
-            logger.info("Listing Bucket: %s", s3_list_kwargs)
-            response = s3_conn.list_object_versions(**s3_list_kwargs)
+    def delete_s3_objects(cls, bucket, prefix):
+        delete_list = {'Quiet': True,
+                       'Objects': []}
+        if bucket.BucketVersioning().status == 'Enabled':
+            versions = bucket.object_versions.filter(Prefix=prefix)
+            for version in versions:
+                delete_list['Objects'].append({'Key': version.object_key, 'VersionId': version.id})
+        objects = bucket.objects.filter(Prefix=prefix)
+        for object in objects:
+            delete_list['Objects'].append({'Key': object.key})
+        if delete_list['Objects']:
+            response = bucket.delete_objects(Delete=delete_list)
             cls.check_response(response)
-            if 'Versions' not in response:
-                break
-
-            s3_marker = response.get('VersionIdMarker', None)
-            delete_dict = {'Quiet': True,
-                           'Objects': [],
-                           }
-            for k in response['Contents']:
-                k_dict = {'Key': k['Key']}
-                if 'VersionId' in k:
-                    k_dict['VersionId'] = k['VersionId']
-                delete_dict['Objects'].append(k_dict)
-            response = s3_conn.delete_objects(Bucket=s3_bucket, Delete=delete_dict)
-            cls.check_response(response)
-            if not s3_marker:
-                break
-        return True
 
     @classmethod
     def delete_s3_user_resources(cls, session, pool_id, s3_bucket, bucket_prefix):
@@ -189,19 +176,7 @@ class DeletePools(Boto3CliFunc):
             for cognito_id in identity_list:
                 prefix = "/".join([bucket_prefix, cognito_id['IdentityId'], ''])
                 logger.info("DELETE_S3_FILES: cognito-id: %s, s3://%s/%s", cognito_id, s3_bucket, prefix)
-                delete_list = {'Quiet': True,
-                               'Objects': []}
-                if bucket.BucketVersioning().status == 'Enabled':
-                    versions = bucket.object_versions.filter(Prefix=prefix)
-                    for version in versions:
-                        delete_list['Objects'].append({'Key': version.object_key, 'VersionId': version.id})
-                objects = bucket.objects.filter(Prefix=prefix)
-                for object in objects:
-                    delete_list['Objects'].append({'Key': object.key})
-                if delete_list['Objects']:
-                    response = bucket.delete_objects(Delete=delete_list)
-                    cls.check_response(response)
-
+                cls.delete_s3_objects(bucket, bucket_prefix)
             if not next_token:
                 break
 
@@ -594,8 +569,24 @@ class TestAccess(Boto3CliFunc):
 
         class TestCases(TestCase):
             test_bucket = None
+            dynamo_created_items = None
+            dynamodb_root = None
+            nacho_bucket = None
+            prefix = None
+
             @classmethod
             def setUpClass(cls):
+                s3 = self.session.resource('s3')
+                cls.nacho_bucket = s3.Bucket(args.aws_s3_bucket)
+                cls.test_bucket = s3.Bucket('SomeTestBucket' + uuid.uuid4().hex)
+                cls.test_bucket.create()
+                dynamo_session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
+                                                        aws_secret_access_key=args.aws_secret_access_key,
+                                                        region_name='us-west-2')
+
+                cls.dynamodb_root = dynamo_session.client('dynamodb')
+
+
                 anon_session = boto3.session.Session(aws_access_key_id='', aws_secret_access_key='', region_name=args.region)
                 anon_session._session.set_credentials(access_key='', secret_key='')
                 anon_conn = anon_session.client('cognito-identity')
@@ -603,9 +594,6 @@ class TestAccess(Boto3CliFunc):
                 TestAccess.check_response(response, expected_keys=('IdentityId',))
                 cls.my_id = response['IdentityId']
                 logger.info("Got Cognito ID: %s", cls.my_id)
-                s3 = self.session.resource('s3')
-                cls.test_bucket = s3.Bucket('SomeTestBucket' + uuid.uuid4().hex)
-                cls.test_bucket.create()
                 response = anon_conn.get_open_id_token(IdentityId=cls.my_id)
                 TestAccess.check_response(response, expected_keys=('Token',))
                 assert(response['IdentityId'] == cls.my_id)
@@ -622,11 +610,11 @@ class TestAccess(Boto3CliFunc):
                     logger.warn("SubjectFromWebIdentityToken %s != my id %s", response['Audience'], cls.my_id)
                 cls.my_creds = response
 
-                new_session = boto3.session.Session(aws_access_key_id=cls.my_creds['Credentials']['AccessKeyId'],
-                                                    aws_secret_access_key=cls.my_creds['Credentials']['SecretAccessKey'],
-                                                    aws_session_token=cls.my_creds['Credentials']['SessionToken'],
-                                                    region_name=args.region)
-                cls.s3_conn = new_session.client('s3')
+                cls.new_session = boto3.session.Session(aws_access_key_id=cls.my_creds['Credentials']['AccessKeyId'],
+                                                        aws_secret_access_key=cls.my_creds['Credentials']['SecretAccessKey'],
+                                                        aws_session_token=cls.my_creds['Credentials']['SessionToken'],
+                                                        region_name=args.region)
+                cls.s3_conn = cls.new_session.client('s3')
 
                 dynamo_session = boto3.session.Session(aws_access_key_id=cls.my_creds['Credentials']['AccessKeyId'],
                                                     aws_secret_access_key=cls.my_creds['Credentials']['SecretAccessKey'],
@@ -635,17 +623,32 @@ class TestAccess(Boto3CliFunc):
                 cls.dynamodb = dynamo_session.client('dynamodb')
                 cls.prefix = "/".join([args.s3_bucket_prefix, cls.my_id, ''])
                 TelemetryTable.PREFIX = args.aws_prefix
+                cls.dynamo_created_items = []
 
 
             @classmethod
             def tearDownClass(cls):
                 # clean up
                 # don't bother cleaning up the identity, since it's an unauth'd id, and it can't be unlinked.
+                logger.info('Cleaning up S3 items created')
                 if cls.test_bucket:
                     cls.test_bucket.delete()
 
+                DeletePools.delete_s3_objects(cls.nacho_bucket, cls.prefix)
+
+                logger.info('Cleaning up DynamoDB items created')
+                for x in cls.dynamo_created_items:
+                    cls.dynamodb_root.delete_item(TableName=x['TableName'], Key={'id': x['Item']['id']})
+                # query = Query()
+                # query.add('event_type', SelectorEqual('DEBUG'))
+                # query.add_range('uploaded_at', self.start, self.end)
+                #
+                # self.events, self.event_count = self.query_all(query)
+
+
+
             @classmethod
-            def check_response(self, response, status_code=200, expected_keys=None):
+            def check_response(cls, response, status_code=200, expected_keys=None):
                 return TestAccess.check_response(response, status_code=status_code, expected_keys=expected_keys)
 
             def raisesClientError(self, error, func, *args, **kwargs):
@@ -700,11 +703,13 @@ class TestAccess(Boto3CliFunc):
                 item = LogTable.format_item(client=self.my_id,
                                             timestamp=now,
                                             uploaded_at=now,
-                                            event_type='ERROR',
-                                            message='FOO1234',
+                                            event_type='DEBUG',
+                                            message='Test Message from Telemetry.scripts.AWS.cognito.TestAccess',
                                             thread_id=12)
                 response = self.dynamodb.put_item(TableName=log_table_name, Item=item)
                 self.assertEqual(self.check_response(response), {}) # the reply is empty, so assertTrue won't work
+                self.dynamo_created_items.append({'TableName': log_table_name,
+                                                  'Item': item})
 
             def test_dynamo_delete_denied(self):
                 log_table_name = TelemetryTable.full_table_name('log')
@@ -712,11 +717,13 @@ class TestAccess(Boto3CliFunc):
                 item = LogTable.format_item(client=self.my_id,
                                             timestamp=now,
                                             uploaded_at=now,
-                                            event_type='ERROR',
-                                            message='FOO1234',
+                                            event_type='DEBUG',
+                                            message='Test Message from Telemetry.scripts.AWS.cognito.TestAccess',
                                             thread_id=12)
                 response = self.dynamodb.put_item(TableName=log_table_name, Item=item)
                 self.assertEqual(self.check_response(response), {}) # the reply is empty, so assertTrue won't work
+                self.dynamo_created_items.append({'TableName': log_table_name,
+                                                  'Item': item})
 
                 self.raisesClientError('AccessDeniedException',
                                        self.dynamodb.delete_item,
