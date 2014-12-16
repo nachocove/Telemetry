@@ -499,10 +499,10 @@ class SetupPool(Boto3CliFunc):
                                           s3_object_permissions, s3_bucket_permissions)
 
         if auth_policy_supported:
-            roles_created.append(cls.create_cognito_role(pool, iam, cls.role_name_path, statements, auth=True))
+            roles_created.append(cls.create_cognito_role(pool, iam, role_path, statements, auth=True))
 
         if unauth_policy_supported:
-            roles_created.append(cls.create_cognito_role(pool, iam, cls.role_name_path, statements, auth=False))
+            roles_created.append(cls.create_cognito_role(pool, iam, role_path, statements, auth=False))
 
         if not roles_created:
             logger.error("No roles created")
@@ -556,14 +556,15 @@ class TestAccess(Boto3CliFunc):
         iam = self.session.client('iam')
 
         response = iam.list_roles(PathPrefix=SetupPool.role_name_path)
-        roles = self.check_response(response, expected_keys=('Roles',))
-        role = None
-        look_for = pool['IdentityPoolName'] + "_UnAuth"
-        for r in roles['Roles']:
-            if r['RoleName'].startswith(look_for):
-                role = r
-                break
-        if not role:
+        response = self.check_response(response, expected_keys=('Roles',))
+        roles = {'Auth': None,
+                 'UnAuth': None}
+        for r in response['Roles']:
+            if r['RoleName'].startswith(pool['IdentityPoolName'] + "_UnAuth"):
+                roles['UnAuth'] = r
+            elif r['RoleName'].startswith(pool['IdentityPoolName'] + "_Auth"):
+                roles['Auth'] = r
+        if not roles or set(roles.keys()) != {'Auth', 'UnAuth'}:
             logger.error("Could not find role for Identity Pool")
             return False
 
@@ -590,25 +591,15 @@ class TestAccess(Boto3CliFunc):
                 anon_session = boto3.session.Session(aws_access_key_id='', aws_secret_access_key='', region_name=args.region)
                 anon_session._session.set_credentials(access_key='', secret_key='')
                 anon_conn = anon_session.client('cognito-identity')
-                response = anon_conn.get_id(AccountId=args.aws_account_id, IdentityPoolId=pool['IdentityPoolId'])
-                TestAccess.check_response(response, expected_keys=('IdentityId',))
-                cls.my_id = response['IdentityId']
+                cls.my_id = cls.get_id(anon_conn)
                 logger.info("Got Cognito ID: %s", cls.my_id)
-                response = anon_conn.get_open_id_token(IdentityId=cls.my_id)
-                TestAccess.check_response(response, expected_keys=('Token',))
-                assert(response['IdentityId'] == cls.my_id)
-                my_open_id_token = response['Token']
 
-                sts_conn = anon_session.client('sts')
-                session_name = 'anon-test-access'
-                response = sts_conn.assume_role_with_web_identity(RoleArn=role['Arn'],
-                                                                  RoleSessionName=session_name,
-                                                                  WebIdentityToken=my_open_id_token,
-                                                                  )
-                TestAccess.check_response(response, expected_keys=('Credentials',))
-                if response['SubjectFromWebIdentityToken'] != cls.my_id:
-                    logger.warn("SubjectFromWebIdentityToken %s != my id %s", response['Audience'], cls.my_id)
-                cls.my_creds = response
+                cls.my_open_id_token = cls.get_openid_token(anon_conn, cls.my_id)
+
+                cls.sts_conn = anon_session.client('sts')
+                cls.my_creds = cls.get_temporary_creds(cls.sts_conn, cls.my_open_id_token, roles['UnAuth']['Arn'])
+                if cls.my_creds['SubjectFromWebIdentityToken'] != cls.my_id:
+                    logger.warn("SubjectFromWebIdentityToken %s != my id %s", cls.my_creds['SubjectFromWebIdentityToken'], cls.my_id)
 
                 cls.new_session = boto3.session.Session(aws_access_key_id=cls.my_creds['Credentials']['AccessKeyId'],
                                                         aws_secret_access_key=cls.my_creds['Credentials']['SecretAccessKey'],
@@ -625,6 +616,27 @@ class TestAccess(Boto3CliFunc):
                 TelemetryTable.PREFIX = args.aws_prefix
                 cls.dynamo_created_items = []
 
+            @classmethod
+            def get_id(cls, conn):
+                response = conn.get_id(AccountId=args.aws_account_id, IdentityPoolId=pool['IdentityPoolId'])
+                TestAccess.check_response(response, expected_keys=('IdentityId',))
+                return response['IdentityId']
+
+            @classmethod
+            def get_openid_token(cls, conn, my_id):
+                response = conn.get_open_id_token(IdentityId=my_id)
+                TestAccess.check_response(response, expected_keys=('Token',))
+                assert(response['IdentityId'] == my_id)
+                return response['Token']
+
+            @classmethod
+            def get_temporary_creds(cls, conn, openid_token, role_arn, session_name='anon-test-access'):
+                response = conn.assume_role_with_web_identity(RoleArn=role_arn,
+                                                              RoleSessionName=session_name,
+                                                              WebIdentityToken=openid_token,
+                                                              )
+                TestAccess.check_response(response, expected_keys=('Credentials',))
+                return response
 
             @classmethod
             def tearDownClass(cls):
@@ -645,8 +657,6 @@ class TestAccess(Boto3CliFunc):
                 #
                 # self.events, self.event_count = self.query_all(query)
 
-
-
             @classmethod
             def check_response(cls, response, status_code=200, expected_keys=None):
                 return TestAccess.check_response(response, status_code=status_code, expected_keys=expected_keys)
@@ -657,6 +667,13 @@ class TestAccess(Boto3CliFunc):
                     raise Exception('Should not have succeeded')
                 except ClientError as e:
                     self.assertIn(error, str(e))
+
+
+            def test_pick_auth_role_denied(self):
+                self.raisesClientError('AccessDenied', self.get_temporary_creds, self.sts_conn, self.my_open_id_token, roles['Auth']['Arn'])
+
+            def test_pick_unauth_role(self):
+                self.assertTrue(self.get_temporary_creds(self.sts_conn, self.my_open_id_token, roles['UnAuth']['Arn']))
 
             def test_bucket_listing_denied(self):
                 self.assertTrue(args.s3_bucket_prefix)  # if this isn't set, we might rethink some tests
@@ -750,6 +767,7 @@ def main():
                         dest='aws_access_key_id',
                         default=None)
     parser.add_argument('--aws-account-id', help='AWS Account ID. A number.', default=None)
+    parser.add_argument('--prefix', help='AWS project prefix.', default=None, dest='aws_prefix')
     parser.add_argument('--region', help='Set the region for the connection. Default: us-east-1', default='us-east-1', type=str)
     parser.add_argument('--config', '-c',
                        help='Configuration that contains an AWS section',
