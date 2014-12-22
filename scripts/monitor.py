@@ -235,22 +235,35 @@ def main():
             new_monitor = monitor_cls(conn=conn, start=options.start, end=options.end, **extra_params)
             new_monitor.run()
             return new_monitor
-        monitor = Monitor.run_with_retries(run_monitor, 'monitor %s' % monitor_name, 5)
-        monitors.append(monitor)
+
+        try:
+            monitor = Monitor.run_with_retries(run_monitor, 'monitor %s' % monitor_name, 5)
+            monitors.append(monitor)
+        except Exception as e:
+            summary_table.add_entry("'%s' Query Failed" % monitor_name, str(e))
+            if options.debug:
+                raise
+
 
     # Generate all outputs
     for monitor in monitors:
         summary_table.toggle_color()
-        output = monitor.report(summary_table, debug=options.debug)
-        if email and output is not None:
-            if isinstance(output, list):
-                for element in output:
-                    email.content.add(element)
-            else:
-                email.content.add(output)
-        attachment_path = monitor.attachment()
-        if attachment_path is not None and email:
-            email.attachments.append(attachment_path)
+        try:
+            output = monitor.report(summary_table, debug=options.debug)
+            if email and output is not None:
+                if isinstance(output, list):
+                    for element in output:
+                        email.content.add(element)
+                else:
+                    email.content.add(output)
+            attachment_path = monitor.attachment()
+            if attachment_path is not None and email:
+                email.attachments.append(attachment_path)
+        except Exception as e:
+            summary_table.add_entry("'%s' Report Failed" % monitor.desc, str(e))
+            if options.debug:
+                raise
+
 
     # Save the HTML and plain text body to files
     end_time_suffix = datetime_tostr(options.end)
