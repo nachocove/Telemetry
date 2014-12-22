@@ -15,6 +15,8 @@ import os.path
 
 class Config:
     def __init__(self, cfg_file):
+        if not os.path.exists(cfg_file):
+            raise ValueError("Config file %s does not exist" % cfg_file)
         self.cfg_file = cfg_file
         self.config = ConfigParser.RawConfigParser()
         if os.path.exists(self.cfg_file):
