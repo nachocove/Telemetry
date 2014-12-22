@@ -155,8 +155,9 @@ class MonitorCost(Monitor):
                 rate = dynamodb_write_rate
 
             summary.add_entry('Total Consumed Average %s/period' % label, pretty_number(total_units_used[k]))
-            summary.add_entry('Per User %s Average/period' % label, pretty_number(total_units_used[k]/self.user_count))
-            summary.add_entry('Cost/%s Per User/period' % label, "$" + pretty_number(self.per_user_cost(total_units_used[k], rate)))
+            if self.user_count:
+                summary.add_entry('Per User %s Average/period' % label, pretty_number(total_units_used[k]/self.user_count))
+                summary.add_entry('Cost/%s Per User/period' % label, "$" + pretty_number(self.per_user_cost(total_units_used[k], self.user_count, rate)))
 
 
         return paragraphs
@@ -165,10 +166,10 @@ class MonitorCost(Monitor):
     def user_count(self):
         return self._get_user_count()
 
-    def per_user_cost(self, units_per_second, rate):
+    def per_user_cost(self, units_per_second, user_count, rate):
         # the rate is per hour. Each sample is a 5 (or rather self.period) minute sample.
         # So we need to normalize the 5 minute samples into the hourly rate.
-        return (units_per_second/self.user_count) * (rate/(60*60/self.period))
+        return (units_per_second/user_count) * (rate/(60*60/self.period))
 
     def attachment(self):
         return None

@@ -82,86 +82,82 @@ does NOT have access to resources it shouldn't have access to.
 """
 from argparse import ArgumentParser
 import copy
+from datetime import datetime
 import json
 import logging
 import sys
 import uuid
 import boto3
 from botocore.exceptions import ClientError
-from AWS.config import AwsConfig
+from AWS.config import AwsConfig, CliFunc
+from AWS.tables import TelemetryTable, LogTable
 from misc.config import Config
+from unittest import TextTestRunner, TestCase, TestLoader
+from misc.utc_datetime import UtcDateTime
 
 logger = logging.getLogger('cognito-setup')
 
-class ArgFunc(object):
+class Boto3CliFunc(CliFunc):
+    def run(self, args, **kwargs):
+        super(Boto3CliFunc, self).run(args, **kwargs)
+        self.session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
+                                             aws_secret_access_key=args.aws_secret_access_key,
+                                             region_name=args.region)
+        if args.boto_debug:
+            self.session._session.set_debug_logger()
+
     class ResponseCheckException(Exception):
         pass
 
-    def add_arguments(self, parser, subparser):
-        pass
-
-    def run(self, session, args, **kwargs):
-        pass
-
     @classmethod
-    def check_response(self, response, status_code=200, expected_keys=None):
+    def check_response(cls, response, status_code=200, expected_keys=None):
         try:
             if response['ResponseMetadata']['HTTPStatusCode'] != status_code:
                 msg=str(response)
-                raise self.ResponseCheckException(msg)
+                raise cls.ResponseCheckException(msg)
         except KeyError:
             msg=str(response)
-            raise self.ResponseCheckException(msg)
+            raise cls.ResponseCheckException(msg)
 
         if expected_keys:
             for k in expected_keys:
                 if not k in response:
                     msg="Missing key %s in response" % k
-                    raise self.ResponseCheckException(msg)
+                    raise cls.ResponseCheckException(msg)
         del response['ResponseMetadata']
         return response
 
-class DeletePools(ArgFunc):
+
+class DeletePools(Boto3CliFunc):
     def add_arguments(self, parser, subparser):
+        super(DeletePools, self).add_arguments(parser, subparser)
         sub = subparser.add_parser('delete-pools')
         sub.add_argument('--name-prefix', help="delete all pools starting with the prefix.", type=str, default='')
         sub.add_argument('--pool-id', help="delete specific pool with id.", type=str, default='')
-        return sub
+        sub.set_defaults(func=self.run)
 
-    def run(self, session, args, **kwargs):
+    def run(self, args, **kwargs):
+        super(DeletePools, self).run(args, **kwargs)
         if not args.name_prefix and not args.pool_id:
             logger.error("Need a name prefix or a pool-id.")
-        self.delete_pools(session, args.pool_id, name_prefix=args.name_prefix, s3_bucket=args.aws_s3_bucket)
-        self.delete_roles(session, args.name_prefix, SetupPool.role_name_path)
+        self.delete_pools(self.session, args.pool_id, name_prefix=args.name_prefix, s3_bucket=args.aws_s3_bucket)
+        self.delete_roles(self.session, args.name_prefix, SetupPool.role_name_path)
         return True
 
     @classmethod
-    def delete_s3_objects(cls, s3_conn, s3_bucket, prefix):
-        s3_marker = None
-        while True:
-            s3_list_kwargs = {'Bucket': s3_bucket, 'Prefix': prefix, 'Delimiter': '/'}
-            if s3_marker:
-                s3_list_kwargs['Marker'] = s3_marker
-            logger.info("Listing Bucket: %s", s3_list_kwargs)
-            response = s3_conn.list_object_versions(**s3_list_kwargs)
+    def delete_s3_objects(cls, bucket, prefix):
+        delete_list = {'Quiet': True,
+                       'Objects': []}
+        if bucket.BucketVersioning().status == 'Enabled':
+            versions = bucket.object_versions.filter(Prefix=prefix)
+            for version in versions:
+                delete_list['Objects'].append({'Key': version.object_key, 'VersionId': version.id})
+        objects = bucket.objects.filter(Prefix=prefix)
+        for object in objects:
+            delete_list['Objects'].append({'Key': object.key})
+        if delete_list['Objects']:
+            response = bucket.delete_objects(Delete=delete_list)
             cls.check_response(response)
-            if 'Versions' not in response:
-                break
-
-            s3_marker = response.get('VersionIdMarker', None)
-            delete_dict = {'Quiet': True,
-                           'Objects': [],
-                           }
-            for k in response['Contents']:
-                k_dict = {'Key': k['Key']}
-                if 'VersionId' in k:
-                    k_dict['VersionId'] = k['VersionId']
-                delete_dict['Objects'].append(k_dict)
-            response = s3_conn.delete_objects(Bucket=s3_bucket, Delete=delete_dict)
-            cls.check_response(response)
-            if not s3_marker:
-                break
-        return True
 
     @classmethod
     def delete_s3_user_resources(cls, session, pool_id, s3_bucket, bucket_prefix):
@@ -180,19 +176,7 @@ class DeletePools(ArgFunc):
             for cognito_id in identity_list:
                 prefix = "/".join([bucket_prefix, cognito_id['IdentityId'], ''])
                 logger.info("DELETE_S3_FILES: cognito-id: %s, s3://%s/%s", cognito_id, s3_bucket, prefix)
-                delete_list = {'Quiet': True,
-                               'Objects': []}
-                if bucket.BucketVersioning().status == 'Enabled':
-                    versions = bucket.object_versions.filter(Prefix=prefix)
-                    for version in versions:
-                        delete_list['Objects'].append({'Key': version.object_key, 'VersionId': version.id})
-                objects = bucket.objects.filter(Prefix=prefix)
-                for object in objects:
-                    delete_list['Objects'].append({'Key': object.key})
-                if delete_list['Objects']:
-                    response = bucket.delete_objects(Delete=delete_list)
-                    cls.check_response(response)
-
+                cls.delete_s3_objects(bucket, bucket_prefix)
             if not next_token:
                 break
 
@@ -240,15 +224,16 @@ class DeletePools(ArgFunc):
             count += 1
         logger.info("DELETE_ROLES: %d roles deleted", count)
 
-class ListPools(ArgFunc):
+class ListPools(Boto3CliFunc):
     def add_arguments(self, parser, subparser):
         list_parser = subparser.add_parser('list-pools')
         list_parser.add_argument('--list-ids', help="List all ids. Could be a lot.",
                                  action='store_true', default=False)
-        return list_parser
+        list_parser.set_defaults(func=self.run)
 
-    def run(self, session, args, **kwargs):
-        conn = session.client('cognito-identity')
+    def run(self, args, **kwargs):
+        super(ListPools, self).run(args, **kwargs)
+        conn = self.session.client('cognito-identity')
         logger.setLevel(logging.INFO)
 
         identity_pools = conn.list_identity_pools(MaxResults=60)
@@ -269,7 +254,7 @@ class ListPools(ArgFunc):
                     id_list = [x['IdentityId'] for x in ids['Identities']]
                     logger.info(",".join(id_list))
                     next_token = ids['NextToken']
-        iam = session.client('iam')
+        iam = self.session.client('iam')
         response = iam.list_roles()
         self.check_response(response, expected_keys=('Roles',))
         logger.info("Roles:")
@@ -279,7 +264,7 @@ class ListPools(ArgFunc):
         return True
 
 
-class SetupPool(ArgFunc):
+class SetupPool(Boto3CliFunc):
     """
     Sets up everything needed for a NachoMail Cognito setup.
 
@@ -362,26 +347,34 @@ class SetupPool(ArgFunc):
         sub.add_argument('--s3-bucket-prefix', help='The nachomail accessible per-id bucket',
                                         default=self.default_bucket_prefix)
         sub.add_argument('--aws_prefix', help='The aws project prefix', default='dev')
-        return sub
+        sub.set_defaults(func=self.run)
 
-    def run(self, session, args, **kwargs):
+    def run(self, args, **kwargs):
+        super(SetupPool, self).run(args, **kwargs)
         unauth_policy_supported = False if args.no_unauth else True
         auth_policy_supported = False if args.no_auth else True
-        pool = self.create_identity_pool(session, args.name,
-                                         developer_provider_name=args.developer_provider_name,
+        return self.setup_cognito(self.session, args.name, unauth_policy_supported, auth_policy_supported,
+                                  args.developer_provider_name, args.aws_s3_bucket, args.s3_bucket_prefix,
+                                  args.aws_account_id, args.aws_prefix)
+
+    def setup_cognito(self, session, name, unauth_policy_supported, auth_policy_supported, developer_provider_name,
+                      aws_s3_bucket, s3_bucket_prefix, aws_account_id, aws_prefix):
+        pool = self.create_identity_pool(session, name,
+                                         developer_provider_name=developer_provider_name,
                                          unauth_policy_supported=unauth_policy_supported)
         if not pool:
             logger.error("Could not create pool.")
             return False
-        self.create_or_adjust_s3_bucket(session, args.aws_s3_bucket)
-        self.create_identity_roles_and_policy(session, pool, args.aws_account_id,
+        self.create_or_adjust_s3_bucket(session, aws_s3_bucket)
+        self.create_identity_roles_and_policy(session, pool, aws_account_id,
                                               self.role_name_path,
-                                              [x % {'project': args.aws_prefix} for x in self.default_dynamo_tables],
-                                              args.aws_s3_bucket,
-                                              args.s3_bucket_prefix,
+                                              [x % {'project': aws_prefix} for x in self.default_dynamo_tables],
+                                              aws_s3_bucket,
+                                              s3_bucket_prefix,
                                               unauth_policy_supported=unauth_policy_supported,
                                               auth_policy_supported=auth_policy_supported)
         return True
+
 
     @classmethod
     def create_or_adjust_s3_bucket(cls, session, bucket_name, path_prefix=None):
@@ -506,10 +499,10 @@ class SetupPool(ArgFunc):
                                           s3_object_permissions, s3_bucket_permissions)
 
         if auth_policy_supported:
-            roles_created.append(cls.create_cognito_role(pool, iam, cls.role_name_path, statements, auth=True))
+            roles_created.append(cls.create_cognito_role(pool, iam, role_path, statements, auth=True))
 
         if unauth_policy_supported:
-            roles_created.append(cls.create_cognito_role(pool, iam, cls.role_name_path, statements, auth=False))
+            roles_created.append(cls.create_cognito_role(pool, iam, role_path, statements, auth=False))
 
         if not roles_created:
             logger.error("No roles created")
@@ -536,18 +529,19 @@ class SetupPool(ArgFunc):
                                                                           'PathPrefix': bucket_path_prefix}))
         return statements
 
-class TestAccess(ArgFunc):
+class TestAccess(Boto3CliFunc):
     def add_arguments(self, parser, subparser):
-        sub = subparser.add_parser('test-access')
+        sub = subparser.add_parser('test-pool')
         sub.add_argument('name', help='the identity pool name')
         sub.add_argument('--s3-bucket', help='The nachomail accessible per-id bucket',
                                         default=None)
         sub.add_argument('--s3-bucket-prefix', help='The nachomail accessible per-id bucket',
                                         default=SetupPool.default_bucket_prefix)
-        return sub
+        sub.set_defaults(func=self.run)
 
-    def run(self, session, args, **kwargs):
-        conn = session.client('cognito-identity')
+    def run(self, args, **kwargs):
+        super(TestAccess, self).run(args, **kwargs)
+        conn = self.session.client('cognito-identity')
         response = conn.list_identity_pools(MaxResults=60)
         id_pools = self.check_response(response, expected_keys=('IdentityPools',))
         pool = None
@@ -559,163 +553,203 @@ class TestAccess(ArgFunc):
             logger.error("Could not find identity pool with name %s", args.name)
             return False
 
-        iam = session.client('iam')
+        iam = self.session.client('iam')
 
         response = iam.list_roles(PathPrefix=SetupPool.role_name_path)
-        roles = self.check_response(response, expected_keys=('Roles',))
-        role = None
-        look_for = pool['IdentityPoolName'] + "_UnAuth"
-        for r in roles['Roles']:
-            if r['RoleName'].startswith(look_for):
-                role = r
-                break
-        if not role:
+        response = self.check_response(response, expected_keys=('Roles',))
+        roles = {'Auth': None,
+                 'UnAuth': None}
+        for r in response['Roles']:
+            if r['RoleName'].startswith(pool['IdentityPoolName'] + "_UnAuth"):
+                roles['UnAuth'] = r
+            elif r['RoleName'].startswith(pool['IdentityPoolName'] + "_Auth"):
+                roles['Auth'] = r
+        if not roles or set(roles.keys()) != {'Auth', 'UnAuth'}:
             logger.error("Could not find role for Identity Pool")
             return False
 
-        anon_session = boto3.session.Session(aws_access_key_id='', aws_secret_access_key='', region_name=args.region)
-        anon_session._session.set_credentials(access_key='', secret_key='')
-        anon_conn = anon_session.client('cognito-identity')
-        response = anon_conn.get_id(AccountId=args.aws_account_id, IdentityPoolId=pool['IdentityPoolId'])
-        self.check_response(response, expected_keys=('IdentityId',))
-        my_id = response['IdentityId']
-        logger.info("Got Cognito ID: %s", my_id)
-        test_bucket = None
-        try:
-            s3 = session.resource('s3')
-            test_bucket = s3.Bucket('SomeTestBucket' + uuid.uuid4().hex)
-            test_bucket.create()
-            response = anon_conn.get_open_id_token(IdentityId=my_id)
-            self.check_response(response, expected_keys=('Token',))
-            assert(response['IdentityId'] == my_id)
-            my_open_id_token = response['Token']
+        class TestCases(TestCase):
+            test_bucket = None
+            dynamo_created_items = None
+            dynamodb_root = None
+            nacho_bucket = None
+            prefix = None
 
-            sts_conn = anon_session.client('sts')
-            session_name = 'anon-test-access'
-            response = sts_conn.assume_role_with_web_identity(RoleArn=role['Arn'],
+            @classmethod
+            def setUpClass(cls):
+                s3 = self.session.resource('s3')
+                cls.nacho_bucket = s3.Bucket(args.aws_s3_bucket)
+                cls.test_bucket = s3.Bucket('SomeTestBucket' + uuid.uuid4().hex)
+                cls.test_bucket.create()
+                dynamo_session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
+                                                        aws_secret_access_key=args.aws_secret_access_key,
+                                                        region_name='us-west-2')
+
+                cls.dynamodb_root = dynamo_session.client('dynamodb')
+
+
+                anon_session = boto3.session.Session(aws_access_key_id='', aws_secret_access_key='', region_name=args.region)
+                anon_session._session.set_credentials(access_key='', secret_key='')
+                anon_conn = anon_session.client('cognito-identity')
+                cls.my_id = cls.get_id(anon_conn)
+                logger.info("Got Cognito ID: %s", cls.my_id)
+
+                cls.my_open_id_token = cls.get_openid_token(anon_conn, cls.my_id)
+
+                cls.sts_conn = anon_session.client('sts')
+                cls.my_creds = cls.get_temporary_creds(cls.sts_conn, cls.my_open_id_token, roles['UnAuth']['Arn'])
+                if cls.my_creds['SubjectFromWebIdentityToken'] != cls.my_id:
+                    logger.warn("SubjectFromWebIdentityToken %s != my id %s", cls.my_creds['SubjectFromWebIdentityToken'], cls.my_id)
+
+                cls.new_session = boto3.session.Session(aws_access_key_id=cls.my_creds['Credentials']['AccessKeyId'],
+                                                        aws_secret_access_key=cls.my_creds['Credentials']['SecretAccessKey'],
+                                                        aws_session_token=cls.my_creds['Credentials']['SessionToken'],
+                                                        region_name=args.region)
+                cls.s3_conn = cls.new_session.client('s3')
+
+                dynamo_session = boto3.session.Session(aws_access_key_id=cls.my_creds['Credentials']['AccessKeyId'],
+                                                    aws_secret_access_key=cls.my_creds['Credentials']['SecretAccessKey'],
+                                                    aws_session_token=cls.my_creds['Credentials']['SessionToken'],
+                                                    region_name='us-west-2')
+                cls.dynamodb = dynamo_session.client('dynamodb')
+                cls.prefix = "/".join([args.s3_bucket_prefix, cls.my_id, ''])
+                TelemetryTable.PREFIX = args.aws_prefix
+                cls.dynamo_created_items = []
+
+            @classmethod
+            def get_id(cls, conn):
+                response = conn.get_id(AccountId=args.aws_account_id, IdentityPoolId=pool['IdentityPoolId'])
+                TestAccess.check_response(response, expected_keys=('IdentityId',))
+                return response['IdentityId']
+
+            @classmethod
+            def get_openid_token(cls, conn, my_id):
+                response = conn.get_open_id_token(IdentityId=my_id)
+                TestAccess.check_response(response, expected_keys=('Token',))
+                assert(response['IdentityId'] == my_id)
+                return response['Token']
+
+            @classmethod
+            def get_temporary_creds(cls, conn, openid_token, role_arn, session_name='anon-test-access'):
+                response = conn.assume_role_with_web_identity(RoleArn=role_arn,
                                                               RoleSessionName=session_name,
-                                                              WebIdentityToken=my_open_id_token,
+                                                              WebIdentityToken=openid_token,
                                                               )
-            self.check_response(response, expected_keys=('Credentials',))
-            if response['SubjectFromWebIdentityToken'] != my_id:
-                logger.warn("SubjectFromWebIdentityToken %s != my id %s", response['Audience'], my_id)
-            my_creds = response
+                TestAccess.check_response(response, expected_keys=('Credentials',))
+                return response
 
-            new_session = boto3.session.Session(aws_access_key_id=my_creds['Credentials']['AccessKeyId'],
-                                                aws_secret_access_key=my_creds['Credentials']['SecretAccessKey'],
-                                                aws_session_token=my_creds['Credentials']['SessionToken'],
-                                                region_name=args.region)
-            s3_conn = new_session.client('s3')
+            @classmethod
+            def tearDownClass(cls):
+                # clean up
+                # don't bother cleaning up the identity, since it's an unauth'd id, and it can't be unlinked.
+                logger.info('Cleaning up S3 items created')
+                if cls.test_bucket:
+                    cls.test_bucket.delete()
 
-            #
-            # NEGATIVE S3 Tests.
-            #
-            try:
-                logger.info('Testing Bucket listing of all buckets')
-                s3_conn.list_buckets()
-                logger.error("Should not have been able to do that!")
-            except ClientError as e:
-                if not 'AccessDenied' in str(e):
-                    import traceback
-                    logger.error("%s\n%s", e, traceback.format_exc())
+                DeletePools.delete_s3_objects(cls.nacho_bucket, cls.prefix)
 
-            try:
-                logger.info('Testing Bucket listing of all objects in bucket real bucket %s' % args.aws_s3_bucket)
-                s3_conn.list_objects(Bucket=args.aws_s3_bucket, MaxKeys=60)
-                logger.error("Should not have been able to do that!")
-            except ClientError as e:
-                if not 'AccessDenied' in str(e):
-                    import traceback
-                    logger.error("%s\n%s", e, traceback.format_exc())
+                logger.info('Cleaning up DynamoDB items created')
+                for x in cls.dynamo_created_items:
+                    cls.dynamodb_root.delete_item(TableName=x['TableName'], Key={'id': x['Item']['id']})
+                # query = Query()
+                # query.add('event_type', SelectorEqual('DEBUG'))
+                # query.add_range('uploaded_at', self.start, self.end)
+                #
+                # self.events, self.event_count = self.query_all(query)
 
-            try:
-                logger.info('Testing Bucket listing of all objects in some other bucket: %s' % test_bucket.name)
-                s3_conn.list_objects(Bucket=test_bucket.name, MaxKeys=60)
-                logger.error("Should not have been able to do that!")
-            except ClientError as e:
-                if not 'AccessDenied' in str(e):
-                    import traceback
-                    logger.error("%s\n%s", e, traceback.format_exc())
+            @classmethod
+            def check_response(cls, response, status_code=200, expected_keys=None):
+                return TestAccess.check_response(response, status_code=status_code, expected_keys=expected_keys)
 
-            assert(args.s3_bucket_prefix)  # if this isn't set, we might rethink some tests
-            try:
-                logger.info('Testing Bucket listing of all objects in bucket with prefix %s (no slash)' % args.s3_bucket_prefix)
-                s3_conn.list_objects(Bucket=args.aws_s3_bucket, MaxKeys=60, Prefix=args.s3_bucket_prefix)
-                logger.error("Should not have been able to do that!")
-            except ClientError as e:
-                if not 'AccessDenied' in str(e):
-                    import traceback
-                    logger.error("%s\n%s", e, traceback.format_exc())
-
-            bad_prefix = "/".join([args.s3_bucket_prefix, my_id])+"1233456"
-            try:
-                logger.info('Testing Bucket listing of all objects in bucket with a bad prefix (extra string on end): %s' % bad_prefix)
-                s3_conn.put_object(Bucket=args.aws_s3_bucket, Key=bad_prefix)
-                logger.error("Should not have been able to do that!")
-            except ClientError as e:
-                    if not 'AccessDenied' in str(e):
-                        import traceback
-                        logger.error("%s\n%s", e, traceback.format_exc())
-
-            #
-            # POSITIVE S3 Tests. These should work.
-            #
-
-            prefix = "/".join([args.s3_bucket_prefix, my_id, ''])
-            # try:
-            #     response = s3_conn.put_object(Bucket=args.aws_s3_bucket, Key=prefix)
-            #     if response['ResponseMetadata']['HTTPStatusCode'] != 200:
-            #         print response
-            #         raise ClientError(response, 'PutObject')
-            # except ClientError as e:
-            #     print "Could not access what I should be able to access!: PutObject s3://%s/%s" % (args.aws_s3_bucket, prefix)
-            #     print e
-            #     return False
-
-            file = prefix + "somerandomfile.txt"
-            file_body = "foo12345\n"
-            try:
-                logger.info('Testing PutObject into bucket with prefix: %s' % file)
-                response = s3_conn.put_object(Bucket=args.aws_s3_bucket, Key=file, Body=file_body)
-                self.check_response(response)
-            except ClientError as e:
-                logger.error("Could not access what I should be able to access!: PutObject s3://%s/%s", args.aws_s3_bucket, prefix)
-                import traceback
-                logger.error("%s\n%s", e, traceback.format_exc())
-
-            try:
-                logger.info('Testing GetObject from bucket with prefix: %s' % file)
-                response = s3_conn.get_object(Bucket=args.aws_s3_bucket, Key=file)
-                self.check_response(response, expected_keys=('Body',))
-                if response['Body'].read() != file_body:
-                    logger.error('Contents of file are not the same')
-            except ClientError as e:
-                logger.error("Could not access what I should be able to access!: PutObject s3://%s/%s", args.aws_s3_bucket, prefix)
-                import traceback
-                logger.error("%s\n%s", e, traceback.format_exc())
-
-            try:
-                logger.info('Testing Bucket listing of all objects in bucket with correct prefix (with slash)')
-                response = s3_conn.list_objects(Bucket=args.aws_s3_bucket, MaxKeys=60, Prefix=prefix)
-                self.check_response(response)
-            except ClientError as e:
-                logger.error("Could not access what I should be able to access!: ListBucket s3://%s/%s", args.aws_s3_bucket, prefix)
-                import traceback
-                logger.error("%s\n%s", e, traceback.format_exc())
+            def raisesClientError(self, error, func, *args, **kwargs):
+                try:
+                    func(*args, **kwargs)
+                    raise Exception('Should not have succeeded')
+                except ClientError as e:
+                    self.assertIn(error, str(e))
 
 
-        except Exception as e:
-            import traceback
-            logger.error("%s\n%s", e, traceback.format_exc())
+            def test_pick_auth_role_denied(self):
+                self.raisesClientError('AccessDenied', self.get_temporary_creds, self.sts_conn, self.my_open_id_token, roles['Auth']['Arn'])
 
-        finally:
-            # clean up
-            # don't bother cleaning up the identity, since it's an unauth'd id, and it can't be unlinked.
-            if test_bucket:
-                test_bucket.delete()
-        return True
+            def test_pick_unauth_role(self):
+                self.assertTrue(self.get_temporary_creds(self.sts_conn, self.my_open_id_token, roles['UnAuth']['Arn']))
 
+            def test_bucket_listing_denied(self):
+                self.assertTrue(args.s3_bucket_prefix)  # if this isn't set, we might rethink some tests
+                self.raisesClientError('AccessDenied', self.s3_conn.list_buckets)
+                self.raisesClientError('AccessDenied', self.s3_conn.list_objects, Bucket=args.aws_s3_bucket, MaxKeys=60)
+                self.raisesClientError('AccessDenied', self.s3_conn.list_objects, Bucket=self.test_bucket.name, MaxKeys=60)
+                self.raisesClientError('AccessDenied', self.s3_conn.list_objects, Bucket=args.aws_s3_bucket, MaxKeys=60, Prefix=args.s3_bucket_prefix)
 
+            def test_put_object_denied(self):
+                bad_prefix = "/".join([args.s3_bucket_prefix, self.my_id])+"1233456"
+                self.raisesClientError('AccessDenied', self.s3_conn.put_object, Bucket=args.aws_s3_bucket, Key=bad_prefix)
+
+            def test_get_create_file(self):
+                response = self.s3_conn.put_object(Bucket=args.aws_s3_bucket, Key=self.prefix)
+                self.assertTrue(self.check_response(response))
+
+                file = self.prefix + "somerandomfile.txt"
+                file_body = "foo12345\n"
+                response = self.s3_conn.put_object(Bucket=args.aws_s3_bucket, Key=file, Body=file_body)
+                self.assertTrue(self.check_response(response))
+
+                response = self.s3_conn.get_object(Bucket=args.aws_s3_bucket, Key=file)
+                self.assertTrue(self.check_response(response, expected_keys=('Body',)))
+                self.assertEqual(response['Body'].read(), file_body)
+
+            def test_list_files(self):
+                response = self.s3_conn.list_objects(Bucket=args.aws_s3_bucket, MaxKeys=60, Prefix=self.prefix)
+                self.assertTrue(self.check_response(response))
+
+            def test_dynamo_table_create_denied(self):
+                self.raisesClientError('AccessDeniedException',
+                                       self.dynamodb.create_table,
+                                       AttributeDefinitions=[{'AttributeName': 'Foo', 'AttributeType': 'Bar',}],
+                                       TableName='foo',
+                                       KeySchema=[{'AttributeName': 'Foo', 'KeyType': 'Bar'}],
+                                       ProvisionedThroughput={'ReadCapacityUnits': 10, 'WriteCapacityUnits': 10})
+
+            def test_dynamo_table_list_denied(self):
+                self.raisesClientError('AccessDeniedException', self.dynamodb.list_tables)
+
+            def test_dynamo_write(self):
+                log_table_name = TelemetryTable.full_table_name('log')
+                now = str(UtcDateTime(datetime.now()).toticks())
+                item = LogTable.format_item(client=self.my_id,
+                                            timestamp=now,
+                                            uploaded_at=now,
+                                            event_type='DEBUG',
+                                            message='Test Message from Telemetry.scripts.AWS.cognito.TestAccess',
+                                            thread_id=12)
+                response = self.dynamodb.put_item(TableName=log_table_name, Item=item)
+                self.assertEqual(self.check_response(response), {}) # the reply is empty, so assertTrue won't work
+                self.dynamo_created_items.append({'TableName': log_table_name,
+                                                  'Item': item})
+
+            def test_dynamo_delete_denied(self):
+                log_table_name = TelemetryTable.full_table_name('log')
+                now = str(UtcDateTime(datetime.now()).toticks())
+                item = LogTable.format_item(client=self.my_id,
+                                            timestamp=now,
+                                            uploaded_at=now,
+                                            event_type='DEBUG',
+                                            message='Test Message from Telemetry.scripts.AWS.cognito.TestAccess',
+                                            thread_id=12)
+                response = self.dynamodb.put_item(TableName=log_table_name, Item=item)
+                self.assertEqual(self.check_response(response), {}) # the reply is empty, so assertTrue won't work
+                self.dynamo_created_items.append({'TableName': log_table_name,
+                                                  'Item': item})
+
+                self.raisesClientError('AccessDeniedException',
+                                       self.dynamodb.delete_item,
+                                       TableName=log_table_name,
+                                       Key={'id': item['id']})
+
+        suite = TestLoader().loadTestsFromTestCase(TestCases)
+        runner = TextTestRunner(verbosity=2)
+        runner.run(suite)
 
 def main():
     sub_modules = (ListPools(),
@@ -732,7 +766,8 @@ def main():
                         help='AWS access key id',
                         dest='aws_access_key_id',
                         default=None)
-    parser.add_argument('--aws-account-id', help='AWS Account ID. A number.', default='610813048224')
+    parser.add_argument('--aws-account-id', help='AWS Account ID. A number.', default=None)
+    parser.add_argument('--prefix', help='AWS project prefix.', default=None, dest='aws_prefix')
     parser.add_argument('--region', help='Set the region for the connection. Default: us-east-1', default='us-east-1', type=str)
     parser.add_argument('--config', '-c',
                        help='Configuration that contains an AWS section',
@@ -743,8 +778,7 @@ def main():
     subparser = parser.add_subparsers()
 
     for sub in sub_modules:
-        s = sub.add_arguments(parser, subparser)
-        s.set_defaults(func=sub.run)
+        sub.add_arguments(parser, subparser)
 
     logger.setLevel(logging.DEBUG)
     args = parser.parse_args()
@@ -772,13 +806,7 @@ def main():
 
     logger.info("Using AWS Key Id %s" % args.aws_access_key_id)
 
-    session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
-                                    aws_secret_access_key=args.aws_secret_access_key,
-                                    region_name=args.region)
-    if args.boto_debug:
-        session._session.set_debug_logger()
-
-    ret = args.func(session, args)
+    ret = args.func(args)
     if ret is None:
         sys.exit(0)
 

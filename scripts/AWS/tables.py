@@ -1,3 +1,4 @@
+import uuid
 from boto.dynamodb2.table import Table
 from boto.dynamodb2.fields import HashKey, RangeKey, GlobalAllIndex
 from boto.dynamodb2.types import NUMBER, STRING
@@ -17,6 +18,7 @@ class TelemetryTable(Table):
     COMMON_FIELD_NAMES = ['id', 'client', 'timestamp', 'uploaded_at']
     CLIENT_TIMESTAMP_INDEX = 'index.client-timestamp'
     EVENT_TYPE_UPLOADED_AT_INDEX = 'index.event_type-uploaded_at'
+    TABLE_THROUGHPUT = {'read': 5, 'write': 5}
 
     def __init__(self, connection, table_name):
         Table.__init__(self, table_name=TelemetryTable.full_table_name(table_name),
@@ -24,7 +26,7 @@ class TelemetryTable(Table):
 
     @staticmethod
     def full_table_name(table):
-        if TelemetryTable.PREFIX is None:
+        if not TelemetryTable.PREFIX:
             raise ValueError('Prefix is not set yet.')
         return TelemetryTable.PREFIX + '.telemetry.' + table
 
@@ -41,6 +43,9 @@ class TelemetryTable(Table):
     @classmethod
     def _create(cls, connection, local_secondary_indexes=None, global_secondary_indexes=None, throughput=None,
                 polling_fn=None):
+        if throughput is None:
+            throughput = cls.TABLE_THROUGHPUT
+
         # Schema is common for all tables - hash key on client id and range key on timestamp
         schema = [
             HashKey('id', data_type=STRING),
@@ -221,10 +226,20 @@ class TelemetryTable(Table):
                 return cls
         return TelemetryTable
 
+    @classmethod
+    def format_item(cls, client, timestamp, uploaded_at, **kwargs):
+        item = {'client': {'S': str(client)},
+                'timestamp': {'N': str(timestamp)},
+                'uploaded_at': {'N': str(uploaded_at)},
+                'id': {'S': uuid.uuid4().hex},
+                }
+        for k in cls.FIELD_NAMES:
+            item[k] = {'S': str(kwargs[k])}
+        return item
 
 class DeviceInfoTable(TelemetryTable):
     TABLE_NAME = 'device_info'
-    FIELDS_NAMES = ['os_type', 'os_version', 'device_model', 'build_version', 'build_number']
+    FIELD_NAMES = ['os_type', 'os_version', 'device_model', 'build_version', 'build_number', 'device_id']
 
     def __init__(self, connection):
         TelemetryTable.__init__(self, connection=connection, table_name=DeviceInfoTable.TABLE_NAME)
@@ -237,7 +252,7 @@ class DeviceInfoTable(TelemetryTable):
 class LogTable(TelemetryTable):
     TABLE_NAME = 'log'
     EVENT_TYPES = ['ERROR', 'WARN', 'INFO', 'DEBUG']
-    FIELD_NAMES = ['event_type', 'message']
+    FIELD_NAMES = ['event_type', 'message', 'thread_id']
     EVENT_TYPE_TIMESTAMP_INDEX = 'index.event_type-timestamp'
 
     def __init__(self, connection):
@@ -333,7 +348,7 @@ class CounterTable(TelemetryTable):
 class CaptureTable(TelemetryTable):
     TABLE_NAME = 'capture'
     EVENT_TYPES = ['CAPTURE']
-    FIELD_NAMES = ['event_type', 'capture_name', 'count', 'min', 'max', 'average', 'stddev']
+    FIELD_NAMES = ['event_type', 'capture_name', 'count', 'min', 'max', 'sum', 'sum2']
     CAPTURE_NAME_TIMESTAMP_INDEX = 'index.capture_name-timestamp'
 
     def __init__(self, connection):

@@ -102,7 +102,9 @@ def _parse_junk(junk, mapping):
 
 
 def _parse_crash_report(junk):
-    dict_ = _parse_junk(junk, {'Device ID': 'device_id', 'Date/Time': 'timestamp'})
+    dict_ = _parse_junk(junk, {'Device ID': 'device_id',
+                               'Date/Time': 'timestamp',
+                               'Launch Time': 'timestamp'})
     if 'device_id' in dict_ and 'timestamp' in dict_:
         return dict_
     return None
@@ -323,6 +325,29 @@ def entry_page_legacy(request, client='', timestamp='', span=str(default_span)):
         project = projects[0]
     return entry_page(request, project, client=client, timestamp=timestamp, span=span)
 
+def ctrl_url(client, time, span, project):
+    return reverse(entry_page, kwargs={'client': client,
+                                       'timestamp': time,
+                                       'span': span,
+                                       'project': project})
+
+def calc_spread(after, before, span=default_span, center=None):
+    if not isinstance(after, datetime):
+        after = dateutil.parser.parse(after)
+    if not isinstance(before, datetime):
+        before = dateutil.parser.parse(before)
+    span = int(span)
+    if center is None:
+        diff = (before - after)/2
+        center = after + diff
+    spread = timedelta(minutes=int(span))
+    go_earlier = after - spread
+    go_later = before + spread
+    iso_center = _iso_z_format(center)
+    iso_go_earlier = _iso_z_format(go_earlier)
+    iso_go_later = _iso_z_format(go_later)
+    return iso_go_earlier, iso_center, iso_go_later
+
 @nachotoken_required
 def entry_page(request, project='', client='', timestamp='', span=str(default_span)):
     logger = logging.getLogger('telemetry').getChild('entry_page')
@@ -333,33 +358,25 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
     spread = timedelta(minutes=int(span))
     after = center - spread
     before = center + spread
-    go_earlier = after - spread
-    go_later = before + spread
 
     context = entry_page_base(project, client, after, before, logger)
 
-    iso_center = _iso_z_format(center)
-    iso_go_earlier = _iso_z_format(go_earlier)
-    iso_go_later = _iso_z_format(go_later)
+    iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=span, center=center)
+
     # Add buttons
-    def ctrl_url(client_, time_, span_):
-        return reverse(entry_page, kwargs={'client': client_,
-                                           'timestamp': time_,
-                                           'span': span_,
-                                           'project': project})
     context['buttons'] = []
     zoom_in_span = max(1, span/2)
     context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
-                               'url': ctrl_url(client, iso_center, zoom_in_span),
+                               'url': ctrl_url(client, iso_center, zoom_in_span, project),
                                })
     context['buttons'].append({'text': 'Zoom out (%d min)' % (span*2),
-                               'url': ctrl_url(client, iso_center, span*2),
+                               'url': ctrl_url(client, iso_center, span*2, project),
                                })
-    context['buttons'].append({'text': 'Go back %d min' % (2*span),
-                               'url': ctrl_url(client, iso_go_earlier, span),
+    context['buttons'].append({'text': 'Go back %d min' % span,
+                               'url': ctrl_url(client, iso_go_earlier, span, project),
                                })
-    context['buttons'].append({'text': 'Go forward %d min' % (2*span),
-                               'url': ctrl_url(client, iso_go_later, span),
+    context['buttons'].append({'text': 'Go forward %d min' % span,
+                               'url': ctrl_url(client, iso_go_later, span, project),
                                })
     context['body_args'] = 'onload=refresh()'
     return render_to_response('entry_page.html', context,
@@ -369,6 +386,21 @@ def entry_page_by_timestamps(request, project, client='', after='', before=''):
     logger = logging.getLogger('telemetry').getChild('entry_page')
     logger.info('client=%s, after=%s, before=%s', client, after, before)
     context = entry_page_base(project, client, after, before, logger)
+    iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=default_span, center=None)
+    context['buttons'] = []
+    zoom_in_span = max(1, default_span/2)
+    context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
+                               'url': ctrl_url(client, iso_center, zoom_in_span, project),
+                               })
+    context['buttons'].append({'text': 'Zoom out (%d min)' % (default_span*2),
+                               'url': ctrl_url(client, iso_center, default_span*2, project),
+                               })
+    context['buttons'].append({'text': 'Go back %d min' % default_span,
+                               'url': ctrl_url(client, iso_go_earlier, default_span, project),
+                               })
+    context['buttons'].append({'text': 'Go forward %d min' % default_span,
+                               'url': ctrl_url(client, iso_go_later, default_span, project),
+                               })
     context['body_args'] = 'onload=refresh()'
     return render_to_response('entry_page.html', context,
                               context_instance=RequestContext(request))
