@@ -205,3 +205,4 @@ class ShowTableCost(DynamoDbCliFunc):
                                              format_cost(total_write_cost))
         print '\nTotal number of units = %d' % (total_read_units + total_write_units)
         print 'Total cost = %s' % format_cost(total_read_cost + total_write_cost)
+        print '(all costs are for 31 days).'
