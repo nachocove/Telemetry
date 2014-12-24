@@ -19,6 +19,8 @@ import json
 import ConfigParser
 from django.template import RequestContext
 from django.utils.decorators import available_attrs
+from django.views.decorators.cache import cache_control
+from django.views.decorators.vary import vary_on_cookie
 
 sys.path.append('../scripts')
 
@@ -140,6 +142,18 @@ def nachotoken_required(view_func):
             return view_func(request, *args, **kwargs)
         else:
             return HttpResponseRedirect(settings.LOGIN_URL)
+    return _wrapped_view
+
+def nacho_cache(view_func):
+    """
+    A convenient function where to adjust cache settings for all cached pages. If we later
+    want to add 304 processing or server-side caching, just add it here.
+    """
+    @wraps(view_func, assigned=available_attrs(view_func))
+    @cache_control(private=True, must_revalidate=True, proxy_revalidate=True, max_age=3600)
+    @vary_on_cookie
+    def _wrapped_view(request, *args, **kwargs):
+        return view_func(request, *args, **kwargs)
     return _wrapped_view
 
 # Create your views here.
@@ -319,6 +333,7 @@ def json_formatter(obj):
         raise TypeError, 'Object of type %s with value of %s is not JSON serializable' % (type(obj), repr(obj))
 
 @nachotoken_required
+@nacho_cache
 def entry_page_legacy(request, client='', timestamp='', span=str(default_span)):
     project = os.environ.get('PROJECT', '')
     if not project:
@@ -349,6 +364,7 @@ def calc_spread(after, before, span=default_span, center=None):
     return iso_go_earlier, iso_center, iso_go_later
 
 @nachotoken_required
+@nacho_cache
 def entry_page(request, project='', client='', timestamp='', span=str(default_span)):
     logger = logging.getLogger('telemetry').getChild('entry_page')
     logger.info('client=%s, timestamp=%s, span=%s', client, timestamp, span)
@@ -382,6 +398,8 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
     return render_to_response('entry_page.html', context,
                               context_instance=RequestContext(request))
 
+@nachotoken_required
+@nacho_cache
 def entry_page_by_timestamps(request, project, client='', after='', before=''):
     logger = logging.getLogger('telemetry').getChild('entry_page')
     logger.info('client=%s, after=%s, before=%s', client, after, before)
