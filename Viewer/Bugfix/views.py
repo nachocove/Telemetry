@@ -1,11 +1,19 @@
+import sys
+sys.path.append('../scripts')
+
 import base64
 from functools import wraps
 from gettext import gettext as _
 import hashlib
 import os
-import sys
-import dateutil.parser
+from urllib import urlencode
 from datetime import timedelta, datetime
+import logging
+import cgi
+import json
+import ConfigParser
+
+import dateutil.parser
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
@@ -13,22 +21,18 @@ from django.http import HttpResponseBadRequest
 from django import forms
 from django.shortcuts import render, render_to_response
 from django.http import HttpResponseRedirect
-import logging
-import cgi
-import json
-import ConfigParser
 from django.template import RequestContext
 from django.utils.decorators import available_attrs
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
 
-sys.path.append('../scripts')
+
 
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorLessThanEqual
+from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorStartsWith
 from AWS.tables import TelemetryTable
 from monitors.monitor_base import Monitor
 from misc.support import Support
@@ -106,14 +110,19 @@ def _parse_junk(junk, mapping):
 def _parse_crash_report(junk):
     dict_ = _parse_junk(junk, {'Device ID': 'device_id',
                                'Date/Time': 'timestamp',
-                               'Launch Time': 'timestamp'})
+                               'Launch Time': 'timestamp',
+                               'message': 'message',
+                               })
     if 'device_id' in dict_ and 'timestamp' in dict_:
         return dict_
     return None
 
 
 def _parse_error_report(junk):
-    dict_ = _parse_junk(junk, {'timestamp': 'timestamp', 'client': 'client'})
+    dict_ = _parse_junk(junk, {'timestamp': 'timestamp',
+                               'client': 'client',
+                               'message': 'message',
+                               })
     if 'timestamp' in dict_ and 'client' in dict_:
         return dict_
     return None
@@ -182,10 +191,13 @@ def logout(request):
 
 def process_error_report(request, project, form, loc, logger):
     loc['span'] = str(default_span)
-    return HttpResponseRedirect(reverse(entry_page, kwargs={'client': loc['client'],
-                                                            'timestamp': loc['timestamp'],
-                                                            'span': loc['span'],
-                                                            'project': project}))
+    url = reverse(entry_page, kwargs={'client': loc['client'],
+                                      'timestamp': loc['timestamp'],
+                                      'span': loc['span'],
+                                      'project': project})
+    if 'message' in loc:
+        url += "?%s" % urlencode({'message_prefix': loc['message']})
+    return HttpResponseRedirect(url)
 
 def process_email(request, project, form, loc, logger):
     loc['span'] = str(default_span)
@@ -266,6 +278,9 @@ def process_crash_report(request, project, form, loc, logger):
                                                         'timestamp': clients[k]['timestamp'],
                                                         'span': clients[k]['span'],
                                                         'project': project})
+        if 'message' in loc:
+            clients[k]['url'] += "?%s" % urlencode({'message_prefix': loc['message']})
+
     # make it into a list
     clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
     # if we found only one, just redirect.
@@ -296,10 +311,11 @@ def home(request):
                                   context_instance=RequestContext(request))
 
     logger.debug('tele_paste=%s', form.cleaned_data['tele_paste'])
-    loc = _parse_error_report(form.cleaned_data['tele_paste'])
     project = form.cleaned_data['project']
     request.session['project'] = project
     paste_data = form.cleaned_data['tele_paste']
+
+    loc = _parse_error_report(paste_data)
     if loc is not None:
         return process_error_report(request, project, form, loc, logger)
 
@@ -368,6 +384,8 @@ def calc_spread(after, before, span=default_span, center=None):
 def entry_page(request, project='', client='', timestamp='', span=str(default_span)):
     logger = logging.getLogger('telemetry').getChild('entry_page')
     logger.info('client=%s, timestamp=%s, span=%s', client, timestamp, span)
+    if request.GET:
+        logger.info('query_params=%s' % dict( [ (k,request.GET[k]) for k in request.GET.keys() ] ))
     span = int(span)
     client = str(client)
     center = dateutil.parser.parse(timestamp)
@@ -375,7 +393,12 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
     after = center - spread
     before = center + spread
 
-    context = entry_page_base(project, client, after, before, logger)
+    try:
+        context = entry_page_base(project, client, after, before, logger, selectors=request.GET)
+    except MessagePickerNeeded as e:
+        context = e.context
+        template = e.template
+        return render_to_response(template, context, context_instance=RequestContext(request))
 
     iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=span, center=center)
 
@@ -403,7 +426,15 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
 def entry_page_by_timestamps(request, project, client='', after='', before=''):
     logger = logging.getLogger('telemetry').getChild('entry_page')
     logger.info('client=%s, after=%s, before=%s', client, after, before)
-    context = entry_page_base(project, client, after, before, logger)
+    if request.GET:
+        logger.info('query_params=%s' % dict( [ (k,request.GET[k]) for k in request.GET.keys() ] ))
+    try:
+        context = entry_page_base(project, client, after, before, logger, selectors=request.GET)
+    except MessagePickerNeeded as e:
+        context = e.context
+        template = e.template
+        return render_to_response(template, context, context_instance=RequestContext(request))
+
     iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=default_span, center=None)
     context['buttons'] = []
     zoom_in_span = max(1, default_span/2)
@@ -423,12 +454,29 @@ def entry_page_by_timestamps(request, project, client='', after='', before=''):
     return render_to_response('entry_page.html', context,
                               context_instance=RequestContext(request))
 
-def entry_page_base(project, client, after, before, logger):
+class MessagePickerNeeded(Exception):
+    def __init__(self, template, context, *args, **kwargs):
+        super(MessagePickerNeeded, self).__init__(*args, **kwargs)
+        self.template = template
+        self.context =  context
+
+def entry_page_base(project, client, after, before, logger, selectors=None):
     conn = _aws_connection(project)
     query = Query()
     query.limit = 100000
     query.add('client', SelectorEqual(client))
     query.add_range('timestamp', UtcDateTime(str(after)), UtcDateTime(str(before)))
+    if selectors is not None:
+        for selector in selectors:
+            k,t = selector.split('_')
+            if k == 'message':
+                if t == 'prefix':
+                    query.add('message', SelectorStartsWith(str(selectors[selector])))
+                else:
+                    raise ValueError('unknown selector type %s for %s' % (t, k))
+            else:
+                raise ValueError('unknown selector %s' % selector)
+
     ###### FIXME - logger.debug('query=%s', str(query.where()))
     obj_list = list()
     event_count = 0
@@ -438,6 +486,19 @@ def entry_page_base(project, client, after, before, logger):
         logger.info('%d objects found', len(obj_list))
     except DynamoDBError, e:
         logger.error('fail to query events - %s', str(e))
+
+    if selectors and event_count > 1:
+        entries = [ x for x in obj_list ]
+        for entry in entries:
+            entry['url'] = reverse(entry_page, kwargs={'client': entry['client'],
+                                                       'timestamp': entry['timestamp'],
+                                                       'span': default_span,
+                                                       'project': project})
+
+        raise MessagePickerNeeded(template='message_type_picker.html',
+                                  context={'project': project,
+                                           'entries': entries,
+                                           })
 
     # Save some global parameters for summary table
     params = dict()

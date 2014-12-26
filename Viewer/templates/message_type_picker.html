@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Project: {{ project }}</h3>
+<h4>Multiple entries were found for the given message-type. Please select one from the list</h4>
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th>Timestamp</th>
+        <th>Client ID</th>
+        <th>Event Type</th>
+        <th>Message</th>
+    </tr>
+    </thead>
+    <tbody>
+{% for entry in entries %}
+       <tr>
+           <td><a href="{{ entry.url }}">{{ entry.timestamp }}</a></td>
+           <td>{{ entry.client }}</td>
+           <td>{{ entry.event_type }}</td>
+           <td>{{ entry.message }}</td>
+       </tr>
+{% endfor %}
+    </tbody>
+</table>
+{% endblock %}
