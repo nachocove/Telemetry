@@ -15,7 +15,7 @@ var STOP_FIELD_ID = 'stop_field';
 var STOP_VALUE_ID = 'stop_value';
 
 function zeroPad(s, width) {
-    out = s.toString();
+    var out = s.toString();
     while (out.length < width) {
         out = '0' + out;
     }
@@ -55,8 +55,6 @@ function dateTimeLocal(iso) {
 }
 
 function getRow(event) {
-    var tr = document.createElement('tr');
-
     // Set up the style for the row
     var event_type;
     switch (event.event_type) {
@@ -68,57 +66,48 @@ function getRow(event) {
             event_type = event.event_type.toLowerCase();
             break;
     }
-    tr.className = event_type;
-    tr.id = event.id;
-    return tr;
+    return $('<tr></tr>').addClass(event_type).attr('id', event.id);
 }
 
 function getCell(html, rowSpan) {
     if (typeof rowSpan == 'undefined') {
         rowSpan = 1; // default is 1 row
     }
-    var td = document.createElement('td');
-    td.className = 'cell';
-    td.innerHTML = html;
-    td.rowSpan = rowSpan;
-    return td;
+    return $('<td></td>').html(html).addClass('cell').attr('rowSpan', rowSpan);
 }
 
 function getRowWithCommonFields (id, event, num_rows) {
     var tr = getRow(event);
-    iso = new Date(event.timestamp);
+    var iso = new Date(event.timestamp);
 
-    date = getCell(dateUtc(iso), num_rows);
-    date.id = 'date_' + id;
-    tr.appendChild(date);
+    var date = getCell(dateUtc(iso), num_rows);
+    date.attr('id', 'date_' + id);
+    tr.append(date);
 
-    time = getCell(timeUtc(iso), num_rows);
-    time.id = 'time_' + id;
-    tr.appendChild(time);
+    var time = getCell(timeUtc(iso), num_rows);
+    time.attr('id', 'time_' + id);
+    tr.append(time);
 
-    tr.appendChild(getCell(event.event_type.replace('_', ' '), num_rows));
-    id_cell = getCell(event.id, num_rows)
-    id_cell.className += " id_cell"
-    tr.appendChild(id_cell);
+    tr.append(getCell(event.event_type.replace('_', ' '), num_rows));
+
+    var id_cell = getCell(event.id, num_rows);
+    id_cell.addClass("id_cell");
+    tr.append(id_cell);
     return tr;
 }
 
-function getPre(html, className) {
-    return '<pre class="' + className + '">' + html + '</pre>';
-}
-
 function addFieldToRow(row, field, value) {
-    row.appendChild(getCell(field));
-    valueCell = getCell(value);
-    row.appendChild(valueCell);
+    row.append(getCell(field));
+    var valueCell = getCell(value);
+    row.append(valueCell);
     return valueCell;
 }
 
 function addSummaryRow(table, field, value) {
-    var tr = document.createElement('tr');
-    tr.appendChild(getCell(field));
-    tr.appendChild(getCell(value));
-    table.appendChild(tr);
+    var tr = $('<tr></tr>');
+    tr.append(getCell(field));
+    tr.append(getCell(value));
+    table.append(tr);
 }
 
 function htmlUnescape(s) {
@@ -153,29 +142,34 @@ function beautifyBase64(b64) {
         stop += N;
     }
     out += b64.slice(start, stop);
-    return getPre(out, 'wbxmlb64');
+    return $('<pre></pre>').addClass('wbxmlb64').html(out);
 }
 
 function refreshSummary() {
-    var table = document.getElementById('table_summary');
+    var table = $('#table_summary');
+    var tr = $('<tr></tr>');
 
-    var tr = document.createElement('tr');;
     var field = getCell(START_TIME_UTC);
-    var value = getCell(dateTimeUtc(params.start));
-    field.id = START_FIELD_ID;
-    value.id = START_VALUE_ID;
-    tr.appendChild(field);
-    tr.appendChild(value);
-    table.appendChild(tr);
+    field.attr('id', START_FIELD_ID);
+    tr.append(field);
 
-    tr = document.createElement('tr');
+    var value = getCell(dateTimeUtc(params.start));
+    value.attr('id', START_VALUE_ID);
+    tr.append(value);
+
+    table.append(tr);
+
+    tr = $('<tr></tr>');
+    field = $('<td></td>').text(STOP_TIME_UTC);
     field = getCell(STOP_TIME_UTC);
+    field.attr('id', STOP_FIELD_ID);
+    tr.append(field);
+
     value = getCell(dateTimeUtc(params.stop));
-    field.id = STOP_FIELD_ID;
-    value.id = STOP_VALUE_ID;
-    tr.appendChild(field);
-    tr.appendChild(value);
-    table.appendChild(tr);
+    value.attr('id', STOP_VALUE_ID);
+    tr.append(value);
+
+    table.append(tr);
 
     addSummaryRow(table, 'Client', params.client);
     addSummaryRow(table, '# Events', params.event_count);
@@ -197,52 +191,20 @@ function refreshSummary() {
 }
 
 function createTitleBar() {
-    var tr = document.createElement('tr');
-
-    var date = document.createElement('th');
-    date.id = 'date_cell';
-    date.className = 'cell';
-    date.onclick = updateDate;
-    date.title = SWITCH_TO_LOCAL;
-    date.innerHTML = DATE_UTC;
-    tr.appendChild(date);
-
-    var time = document.createElement('th');
-    time.id = 'time_cell';
-    time.className = 'cell';
-    time.onclick = updateDate;
-    time.onclick = updateDate;
-    time.title = SWITCH_TO_UTC;
-    time.innerHTML = TIME_UTC;
-    tr.appendChild(time);
-
-    var eventType = document.createElement('th');
-    eventType.className = 'cell';
-    eventType.innerHTML = 'Event Type';
-    tr.appendChild(eventType);
-
-    var field = document.createElement('th');
-    field.className = 'cell id_cell';
-    field.innerHTML = 'Telemetry ID';
-    tr.appendChild(field);
-
-    var field = document.createElement('th');
-    field.className = 'cell';
-    field.innerHTML = 'Field';
-    tr.appendChild(field);
-
-    var value = document.createElement('th');
-    value.className = 'cell';
-    value.innerHTML = 'Value';
-    tr.appendChild(value);
-
+    var tr = $('<tr></tr>');
+    tr.append($('<th></th>').attr('id', 'date_cell').attr('title', SWITCH_TO_LOCAL).addClass('cell').click(updateDate).html(DATE_UTC));
+    tr.append($('<th></th>').attr('id', 'time_cell').attr('title', SWITCH_TO_UTC).addClass('cell').click(updateDate).html(TIME_UTC));
+    tr.append($('<th></th>').addClass('cell').html('Event Type'));
+    tr.append($('<th></th>').addClass('cell').addClass('id_cell').html('Telemetry ID'));
+    tr.append($('<th></th>').addClass('cell').html('Field'));
+    tr.append($('<th></th>').addClass('cell').html('Value').attr('colSpan', 2));
     return tr;
 }
 
 function refreshEvents() {
-    var table = document.getElementById('table_events');
+    var table = $('#table_events');
     if (0 < events.length) {
-        table.appendChild(createTitleBar(table));
+        table.append(createTitleBar(table));
     }
     for (var i = 0; i < events.length; i++) {
         var event = events[i];
@@ -254,7 +216,7 @@ function refreshEvents() {
             case 'ERROR': {
                 row = getRowWithCommonFields(i, event, 2);
                 addFieldToRow(row, 'thread_id', event.thread_id);
-                table.appendChild(row)
+                table.append(row)
                 row = getRow(event);
                 addFieldToRow(row, 'message', event.message);
                 break;
@@ -262,16 +224,16 @@ function refreshEvents() {
             case 'WBXML_REQUEST':
             case 'WBXML_RESPONSE': {
                 row = getRowWithCommonFields(i, event, 1);
-                row.appendChild(getCell('wbxml'));
+                row.append(getCell('wbxml'));
                 valueCell = getCell(beautifyBase64(event.wbxml_base64));
-                valueCell.id = i;
-                valueCell.title = previewString(event.wbxml);
-                valueCell.onclick = function() {
+                valueCell.attr('id', i);
+                valueCell.attr('title', previewString(event.wbxml));
+                valueCell.click(function() {
                     var event = events[this.id];
-                    if (this.innerHTML == beautifyBase64(event.wbxml_base64)) {
-                        this.innerHTML = getPre(event.wbxml, 'wbxml');
+                    if (this.html() == beautifyBase64(event.wbxml_base64)) {
+                        this.html($('<pre></pre>').addClass('wbxml').html(event.wbxml));
                     } else {
-                        this.innerHTML = beautifyBase64(event.wbxml_base64);
+                        this.html(beautifyBase64(event.wbxml_base64));
                     }
                     if (!isElementInViewport(this)) {
                         // if after collapsing the WBXML the element is no longer visible,
@@ -282,8 +244,8 @@ function refreshEvents() {
                         // shift and undo that.
                         window.scrollBy(-10000, 0);
                     }
-                }
-                row.appendChild(valueCell);
+                });
+                row.append(valueCell);
                 break;
             }
             case 'UI': {
@@ -297,17 +259,17 @@ function refreshEvents() {
 
                 row = getRowWithCommonFields(i, event, num_rows);
                 addFieldToRow(row, 'ui_type', event.ui_type);
-                table.appendChild(row);
+                table.append(row);
 
                 row = getRow(event);
                 addFieldToRow(row, 'ui_object', event.ui_object);
                 if (event.hasOwnProperty('ui_string')) {
-                    table.appendChild(row);
+                    table.append(row);
                     row = getRow(event);
                     addFieldToRow(row, 'ui_string', event.ui_string);
                 }
                 if (event.hasOwnProperty('ui_integer')) {
-                    table.appendChild(row);
+                    table.append(row);
                     row = getRow(event);
                     addFieldToRow(row, 'ui_integer', event.ui_integer);
                 }
@@ -316,15 +278,15 @@ function refreshEvents() {
             case 'COUNTER': {
                 row = getRowWithCommonFields(i, event, 4);
                 addFieldToRow(row, 'counter_name', event.counter_name)
-                table.appendChild(row);
+                table.append(row);
 
                 row = getRow(event);
                 addFieldToRow(row, 'count', event.count);
-                table.appendChild(row);
+                table.append(row);
 
                 row = getRow(event);
                 addFieldToRow(row, 'counter_start (UTC)', dateTimeUtc(event.counter_start.iso));
-                table.appendChild(row)
+                table.append(row)
 
                 row = getRow(event)
                 addFieldToRow(row, 'counter_end (UTC)', dateTimeUtc(event.counter_end.iso));
@@ -333,23 +295,23 @@ function refreshEvents() {
             case 'CAPTURE': {
                 row = getRowWithCommonFields(i, event, 6);
                 addFieldToRow(row, 'capture_name', event.capture_name);
-                table.appendChild(row);
+                table.append(row);
 
                 row = getRow(event);
                 addFieldToRow(row, 'count', event.count);
-                table.appendChild(row);
+                table.append(row);
 
                 row = getRow(event);
                 addFieldToRow(row, 'min', event.min);
-                table.appendChild(row);
+                table.append(row);
 
                 row = getRow(event);
                 addFieldToRow(row,'average', event.average);
-                table.appendChild(row);
+                table.append(row);
 
                 row = getRow(event);
                 addFieldToRow(row, 'max', event.max);
-                table.appendChild(row);
+                table.append(row);
 
                 row = getRow(event);
                 addFieldToRow(row, 'stddev', event.stddev);
@@ -357,7 +319,7 @@ function refreshEvents() {
             }
             case 'SUPPORT': {
                 try {
-                    json = JSON.parse(event.support);
+                    var json = JSON.parse(event.support);
                     var keys = Object.keys(json);
                     var isFirst = true;
                     for (var j = 0; j < keys.length; j++) {
@@ -365,7 +327,7 @@ function refreshEvents() {
                             row = getRowWithCommonFields(i, event, keys.length);
                             isFirst = false;
                         } else {
-                            table.appendChild(row);
+                            table.append(row);
                             row = getRow(event);
                         }
                         addFieldToRow(row, keys[j], json[keys[j]]);
@@ -382,7 +344,7 @@ function refreshEvents() {
                 break;
             }
         }
-        table.appendChild(row);
+        table.append(row);
     }
 }
 
@@ -395,44 +357,44 @@ function updateDate() {
     isUtc = !isUtc;
 
     // Update event table header
-    var dateCell = document.getElementById('date_cell');
-    var timeCell = document.getElementById('time_cell');
+    var dateCell = $('#date_cell');
+    var timeCell = $('#time_cell');
     if (isUtc) {
-        dateCell.innerHTML = DATE_UTC;
-        timeCell.innerHTML = TIME_UTC;
-        dateCell.title = SWITCH_TO_LOCAL;
-        timeCell.title = SWITCH_TO_LOCAL;
+        dateCell.html(DATE_UTC);
+        timeCell.html(TIME_UTC);
+        dateCell.attr('title', SWITCH_TO_LOCAL);
+        timeCell.attr('title', SWITCH_TO_LOCAL);
     } else {
-        dateCell.innerHTML = DATE_LOCAL;
-        timeCell.innerHTML = TIME_LOCAL;
-        dateCell.title = SWITCH_TO_UTC;
-        timeCell.title = SWITCH_TO_UTC;
+        dateCell.html(DATE_LOCAL);
+        timeCell.html(TIME_LOCAL);
+        dateCell.attr('title', SWITCH_TO_UTC);
+        timeCell.attr('title', SWITCH_TO_UTC);
     }
 
     // Update event table timestamp
     for (var i = 0; i < events.length; i++) {
-        var dateCell = document.getElementById('date_' + i);
-        var timeCell = document.getElementById('time_' + i);
+        var dateCell = $('#date_' + i);
+        var timeCell = $('#time_' + i);
         date = new Date(events[i].timestamp);
-        dateCell.innerHTML = isUtc ? dateUtc(date) : dateLocal(date);
-        timeCell.innerHTML = isUtc ? timeUtc(date) : timeLocal(date);
+        dateCell.html(isUtc ? dateUtc(date) : dateLocal(date));
+        timeCell.html(isUtc ? timeUtc(date) : timeLocal(date));
     }
 
     // Update summary table
-    var startField = document.getElementById(START_FIELD_ID);
-    var startValue = document.getElementById(START_VALUE_ID);
-    var stopField = document.getElementById(STOP_FIELD_ID);
-    var stopValue = document.getElementById(STOP_VALUE_ID);
+    var startField = $('#'+START_FIELD_ID);
+    var startValue = $('#'+START_VALUE_ID);
+    var stopField = $('#'+STOP_FIELD_ID);
+    var stopValue = $('#'+STOP_VALUE_ID);
 
     if (isUtc) {
-        startField.innerHTML = START_TIME_UTC;
-        stopField.innerHTML = STOP_TIME_UTC;
-        startValue.innerHTML = dateTimeUtc(params.start);
-        stopValue.innerHTML = dateTimeUtc(params.stop);
+        startField.html(START_TIME_UTC);
+        stopField.html(STOP_TIME_UTC);
+        startValue.html(dateTimeUtc(params.start));
+        stopValue.html(dateTimeUtc(params.stop));
     } else {
-        startField.innerHTML = START_TIME_LOCAL;
-        stopField.innerHTML = STOP_TIME_LOCAL;
-        startValue.innerHTML = dateTimeLocal(params.start);
-        stopValue.innerHTML = dateTimeLocal(params.stop);
+        startField.html(START_TIME_LOCAL);
+        stopField.html(STOP_TIME_LOCAL);
+        startValue.html(dateTimeLocal(params.start));
+        stopValue.html(dateTimeLocal(params.stop));
     }
 }
