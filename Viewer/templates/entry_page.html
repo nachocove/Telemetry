@@ -23,4 +23,11 @@ var events = {{ events|safe }};
 <br/><br/>
 <table id="table_summary" class="table"></table><br/>
 <table id="table_events" class="table"></table>
+<table>
+    <tr>
+    {% for button in buttons %}
+        <td><table class="button_table"><td class="button_cell"><a href="{{ button.url }}"><font class="button_text">{{ button.text }}</font></a></td></table><td>
+    {% endfor %}
+    </tr>
+</table>
 {% endblock %}
