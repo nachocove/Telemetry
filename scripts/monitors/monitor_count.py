@@ -2,7 +2,7 @@ import json
 import time
 from AWS.query import Query
 from AWS.tables import TABLE_CLASSES
-from AWS.selectors import SelectorEqual, SelectorContains, SelectorStartsWith
+from AWS.selectors import SelectorEqual, SelectorStartsWith
 from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
@@ -62,6 +62,7 @@ class MonitorEmails(MonitorCount):
         self.clients_that_did_autod = set()
         self.email_addresses = set()
         self.emails_per_domain = dict()
+        self.debug_timing = False
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
@@ -72,7 +73,7 @@ class MonitorEmails(MonitorCount):
         t1 = time.time()
         results = Query.users(query, self.conn)
         t2 = time.time()
-        self.logger.debug("TIME %s: %s", (t2-t1), query)
+        if self.debug_timing: self.logger.debug("TIME active_clients_this_period %s: results %d %s", (t2-t1), len(results), query)
         for x in results:
             self.active_clients_this_period.add(x['client'])
 
@@ -84,9 +85,10 @@ class MonitorEmails(MonitorCount):
             query.add('client', SelectorEqual(clientID))
             query.add('message', SelectorStartsWith('AUTOD'))
             t1 = time.time()
-            results.extend(Query.events(query, self.conn))
+            r = Query.events(query, self.conn)
             t2 = time.time()
-            self.logger.debug("TIME %s: %s", (t2-t1), query)
+            if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
+            results.extend(r)
 
         for event in results:
             self.clients_that_did_autod.add(event['client'])
@@ -97,9 +99,11 @@ class MonitorEmails(MonitorCount):
             query.add('client', SelectorEqual(clientID))
             query.add_range('timestamp', self.start, self.end)
             t1 = time.time()
-            results.extend(Query.events(query, self.conn))
+            r = Query.events(query, self.conn)
             t2 = time.time()
-            self.logger.debug("TIME %s: %s", (t2-t1), query)
+            if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
+            results.extend(r)
+
         for event in results:
             try:
                 email = json.loads(event.get('support', '{}')).get('sha256_email_address', '')
