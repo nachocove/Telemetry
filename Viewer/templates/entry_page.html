@@ -37,4 +37,9 @@ var events = {{ events|safe }};
 <br/><br/>
 <table id="table_summary" class="table table-bordered"></table><br/>
 <table id="table_events" class="table table-bordered"></table>
+<div class="btn-group" role="group" aria-label="Large button group">
+    {% for button in buttons %}
+    <button type="button" class="btn btn-default"><a href="{{ button.url }}">{{ button.text }}</a></button>
+    {% endfor %}
+</div>
 {% endblock %}

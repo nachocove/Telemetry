@@ -25,6 +25,15 @@ class Query(object):
         self.count = False
         self.table_query = dict()
 
+    def __str__(self):
+        queries = []
+        for k in self.selectors:
+            queries.append("KEY(%s:[%s])" % (k, " && ".join([str(x) for x in self.selectors[k]])))
+        s = "%sQUERY: %s" % ("COUNT-" if self.count else "", " && ".join(queries))
+        if self.limit:
+            s += " LIMIT %s" % self.limit
+        return s
+
     def add(self, field, selector):
         assert issubclass(selector.__class__, Selector)
         if field in self.selectors:
