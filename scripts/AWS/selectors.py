@@ -22,6 +22,11 @@ class Selector:
         else:
             self.__dict__[key] = value
 
+    def __str__(self):
+        return "%s(%s%s%s)" % (self.op,
+                               '"' if isinstance(self.value, basestring) else '',
+                               self.value,
+                               '"' if isinstance(self.value, basestring) else '')
 
 class SelectorCompare(Selector):
     def __init__(self, value):
