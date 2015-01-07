@@ -23,10 +23,11 @@ class CrashInfo:
     """
     A class that ties a HockeyApp Crash object with its associated raw log and telemetry event trace.
     """
-    def __init__(self, ha_crash_obj, conn):
+    def __init__(self, ha_crash_obj, conn, prefix=None):
         assert isinstance(ha_crash_obj, HockeyApp.crash.Crash)
         assert isinstance(conn, DynamoDBConnection)
 
+        self.prefix = prefix
         self.logger = logging.getLogger('monitor')
         self.ha_crash_obj = ha_crash_obj
         self.ha_desc_obj = None
@@ -135,7 +136,7 @@ class CrashInfo:
             return trace
         (start, end) = LogTrace.get_time_window(self.crash_utc, 2, 0)
         desc = 'crash_trace.%s' % self.ha_crash_obj.crash_id
-        trace = LogTrace(desc, self.client, start, end)
+        trace = LogTrace(desc, self.client, start, end, prefix=self.prefix)
         trace.query(self.conn)
         return trace
 
@@ -156,8 +157,8 @@ class CrashInfo:
 
 
 class CrashInfoIos(CrashInfo):
-    def __init__(self, ha_crash_obj, conn):
-        CrashInfo.__init__(self, ha_crash_obj, conn)
+    def __init__(self, ha_crash_obj, conn, prefix=None):
+        CrashInfo.__init__(self, ha_crash_obj, conn, prefix=prefix)
 
     def _determine_crash_time(self):
         for line in self.log.split('\n')[:11]:
@@ -170,7 +171,7 @@ class CrashInfoIos(CrashInfo):
 class CrashInfoUnknownPlatformException(Exception):
     pass
 
-def CrashInfoFactory(ha_crash_obj, conn):
+def CrashInfoFactory(ha_crash_obj, conn, prefix=None):
     """
     Create a crashinfo subclass based on the crash-group
 
@@ -183,7 +184,7 @@ def CrashInfoFactory(ha_crash_obj, conn):
     assert(isinstance(ha_crash_obj, HockeyApp.crash.Crash))
     platform = ha_crash_obj.crash_group_obj.app_obj.platform
     if platform == 'iOS':
-        return CrashInfoIos(ha_crash_obj, conn)
+        return CrashInfoIos(ha_crash_obj, conn, prefix=prefix)
     else:
         raise CrashInfoUnknownPlatformException("Unsupported (unimplemented) crash platform %s" % platform)
 
@@ -225,7 +226,7 @@ class MonitorHockeyApp(Monitor):
                 # a new one
                 conn = self.clone_connection(self.conn)
                 try:
-                    crash = CrashInfoFactory(crash, conn)
+                    crash = CrashInfoFactory(crash, conn, prefix=self.prefix)
                     if crash_group.crash_group_id not in self.crashes:
                         self.crashes[crash_group.crash_group_id] = {'crash_group': crash_group,
                                                                     'crashes': []}
