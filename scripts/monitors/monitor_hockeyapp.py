@@ -7,6 +7,7 @@ import HockeyApp
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from AWS.query import Query
 from AWS.selectors import SelectorEqual, SelectorStartsWith, SelectorBetween, SelectorLessThanEqual
+from misc.number_formatter import pretty_number
 from monitor_base import Monitor
 from misc.utc_datetime import UtcDateTime
 from logtrace import LogTrace
@@ -192,7 +193,7 @@ class MonitorHockeyApp(Monitor):
         Monitor.__init__(self, *args, **kwargs)
         assert isinstance(ha_app_obj, HockeyApp.app.App)
         self.ha_app_obj = ha_app_obj
-        self.crashes = list()
+        self.crashes = dict()
 
     def _within_window(self, datetime):
         assert isinstance(datetime, UtcDateTime)
@@ -208,7 +209,6 @@ class MonitorHockeyApp(Monitor):
 
     def run(self):
         self.logger.info('Query crash logs...')
-        self.crashes = list()
         for crash_group in self.ha_app_obj.crash_groups():
             # Look for all crash groups that have been updated within the time window
             if not self._within_window(UtcDateTime(crash_group.last_crash_at)):
@@ -225,26 +225,35 @@ class MonitorHockeyApp(Monitor):
                 # a new one
                 conn = self.clone_connection(self.conn)
                 try:
-                    self.crashes.append(CrashInfoFactory(crash, conn))
+                    crash = CrashInfoFactory(crash, conn)
+                    if crash_group.crash_group_id not in self.crashes:
+                        self.crashes[crash_group.crash_group_id] = {'crash_group': crash_group,
+                                                                    'crashes': []}
+                    self.crashes[crash_group.crash_group_id]['crashes'].append(crash)
                 except CrashInfoUnknownPlatformException as e:
                     self.logger.error('Could not analyze crash: %s (SKIPPING)' % e)
 
     def report(self, summary, **kwargs):
-        summary.add_entry('Crash count', str(len(self.crashes)))
+        crash_sum = 0
+        for crash_id in self.crashes:
+            crash_sum += len(self.crashes[crash_id]['crashes'])
+        summary.add_entry('Crash count', str(crash_sum))
 
         if len(self.crashes) == 0:
             return None
 
         table = Table()
-        row = TableRow([TableHeader(Bold('Time')),
-                        TableHeader(Bold('Client')),
-                        TableHeader(Bold('Reason'))])
+        row = TableRow([TableHeader(Bold('Affected Clients')),
+                        TableHeader(Bold('Clients')),
+                        TableHeader(Bold('Total Number of Crashes')),
+                        TableHeader(Bold('Reason')),
+                        ])
         table.add_row(row)
-        for crash in self.crashes:
-            crash_obj = crash.ha_crash_obj
+        for crash_id in self.crashes:
+            crash_group_obj = self.crashes[crash_id]['crash_group']
             # Limit reason to 5 lines
-            if crash_obj.crash_group_obj.reason is not None:
-                reason = crash_obj.crash_group_obj.reason.encode('utf-8')
+            if crash_group_obj.reason is not None:
+                reason = crash_group_obj.reason.encode('utf-8')
             else:
                 reason = '<unknown>'
             lines = reason.split('\n')
@@ -252,14 +261,17 @@ class MonitorHockeyApp(Monitor):
             if len(lines) > max_lines:
                 lines = lines[:max_lines]
             reason = '\n'.join(lines)
-            client = '<unknown>'
-            if crash.client:
-                client = crash.client
+            client_set = set()
+            for crash in self.crashes[crash_id]['crashes']:
+                client_set.add(crash.client)
+
             link = 'https://rink.hockeyapp.net/manage/apps/%s/app_versions/1/crash_reasons/%s?type=crashes' % \
-                   (self.ha_app_obj.id, crash_obj.crash_group_obj.crash_group_id)
-            row = TableRow([TableElement(Text(crash_obj.created_at)),
-                            TableElement(Text(client)),
-                            TableElement(Link(Text(reason, keep_linefeed=True), link))])
+                   (self.ha_app_obj.id, crash_group_obj.crash_group_id)
+            row = TableRow([TableElement(Text(pretty_number(len(client_set)))),
+                            TableElement(Text(" ".join(list(client_set)))),
+                            TableElement(Text(pretty_number(crash_group_obj.number_of_crashes))),
+                            TableElement(Link(Text(reason, keep_linefeed=True), link)),
+                            ])
             table.add_row(row)
 
         title = self.title()
@@ -273,17 +285,18 @@ class MonitorHockeyApp(Monitor):
         zipped_file_path = raw_log_prefix + '.zip'
         zipped_file = zipfile.ZipFile(zipped_file_path, 'w', zipfile.ZIP_DEFLATED)
 
-        for crash in self.crashes:
-            crash_log_path = crash.save_log()
-            if crash_log_path is None:
-                continue
-            zipped_file.write(crash_log_path)
-            os.unlink(crash_log_path)
-            crash_trace_path = crash.save_trace()
-            if crash_trace_path is not None:
-                # TODO - for some reason, all traces are empty. Leave it out for now
-                #zipped_file.write(crash_trace_path)
-                os.unlink(crash_trace_path)
+        for crash_id in self.crashes:
+            for crash in self.crashes[crash_id]['crashes']:
+                crash_log_path = crash.save_log()
+                if crash_log_path is None:
+                    continue
+                zipped_file.write(crash_log_path)
+                os.unlink(crash_log_path)
+                crash_trace_path = crash.save_trace()
+                if crash_trace_path is not None:
+                    # TODO - for some reason, all traces are empty. Leave it out for now
+                    #zipped_file.write(crash_trace_path)
+                    os.unlink(crash_trace_path)
 
         zipped_file.close()
         return zipped_file_path
