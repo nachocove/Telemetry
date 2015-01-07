@@ -108,6 +108,10 @@ def main():
                               help='Debug',
                               action='store_true',
                               default=False)
+    config_group.add_argument('--debug-boto',
+                              help='Debug Boto',
+                              action='store_true',
+                              default=False)
 
     filter_group = parser.add_argument_group(title='Filtering Options',
                                              description='These options specify a time '
@@ -228,7 +232,8 @@ def main():
                               aws_secret_access_key=options.aws_secret_access_key,
                               aws_access_key_id=options.aws_access_key_id,
                               region='us-west-2',
-                              is_secure=True)
+                              is_secure=True,
+                              debug=2 if options.debug_boto else 0)
             monitor_cls = mapping[monitor_name]
             new_monitor = monitor_cls(conn=conn, start=options.start, end=options.end, prefix=options.aws_prefix,
                                       **extra_params)
