@@ -26,3 +26,6 @@ class QueryFilter:
 
     def is_empty(self):
         return len(self.dict_) == 0
+
+    def __str__(self):
+        return str(self.dict_)
