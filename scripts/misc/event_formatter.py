@@ -189,7 +189,7 @@ class EventFormatter:
         self.may_add(self.event_type, obj, 'event_type')
 
         # Format telemetry link
-        if set(obj.keys()).issuperset(set(['client', 'timestamp'])):
+        if set(obj.keys()).issuperset({'client', 'timestamp'}):
             if isinstance(obj['timestamp'], dict) and 'iso' in obj['timestamp']:
                 # a Parse json-dict-formatted timestamp
                 timestamp = obj['timestamp']['iso']
