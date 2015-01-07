@@ -115,23 +115,27 @@ class EventDecorator:
         self.event_type = decorator
         self.ident = decorator
         self.info = decorator
+        self.link = decorator
 
 
 class EventFormatter:
     def __init__(self,
                  timestamp_section, event_type_section,
-                 ident_section, info_section,
+                 ident_section, info_section, link_section, prefix,
                  default_decorator=None,
                  wbxml_tool_path=None):
         self.timestamp = timestamp_section(None)
         self.event_type = event_type_section(None)
         self.ident = ident_section(None)
         self.info = info_section(None)
+        self.link = link_section(None)
         self.default_decorator = default_decorator
         self.decorators = dict()
+        self.prefix=prefix
         for et in events.TYPES:
             self.decorators[et] = EventDecorator(default_decorator)
         self.wbxml_tool_path = wbxml_tool_path
+        self.telemetry_viewer_url_prefix = 'http://localhost:8000/'
 
     def may_add(self, section, obj, field):
         if field in obj:
@@ -142,6 +146,7 @@ class EventFormatter:
         self.event_type.reset()
         self.ident.reset()
         self.info.reset()
+        self.link.reset()
 
     def set_decorators(self, obj):
         if 'event_type' not in obj:
@@ -151,12 +156,14 @@ class EventFormatter:
         self.event_type.decorator = event_decorator.event_type
         self.ident.decorator = event_decorator.ident
         self.info.decorator = event_decorator.info
+        self.link.decorator = event_decorator.info
 
     def reset_decorators(self):
         self.timestamp.decorator = self.default_decorator
         self.event_type.decorator = self.default_decorator
         self.ident.decorator = self.default_decorator
         self.info.decorator = self.default_decorator
+        self.link.decorator = self.default_decorator
 
     def decode_wbxml(self, wbxml):
         if self.wbxml_tool_path is None:
@@ -179,6 +186,19 @@ class EventFormatter:
         # Format event type
         self.may_add(self.event_type, obj, 'event_type')
 
+        # Format telemetry link
+        if set(obj.keys()).issuperset(set(['client', 'timestamp'])):
+            if isinstance(obj['timestamp'], dict) and 'iso' in obj['timestamp']:
+                # a Parse json-dict-formatted timestamp
+                timestamp = obj['timestamp']['iso']
+            elif isinstance(obj['timestamp'], (str, unicode)):
+                timestamp = obj['timestamp']
+            else:
+                raise ValueError("Unknown timestamp class: %s" % obj['timestamp']._class__)
+
+            link = '%sbugfix/%s/logs/%s/%s/1/' % (self.telemetry_viewer_url_prefix, self.prefix, obj['client'], timestamp)
+            self.link.format('telemetry', link)
+
         # Format the identification section
         for field in (events.IDENT_FIELDS + events.INTERNAL_FIELDS):
             self.may_add(self.ident, obj, field)
@@ -195,14 +215,19 @@ class EventFormatter:
                 self.info.format('wbxml', obj['wbxml']['base64'] + '\n\n' + decoded)
 
         # Combine all sections
-        output = self.timestamp.content() + self.event_type.content() + self.ident.content() + self.info.content()
+        output = self.timestamp.content() + \
+                 self.event_type.content() + \
+                 self.ident.content() + \
+                 self.link.content() + \
+                 self.info.content()
 
         self.reset_decorators()
         return output
 
 
 class LogStyleEventFormatter(EventFormatter):
-    def __init__(self, decorator=None):
+    def __init__(self, **kwargs):
+        decorator = kwargs.get('decorator', None)
         if decorator is None:
             decorator = AnsiDecorator()
         EventFormatter.__init__(self,
@@ -210,11 +235,13 @@ class LogStyleEventFormatter(EventFormatter):
                                 event_type_section=LogStyleSection,
                                 ident_section=LogStyleIdentSection,
                                 info_section=LogStyleSection,
-                                default_decorator=decorator)
+                                link_section=LogStyleSection,
+                                default_decorator=decorator, **kwargs)
 
 
 class RecordStyleEventFormatter(EventFormatter):
-    def __init__(self, decorator=None):
+    def __init__(self, **kwargs):
+        decorator = kwargs.get('decorator', None)
         if decorator is None:
             decorator = AnsiDecorator()
         EventFormatter.__init__(self,
@@ -222,4 +249,5 @@ class RecordStyleEventFormatter(EventFormatter):
                                 event_type_section=RecordStyleSection,
                                 ident_section=RecordStyleSection,
                                 info_section=RecordStyleSection,
-                                default_decorator=decorator)
+                                link_section=RecordStyleSection,
+                                default_decorator=decorator, **kwargs)

@@ -38,11 +38,12 @@ class LogTrace:
 
         return start, end
 
-    def __init__(self, desc, client, start, end):
+    def __init__(self, desc, client, start, end, prefix):
         self.desc = desc
         self.client = client
         self.start = start
         self.end = end
+        self.prefix = prefix
         self.events = []
 
     def __eq__(self, other):
@@ -68,7 +69,7 @@ class LogTrace:
                                                  self.start.file_suffix(), self.end.file_suffix())
 
     def write_file(self):
-        ef = event_formatter.RecordStyleEventFormatter()
+        ef = event_formatter.RecordStyleEventFormatter(prefix=self.prefix)
         fname = self._filename()
         with open(fname, 'w') as trace_file:
             for event in self.events:

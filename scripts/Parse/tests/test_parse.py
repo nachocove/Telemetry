@@ -1,20 +1,24 @@
 import unittest
 
-from connection import Connection
-from exception import ParseException
-from acl import Acl
-from objects import Object
-from users import User
-from misc.utc_datetime import UtcDateTime
+from Parse.connection import Connection
+from Parse.exception import ParseException
+from Parse.acl import Acl
+from Parse.objects import Object
+from Parse.users import User
 
 
 
 # For PythonUnitTest app
-APP_ID = 'D4Wb9PGYb9gSXNa6Te4Oy31QF7ANnE4uAA9S9F4G'
-REST_API_KEY = '0xH5KQTdOGnzB8sXcfwAmIrSNJYnsuYrO8ZPuzbt'
+# APP_ID = 'D4Wb9PGYb9gSXNa6Te4Oy31QF7ANnE4uAA9S9F4G'
+# REST_API_KEY = '0xH5KQTdOGnzB8sXcfwAmIrSNJYnsuYrO8ZPuzbt'
+APP_ID = None
+REST_API_KEY = None
 
+class ParseUnitTest(unittest.TestCase):
+    pass
 
-class TestAcl(unittest.TestCase):
+@unittest.skipIf(APP_ID is None or REST_API_KEY is None, "Needs active APP_ID and REST_API_KEY")
+class TestAcl(ParseUnitTest):
     def setUp(self):
         self.dict = {'user1': {'read': True},
                      'user2': {'write': True},
@@ -33,7 +37,8 @@ class TestAcl(unittest.TestCase):
         self.assertEqual(acl.data(), self.dict)
 
 
-class TestObject(unittest.TestCase):
+@unittest.skipIf(APP_ID is None or REST_API_KEY is None, "Needs active APP_ID and REST_API_KEY")
+class TestObject(ParseUnitTest):
     def setUp(self):
         self.conn = Connection(app_id=APP_ID, api_key=REST_API_KEY)
         self.dict = {'integer': 123,
@@ -131,7 +136,8 @@ class TestObject(unittest.TestCase):
         self.assertRaises(ParseException, obj.read)
 
 
-class TestUser(unittest.TestCase):
+@unittest.skipIf(APP_ID is None or REST_API_KEY is None, "Needs active APP_ID and REST_API_KEY")
+class TestUser(ParseUnitTest):
     def setUp(self):
         self.conn = Connection(app_id=APP_ID, api_key=REST_API_KEY)
         self.username = 'bip cotton'
