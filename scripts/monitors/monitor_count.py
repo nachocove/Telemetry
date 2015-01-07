@@ -79,10 +79,10 @@ class MonitorEmails(MonitorCount):
 
         # Using the client and timestamp range, see which of the active users ran auto-d at all
         results = []
-        for clientID in self.active_clients_this_period:
+        for client_id in self.active_clients_this_period:
             query = Query()
             query.add_range('timestamp', self.start, self.end)
-            query.add('client', SelectorEqual(clientID))
+            query.add('client', SelectorEqual(client_id))
             query.add('message', SelectorStartsWith('AUTOD'))
             t1 = time.time()
             r = Query.events(query, self.conn)
@@ -93,10 +93,10 @@ class MonitorEmails(MonitorCount):
         for event in results:
             self.clients_that_did_autod.add(event['client'])
         results = []
-        for clientID in self.clients_that_did_autod:
+        for client_id in self.clients_that_did_autod:
             query = Query()
             query.add('event_type', SelectorEqual('SUPPORT'))
-            query.add('client', SelectorEqual(clientID))
+            query.add('client', SelectorEqual(client_id))
             query.add_range('timestamp', self.start, self.end)
             t1 = time.time()
             r = Query.events(query, self.conn)
@@ -116,7 +116,7 @@ class MonitorEmails(MonitorCount):
         self.logger.debug('Found %d emails: %s', self.count, self.email_addresses)
         for email in self.email_addresses:
             userhash, domain = email.split('@')
-            if not domain in self.emails_per_domain:
+            if domain not in self.emails_per_domain:
                 self.emails_per_domain[domain] = []
             self.emails_per_domain[domain].append(email)
 
