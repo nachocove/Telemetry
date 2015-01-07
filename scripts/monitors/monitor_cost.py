@@ -13,11 +13,10 @@ class MonitorCost(Monitor):
     """
     A monitor class for cost analysis.
     """
-    def __init__(self, cloudwatch=None, prefix=None, *args, **kwargs):
+    def __init__(self, cloudwatch=None, *args, **kwargs):
         kwargs.setdefault('desc', 'Cost breakdown')
         Monitor.__init__(self, *args, **kwargs)
         self.cw_conn = cloudwatch
-        self.prefix = prefix
         self.period = 60*5  # in seconds
         self.chunk = 60*6  # in minutes
         self.data = {}

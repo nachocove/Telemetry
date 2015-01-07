@@ -44,12 +44,13 @@ class Monitor:
     The user specifies the list of monitors to run in the command line. This
     script then invokes run(), report() and attachment() for each monitor.
     """
-    def __init__(self, conn, desc, start=None, end=None):
+    def __init__(self, conn, desc, prefix=None, start=None, end=None):
         self.conn = conn
         self.desc = desc
         self.start = start
         self.end = end
         self.logger = logging.getLogger('monitor')
+        self.prefix = prefix
 
     def run(self):
         """

@@ -75,6 +75,20 @@ def main():
     logger = logging.getLogger('monitor')
     logger.setLevel(logging.INFO)
 
+    mapping = {'errors': MonitorErrors,
+               'warnings': MonitorWarnings,
+               'users': MonitorUsers,
+               'emails': MonitorEmails,
+               'events': MonitorEvents,
+               'captures': MonitorCaptures,
+               'counters': MonitorCounters,
+               'crashes': MonitorHockeyApp,
+               'ui': MonitorUi,
+               'support': MonitorSupport,
+               'cost': MonitorCost,
+               }
+
+
     parser = argparse.ArgumentParser(add_help=False)
     config_group = parser.add_argument_group(title='Configuration Options',
                                              description='These options specify the Parse credential and various '
@@ -120,8 +134,7 @@ def main():
     report_group.add_argument('monitors',
                               nargs='*',
                               metavar='MONITOR',
-                              help='Choices are: users, events, errors, warnings, captures, counters, crashes, ui, '
-                                   'support')
+                              help='Choices are: %s' % ", ".join(mapping.keys()))
     options = parser.parse_args()
 
     if options.help:
@@ -193,19 +206,6 @@ def main():
 
     # Run each monitor
     monitors = list()
-    mapping = {'errors': MonitorErrors,
-               'warnings': MonitorWarnings,
-               'users': MonitorUsers,
-               'emails': MonitorEmails,
-               'events': MonitorEvents,
-               'captures': MonitorCaptures,
-               'counters': MonitorCounters,
-               'crashes': MonitorHockeyApp,
-               'ui': MonitorUi,
-               'support': MonitorSupport,
-               'cost': MonitorCost,
-               }
-
     for monitor_name in options.monitors:
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
@@ -220,9 +220,6 @@ def main():
                                                                       aws_secret_access_key=options.aws_secret_access_key,
                                                                       aws_access_key_id=options.aws_access_key_id,
                                                                       is_secure=True)
-            extra_params['prefix'] = options.aws_prefix
-        elif monitor_name == 'support':
-            extra_params['prefix'] = options.aws_prefix
 
         # Run the monitor with retries to robustly handle service failures
         def run_monitor():
@@ -233,7 +230,8 @@ def main():
                               region='us-west-2',
                               is_secure=True)
             monitor_cls = mapping[monitor_name]
-            new_monitor = monitor_cls(conn=conn, start=options.start, end=options.end, **extra_params)
+            new_monitor = monitor_cls(conn=conn, start=options.start, end=options.end, prefix=options.aws_prefix,
+                                      **extra_params)
             new_monitor.run()
             return new_monitor
         monitor = Monitor.run_with_retries(run_monitor, 'monitor %s' % monitor_name, 5)
