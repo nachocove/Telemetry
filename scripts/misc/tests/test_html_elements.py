@@ -1,5 +1,5 @@
 import unittest
-from html_elements import *
+from misc.html_elements import *
 
 
 class TestText(unittest.TestCase):

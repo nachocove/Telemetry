@@ -115,6 +115,7 @@ class EventDecorator:
         self.event_type = decorator
         self.ident = decorator
         self.info = decorator
+        self.link = decorator
 
 
 class EventFormatter:
@@ -155,12 +156,14 @@ class EventFormatter:
         self.event_type.decorator = event_decorator.event_type
         self.ident.decorator = event_decorator.ident
         self.info.decorator = event_decorator.info
+        self.link.decorator = event_decorator.info
 
     def reset_decorators(self):
         self.timestamp.decorator = self.default_decorator
         self.event_type.decorator = self.default_decorator
         self.ident.decorator = self.default_decorator
         self.info.decorator = self.default_decorator
+        self.link.decorator = self.default_decorator
 
     def decode_wbxml(self, wbxml):
         if self.wbxml_tool_path is None:
@@ -184,8 +187,17 @@ class EventFormatter:
         self.may_add(self.event_type, obj, 'event_type')
 
         # Format telemetry link
-        link = '%sbugfix/%s/logs/%s/%s/1/' % (self.telemetry_viewer_url_prefix, self.prefix, obj['client'], obj['timestamp'])
-        self.link.format('telemetry', link)
+        if set(obj.keys()).issuperset(set(['client', 'timestamp'])):
+            if isinstance(obj['timestamp'], dict) and 'iso' in obj['timestamp']:
+                # a Parse json-dict-formatted timestamp
+                timestamp = obj['timestamp']['iso']
+            elif isinstance(obj['timestamp'], (str, unicode)):
+                timestamp = obj['timestamp']
+            else:
+                raise ValueError("Unknown timestamp class: %s" % obj['timestamp']._class__)
+
+            link = '%sbugfix/%s/logs/%s/%s/1/' % (self.telemetry_viewer_url_prefix, self.prefix, obj['client'], timestamp)
+            self.link.format('telemetry', link)
 
         # Format the identification section
         for field in (events.IDENT_FIELDS + events.INTERNAL_FIELDS):

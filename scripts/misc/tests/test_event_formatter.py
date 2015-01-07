@@ -1,6 +1,5 @@
 import unittest
-from event_formatter import LogStyleEventFormatter
-from event_formatter import RecordStyleEventFormatter
+from misc.event_formatter import LogStyleEventFormatter, RecordStyleEventFormatter
 
 
 class TestLogStyleFormatter(unittest.TestCase):
@@ -15,8 +14,8 @@ class TestLogStyleFormatter(unittest.TestCase):
                'device_model': 'iPhone 5,2',
                'message': 'This is an INFO log.'}
         output = LogStyleEventFormatter(prefix="alpha").format(obj)
-        self.assertEqual(output, '2014-05-24T12:34:56.789Z INFO [abcxyz, 1.0.0, '
-                                 'iPhone OS, 7.1.1, iPhone 5,2] This is an INFO log. ')
+        expected_output = "2014-05-24T12:34:56.789Z INFO [abcxyz, 1.0.0, iPhone OS, 7.1.1, iPhone 5,2] http://localhost:8000/bugfix/alpha/logs/abcxyz/2014-05-24T12:34:56.789Z/1/ This is an INFO log. "
+        self.assertEqual(output, expected_output)
 
     def test_format_warn_no_ident(self):
         obj = {'timestamp': {'__type': 'Date',
@@ -24,7 +23,8 @@ class TestLogStyleFormatter(unittest.TestCase):
                'event_type': 'WARN',
                'message': 'This is a WARN log.'}
         output = LogStyleEventFormatter(prefix="alpha").format(obj)
-        self.assertEqual(output, '2014-05-24T12:34:56.789Z WARN This is a WARN log. ')
+        expected_output = '2014-05-24T12:34:56.789Z WARN  This is a WARN log. '
+        self.assertEqual(output, expected_output)
 
 
 class TestRecordStyleFormatter(unittest.TestCase):
@@ -39,14 +39,17 @@ class TestRecordStyleFormatter(unittest.TestCase):
                'device_model': 'iPhone 5,2',
                'message': 'This is an INFO log.'}
         output = RecordStyleEventFormatter(prefix="alpha").format(obj)
-        self.assertEqual(output, 'timestamp: 2014-05-24T12:34:56.789Z\n'
-                                 'event_type: INFO\n'
-                                 'client: abcxyz\n'
-                                 'build_version: 1.0.0\n'
-                                 'os_type: iPhone OS\n'
-                                 'os_version: 7.1.1\n'
-                                 'device_model: iPhone 5,2\n'
-                                 'message: This is an INFO log.\n')
+        expected_output = '''timestamp: 2014-05-24T12:34:56.789Z
+event_type: INFO
+client: abcxyz
+build_version: 1.0.0
+os_type: iPhone OS
+os_version: 7.1.1
+device_model: iPhone 5,2
+telemetry: http://localhost:8000/bugfix/alpha/logs/abcxyz/2014-05-24T12:34:56.789Z/1/
+message: This is an INFO log.
+'''
+        self.assertEqual(output, expected_output)
 
     def test_format_warn_no_ident(self):
         obj = {'timestamp': {'__type': 'Date',

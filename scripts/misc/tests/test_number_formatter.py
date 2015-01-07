@@ -1,5 +1,5 @@
 import unittest
-from number_formatter import *
+from misc.number_formatter import *
 
 
 class TestNumberFormatter(unittest.TestCase):
