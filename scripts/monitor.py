@@ -169,7 +169,7 @@ def main():
     # If we want a time window but do not have one from command line, get it
     # from config and current time
     do_update_timestamp = False
-    timestamp_state = TimestampConfig(Config(options.config + '.state'))
+    timestamp_state = TimestampConfig(Config(options.config + '.state', create=True))
     if isinstance(options.start, str) and options.start == 'last':
         options.start = timestamp_state.last
     if isinstance(options.end, str) and options.end == 'now':

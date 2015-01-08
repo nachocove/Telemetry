@@ -12,11 +12,18 @@
 import ConfigParser
 import os.path
 
+def touch(fname, times=None):
+    with open(fname, 'a'):
+        os.utime(fname, times)
 
 class Config:
-    def __init__(self, cfg_file):
+    def __init__(self, cfg_file, create=False):
         if not os.path.exists(cfg_file):
-            raise ValueError("Config file %s does not exist" % cfg_file)
+            if not create:
+                raise ValueError("Config file %s does not exist" % cfg_file)
+            else:
+                touch(cfg_file)
+
         self.cfg_file = cfg_file
         self.config = ConfigParser.RawConfigParser()
         if os.path.exists(self.cfg_file):
