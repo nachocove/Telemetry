@@ -58,7 +58,10 @@ class DateTimeAction(argparse.Action):
         elif (option_string == '--before') and ('now' == value):
             setattr(namespace, self.dest, 'now')
         else:
-            setattr(namespace, self.dest, UtcDateTime(value))
+            try:
+                setattr(namespace, self.dest, UtcDateTime(value))
+            except Exception:
+                raise argparse.ArgumentError(self, "not a valid Date-time argument: %s" % value)
 
 
 def datetime_tostr(iso_datetime):
@@ -169,9 +172,14 @@ def main():
     # If we want a time window but do not have one from command line, get it
     # from config and current time
     do_update_timestamp = False
-    timestamp_state = TimestampConfig(Config(options.config + '.state', create=True))
+    state_file = options.config + '.state'
     if isinstance(options.start, str) and options.start == 'last':
-        options.start = timestamp_state.last
+        try:
+            timestamp_state = TimestampConfig(Config(state_file))
+            options.start = timestamp_state.last
+        except Config.FileNotFoundException:
+            logger.error('Could not retrieve "last" timestamp. Could not read file %s', state_file)
+            exit(1)
     if isinstance(options.end, str) and options.end == 'now':
         options.end = UtcDateTime.now()
         do_update_timestamp = True
@@ -285,6 +293,7 @@ def main():
     # Update timestamp in config if necessary after we have successfully
     # send the notification email
     if do_update_timestamp:
+        timestamp_state = TimestampConfig(Config(state_file, create=True))
         timestamp_state.last = options.end
         timestamp_state.save()
 
