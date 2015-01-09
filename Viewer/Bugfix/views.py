@@ -23,8 +23,6 @@ from django.views.decorators.vary import vary_on_cookie
 from core.connection import projects, aws_connection, default_project
 from core.dates import iso_z_format, json_formatter
 
-sys.path.append('../scripts')
-
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.query import Query
