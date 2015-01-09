@@ -1,6 +1,8 @@
+import json
 import logging
 from events import LogEvent, WbxmlEvent, CounterEvent, CaptureEvent, SupportEvent, UiEvent, DeviceInfoEvent
-from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan, SelectorBetween
+from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan, SelectorBetween, SelectorEqual, \
+    SelectorStartsWith
 from tables import DeviceInfoTable
 
 
@@ -114,7 +116,7 @@ class Query(object):
         return results
 
     @staticmethod
-    def events(query, connection):
+    def events(query, connection, logger=None):
         """
         This method performs query to multiple tables and combines events (chronologically)
         and return a single list of events
@@ -134,9 +136,9 @@ class Query(object):
             table = table_cls(connection)
             table.connection.NumberRetries = 50
             if query.count:
-                count += Query._query(table, table_query, is_count=True, limit=query.limit)
+                count += Query._query(table, table_query, is_count=True, limit=query.limit, logger=logger)
             else:
-                results = Query._query(table, table_query, is_count=False, limit=query.limit)
+                results = Query._query(table, table_query, is_count=False, limit=query.limit, logger=logger)
                 table_events = event_cls.from_db_results(table.connection, results)
                 events.extend(table_events)
 
@@ -150,11 +152,11 @@ class Query(object):
         return Query.sort_chronologically(events)
 
     @staticmethod
-    def users(query, connection):
+    def users(query, connection, logger=None):
         assert isinstance(query, Query)
         table = DeviceInfoTable(connection)
         table_query = DeviceInfoTable.should_handle(query)
-        events = Query._query(table, table_query, False, query.limit)
+        events = Query._query(table, table_query, False, query.limit, logger=logger)
         if query.count:
             # Only want the # of unique client id
             clients = set()
@@ -162,6 +164,49 @@ class Query(object):
                 clients.add(event['client'])
             return len(clients)
         return DeviceInfoEvent.from_db_results(connection, events)
+
+    @staticmethod
+    def emails_per_domain(start, end, connection, logger=None):
+        query = Query()
+        query.add_range('timestamp', start, end)
+        results = Query.users(query, connection, logger=logger)
+
+        active_clients_this_period = set()
+        clients_that_did_autod = set()
+        email_addresses = set()
+        for x in results:
+            active_clients_this_period.add(x['client'])
+
+        # Using the client and timestamp range, see which of the active users ran auto-d at all
+        results = []
+        for client_id in active_clients_this_period:
+            query = Query()
+            query.add_range('timestamp', start, end)
+            query.add('client', SelectorEqual(client_id))
+            query.add('message', SelectorStartsWith('AUTOD'))
+            results.extend(Query.events(query, connection, logger=logger))
+
+        for event in results:
+            clients_that_did_autod.add(event['client'])
+        results = []
+        for client_id in clients_that_did_autod:
+            query = Query()
+            query.add('event_type', SelectorEqual('SUPPORT'))
+            query.add('client', SelectorEqual(client_id))
+            query.add_range('timestamp', start, end)
+            results.extend(Query.events(query, connection, logger=logger))
+
+        for event in results:
+            try:
+                email = json.loads(event.get('support', '{}')).get('sha256_email_address', '')
+                if email:
+                    email_addresses.add(email)
+            except ValueError as e:
+                if logger:
+                    logger.error(e)
+                continue
+        return email_addresses
+
 
     @staticmethod
     def sort_chronologically(events):

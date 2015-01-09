@@ -16,31 +16,22 @@ from django.http import HttpResponseRedirect
 import logging
 import cgi
 import json
-import ConfigParser
 from django.template import RequestContext
 from django.utils.decorators import available_attrs
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
+from core.connection import projects, aws_connection, default_project
+from core.dates import iso_z_format, json_formatter
 
 sys.path.append('../scripts')
 
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
-from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.query import Query
 from AWS.selectors import SelectorEqual, SelectorLessThanEqual
-from AWS.tables import TelemetryTable
 from monitors.monitor_base import Monitor
 from misc.support import Support
 from misc.utc_datetime import UtcDateTime
-
-# Get the list of project
-projects_cfg = ConfigParser.ConfigParser()
-projects_cfg.read('projects.cfg')
-projects = projects_cfg.sections()
-if not projects:
-    raise ValueError('No projects defined')
-default_project = os.environ.get('PROJECT', projects[0])
 
 tmp_logger = logging.getLogger('telemetry')
 
@@ -70,23 +61,6 @@ class VectorForm(forms.Form):
                                   params={'project': projects})
         return project
 
-
-_aws_connection_cache = {}
-def _aws_connection(project):
-    global _aws_connection_cache
-    if not project in _aws_connection_cache:
-        if not project in projects:
-            raise ValueError('Project %s is not present in projects.cfg' % project)
-        _aws_connection_cache[project] = DynamoDBConnection(host='dynamodb.us-west-2.amazonaws.com',
-                                                            port=443,
-                                                            aws_secret_access_key=projects_cfg.get(project, 'secret_access_key'),
-                                                            aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
-                                                            region='us-west-2',
-                                                            is_secure=True)
-    TelemetryTable.PREFIX = project
-    return _aws_connection_cache[project]
-
-
 def _parse_junk(junk, mapping):
     retval = dict()
     lines = junk.splitlines()
@@ -98,7 +72,7 @@ def _parse_junk(junk, mapping):
         value = splitty[1].strip()
         if key in mapping:
             retval[mapping[key]] = value.strip()
-    logger = logging.getLogger('telemetry').getChild('_parse_junk')
+    logger = tmp_logger.getChild('_parse_junk')
     logger.debug('retval=%s', retval)
     return retval
 
@@ -159,7 +133,7 @@ def nacho_cache(view_func):
 # Create your views here.
 def login(request):
     message = ''
-    logger = logging.getLogger('telemetry').getChild('login')
+    logger = tmp_logger.getChild('login')
     if request.method == 'POST':
         form = LoginForm(request.POST)
         if form.is_valid():
@@ -190,7 +164,7 @@ def process_error_report(request, project, form, loc, logger):
 def process_email(request, project, form, loc, logger):
     loc['span'] = str(default_span)
     # From the email, we need to find the client ID
-    conn = _aws_connection(project)
+    conn = aws_connection(project)
     query = Query()
     query.add('event_type', SelectorEqual('SUPPORT'))
     events = Query.events(query, conn)
@@ -234,7 +208,7 @@ def process_crash_report(request, project, form, loc, logger):
     loc['span'] = str(default_span)
 
     # From the crash log device ID, we need to find the client ID
-    conn = _aws_connection(project)
+    conn = aws_connection(project)
 
     # first, see if the device-id can be found in the device_info table
     query = Query()
@@ -279,7 +253,7 @@ def process_crash_report(request, project, form, loc, logger):
 
 @nachotoken_required
 def home(request):
-    logger = logging.getLogger('telemetry').getChild('home')
+    logger = tmp_logger.getChild('home')
     # Any message set in 'message' will be displayed as a red error message.
     # Used for reporting error in any POST.
     message = ''
@@ -317,21 +291,6 @@ def home(request):
     return render_to_response('home.html', {'form': form, 'message': message},
                               context_instance=RequestContext(request))
 
-def _iso_z_format(date):
-    raw = date.isoformat()
-    keep = raw.split('+', 1)[0]
-    if date.microsecond == 0:
-        return keep + '.000Z'
-    return keep[:-3] + 'Z'
-
-def json_formatter(obj):
-    if isinstance(obj, UtcDateTime):
-        return obj.datetime.isoformat('T')
-    elif isinstance(obj, datetime):
-        return obj.isoformat('T')
-    else:
-        raise TypeError, 'Object of type %s with value of %s is not JSON serializable' % (type(obj), repr(obj))
-
 @nachotoken_required
 @nacho_cache
 def entry_page_legacy(request, client='', timestamp='', span=str(default_span)):
@@ -358,15 +317,15 @@ def calc_spread(after, before, span=default_span, center=None):
     spread = timedelta(minutes=int(span))
     go_earlier = after - spread
     go_later = before + spread
-    iso_center = _iso_z_format(center)
-    iso_go_earlier = _iso_z_format(go_earlier)
-    iso_go_later = _iso_z_format(go_later)
+    iso_center = iso_z_format(center)
+    iso_go_earlier = iso_z_format(go_earlier)
+    iso_go_later = iso_z_format(go_later)
     return iso_go_earlier, iso_center, iso_go_later
 
 @nachotoken_required
 @nacho_cache
 def entry_page(request, project='', client='', timestamp='', span=str(default_span)):
-    logger = logging.getLogger('telemetry').getChild('entry_page')
+    logger = tmp_logger.getChild('entry_page')
     logger.info('client=%s, timestamp=%s, span=%s', client, timestamp, span)
     span = int(span)
     client = str(client)
@@ -401,7 +360,7 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
 @nachotoken_required
 @nacho_cache
 def entry_page_by_timestamps(request, project, client='', after='', before=''):
-    logger = logging.getLogger('telemetry').getChild('entry_page')
+    logger = tmp_logger.getChild('entry_page')
     logger.info('client=%s, after=%s, before=%s', client, after, before)
     context = entry_page_base(project, client, after, before, logger)
     iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=default_span, center=None)
@@ -424,7 +383,7 @@ def entry_page_by_timestamps(request, project, client='', after='', before=''):
                               context_instance=RequestContext(request))
 
 def entry_page_base(project, client, after, before, logger):
-    conn = _aws_connection(project)
+    conn = aws_connection(project)
     query = Query()
     query.limit = 100000
     query.add('client', SelectorEqual(client))

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block head %}
+    <link href="/static/css/jquery.datetimepicker.css" rel="stylesheet">
+{% endblock %}
+{% block javascript %}
+<script src="/static/jquery.datetimepicker.js"></script>
+<script src="/static/moment-with-locales.min.js"></script>
+<script>
+Date.parseDate = function( input, format ){
+  return moment.utc(input,format).toDate();
+};
+Date.prototype.dateFormat = function( format ){
+  return moment.utc(this).format(format)+'Z';
+};
+$(".nachodatetimepicker").datetimepicker({format: 'YYYY-MM-DDTHH:mm:ss',
+                                          formatTime: 'HH:mm:ss',
+                                          formatDate: 'YYYY-MM-DD'});
+</script>
+{% endblock %}
+{% block content %}
+<span class="search" style="float:left;margin:10px;display: inline-block">
+    <form id="report-select-form" action="{% url 'reports-home' %}" method="post">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="fieldWrapper">
+                {{ field.errors }}
+                {{ field.label_tag }} {{ field }}
+            </div>
+        {% endfor %}
+        <input type="submit" value="Submit" />
+    </form>
+</span>
+{% endblock %}

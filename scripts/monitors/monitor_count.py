@@ -1,8 +1,7 @@
-import json
-import time
 from AWS.query import Query
 from AWS.tables import TABLE_CLASSES
-from AWS.selectors import SelectorEqual, SelectorStartsWith
+from AWS.selectors import SelectorEqual
+from misc.emails import emails_per_domain
 from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
@@ -58,8 +57,6 @@ class MonitorEmails(MonitorCount):
         kwargs.setdefault('rate_desc', 'New user rate')
         MonitorCount.__init__(self, *args, **kwargs)
         self.query.count = False
-        self.active_clients_this_period = set()
-        self.clients_that_did_autod = set()
         self.email_addresses = set()
         self.emails_per_domain = dict()
         self.debug_timing = False
@@ -68,57 +65,10 @@ class MonitorEmails(MonitorCount):
         self.logger.info('Querying %s...', self.desc)
         # find all users that ran the client (i.e. inserted a device_info row) in the given timeframe
         # NOTE This is looking at timestamp (when the log was created) and NOT when it was uploaded
-        query = Query()
-        query.add_range('timestamp', self.start, self.end)
-        t1 = time.time()
-        results = Query.users(query, self.conn)
-        t2 = time.time()
-        if self.debug_timing: self.logger.debug("TIME active_clients_this_period %s: results %d %s", (t2-t1), len(results), query)
-        for x in results:
-            self.active_clients_this_period.add(x['client'])
-
-        # Using the client and timestamp range, see which of the active users ran auto-d at all
-        results = []
-        for client_id in self.active_clients_this_period:
-            query = Query()
-            query.add_range('timestamp', self.start, self.end)
-            query.add('client', SelectorEqual(client_id))
-            query.add('message', SelectorStartsWith('AUTOD'))
-            t1 = time.time()
-            r = Query.events(query, self.conn)
-            t2 = time.time()
-            if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
-            results.extend(r)
-
-        for event in results:
-            self.clients_that_did_autod.add(event['client'])
-        results = []
-        for client_id in self.clients_that_did_autod:
-            query = Query()
-            query.add('event_type', SelectorEqual('SUPPORT'))
-            query.add('client', SelectorEqual(client_id))
-            query.add_range('timestamp', self.start, self.end)
-            t1 = time.time()
-            r = Query.events(query, self.conn)
-            t2 = time.time()
-            if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
-            results.extend(r)
-
-        for event in results:
-            try:
-                email = json.loads(event.get('support', '{}')).get('sha256_email_address', '')
-                if email:
-                    self.email_addresses.add(email)
-            except ValueError:
-                # bad json
-                continue
+        self.email_addresses = Query.emails_per_domain(self.start, self.end, self.conn)
         self.count = len(self.email_addresses)
         self.logger.debug('Found %d emails: %s', self.count, self.email_addresses)
-        for email in self.email_addresses:
-            userhash, domain = email.split('@')
-            if domain not in self.emails_per_domain:
-                self.emails_per_domain[domain] = []
-            self.emails_per_domain[domain].append(email)
+        self.emails_per_domain = emails_per_domain(self.email_addresses)
 
     def report(self, summary, **kwargs):
         rate = Monitor.compute_rate(self.count, self.start, self.end, 'hr')

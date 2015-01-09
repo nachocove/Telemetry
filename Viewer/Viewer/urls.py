@@ -1,4 +1,4 @@
-from django.conf.urls import patterns, url
+from django.conf.urls import patterns, url, include
 from django.contrib import admin
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 
@@ -12,10 +12,8 @@ urlpatterns = patterns('',
     url(r'^login/$', 'Bugfix.views.login'),
     url(r'^logout/$', 'Bugfix.views.logout', name='logout'),
     url(r'^$', 'Bugfix.views.home'),
-    url(r'^bugfix/$', 'Bugfix.views.home', name="bugfix-home"),
-    url(r'^bugfix/logs/(?P<client>\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+)/(?P<timestamp>%s)/(?P<span>\d+)/$' % timestamp_regex, 'Bugfix.views.entry_page_legacy'),
-    url(r'^bugfix/(?P<project>\w+)/logs/(?P<client>\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+)/(?P<timestamp>%s)/(?P<span>\d+)/$' % timestamp_regex, 'Bugfix.views.entry_page'),
-    url(r'^bugfix/(?P<project>\w+)/logs/(?P<client>\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+)/(?P<after>%s)/(?P<before>%s)/$' % (timestamp_regex, timestamp_regex), 'Bugfix.views.entry_page_by_timestamps'),
+    url(r'^bugfix/', include("Bugfix.urls")),
+    url(r'^reports/', include("Reports.urls")),
 )
 
 urlpatterns += staticfiles_urlpatterns()

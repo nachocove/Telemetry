@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div><h1>Project: {{ project }}</h1></div>
+
+<h3>Emails per domain report</h3>
+<table class="table table-bordered">
+<tr><td>Start</td><td>{{ start }}</td></tr>
+<tr><td>End</td><td>{{ end }}</td></tr>
+</table>
+<br/><br/>
+<table class="table table-bordered">
+    <tr><th>Email</th><th>Count</th></tr>
+    {% for domain in emails_per_domain %}
+    <tr>
+        <td class="domain">{{ domain.name }}</td>
+        <td class="count">{{ domain.count }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{{ number_of_domains }} domains found.
+{% endblock %}

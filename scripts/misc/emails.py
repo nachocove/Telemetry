@@ -79,3 +79,12 @@ class Email:
         else:
             print "From: %(from)s\nTo: %(to)s\n\n%(email)s" %{'from': self.from_address, 'to': self.to_addresses_str(),
                                                               'email': email_.as_string()}
+
+def emails_per_domain(email_addresses):
+    emails_per_domain_dict = dict()
+    for email in email_addresses:
+        userhash, domain = email.split('@')
+        if domain not in emails_per_domain_dict:
+            emails_per_domain_dict[domain] = []
+        emails_per_domain_dict[domain].append(email)
+    return emails_per_domain_dict
