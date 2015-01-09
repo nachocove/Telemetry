@@ -1,3 +1,4 @@
+import logging
 from events import LogEvent, WbxmlEvent, CounterEvent, CaptureEvent, SupportEvent, UiEvent, DeviceInfoEvent
 from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan, SelectorBetween
 from tables import DeviceInfoTable
@@ -68,7 +69,8 @@ class Query(object):
             self.table_query[event_cls] = event_cls.TABLE_CLASS.should_handle(self)
 
     @staticmethod
-    def _query(table, table_query, is_count, limit):
+    def _query(table, table_query, is_count, limit, logger=None):
+        logger = logger or logging.getLogger('monitor')
         if table_query.has_primary_keys():
             if is_count:
                 results = table.query_count(limit=limit,
@@ -97,6 +99,7 @@ class Query(object):
                                         **table_query.secondary_keys.data())
         else:
             # No keys in any of the indexes. Fall back to scan
+            logger.warn('Scanning of table %s: %s', table.table_name, table_query.query_filter)
             if is_count:
                 # count += table.query_count(**table_query.query_filter.data())
                 # Somehow, query_count does not like it when there is no index. Use a scan instead

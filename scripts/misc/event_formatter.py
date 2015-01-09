@@ -1,5 +1,7 @@
+from datetime import datetime
 import subprocess
 import events
+from misc.utc_datetime import UtcDateTime
 
 
 class AnsiDecorator:
@@ -187,14 +189,16 @@ class EventFormatter:
         self.may_add(self.event_type, obj, 'event_type')
 
         # Format telemetry link
-        if set(obj.keys()).issuperset(set(['client', 'timestamp'])):
+        if set(obj.keys()).issuperset({'client', 'timestamp'}):
             if isinstance(obj['timestamp'], dict) and 'iso' in obj['timestamp']:
                 # a Parse json-dict-formatted timestamp
                 timestamp = obj['timestamp']['iso']
             elif isinstance(obj['timestamp'], (str, unicode)):
                 timestamp = obj['timestamp']
+            elif isinstance(obj['timestamp'], (UtcDateTime, datetime)):
+                timestamp = str(obj['timestamp'])
             else:
-                raise ValueError("Unknown timestamp class: %s" % obj['timestamp']._class__)
+                raise ValueError("Unknown timestamp class: %s" % obj['timestamp'].__class__)
 
             link = '%sbugfix/%s/logs/%s/%s/1/' % (self.telemetry_viewer_url_prefix, self.prefix, obj['client'], timestamp)
             self.link.format('telemetry', link)

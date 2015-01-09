@@ -10,6 +10,9 @@ class TelemetryTableQuery:
         self.primary_keys = QueryFilter()
         self.query_filter = QueryFilter()
 
+    def __str__(self):
+        return ":".join([str(self.__class__.__name__), str(self.query_filter)])
+
     def has_index(self):
         return self.index is not None
 
