@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block secondarynav %}
+<nav class="navbar navbar-default navbar-fixed-top navbar-secondary" role="navigation">
+    <div class="container">
+        <div class="navbar-header">
+            <a class="navbar-brand">Project {{ project }}</a>
+        </div>
+        <div id="navbar" class="collapse navbar-collapse">
+            <ul class="nav navbar-nav">
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">Show
+                        Rows<span
+                                class="caret"></span></a>
+                    <ul class="dropdown-menu" role="menu">
+                        <li role="presentation"><a role="menuitem" tabindex="-1"
+                                                   onclick="$('#table_events tr').show();$('.row_select_dropdown').show();">Show
+                            All</a></li>
+                        <li class="divider"></li>
+
+                        {% for event_type in dropdown %}
+                        <li role="presentation"><a role="menuitem" tabindex="-1"
+                                                   onclick="$('tr.{{ event_type }}').toggle();$('#{{ event_type }}_checkmark').toggle();">
+                            <span id="{{ event_type }}_checkmark" class="row_select_dropdown glyphicon glyphicon-ok"
+                                  aria-hidden="true"></span> Show
+                            {{ event_type.capitalize }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </li>
+                <li class="btn-group">
+                    <div>
+                        {% for button in buttons %}
+                        <button type="button" class="navbar-btn btn btn-default"><a href="{{ button.url }}">{{ button.text }}</a></button>
+                        {% endfor %}
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+{% endblock %}

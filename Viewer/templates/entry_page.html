@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "entry_base.html" %}
 {% block head %}
 <link rel="stylesheet" type="text/css" href="/static/css/list.css">
 {% endblock %}
@@ -10,36 +10,8 @@ var events = {{ events|safe }};
 <script type="text/javascript" src="/static/list.js"></script>
 {% endblock %}
 {% block navbar %}
-<li class="dropdown">
-    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">Show Rows<span
-            class="caret"></span></a>
-    <ul class="dropdown-menu" role="menu">
-        <li role="presentation"><a role="menuitem" tabindex="-1"
-                                   onclick="$('#table_events tr').show();$('.row_select_dropdown').show();">Show All</a></li>
-            <li class="divider"></li>
-
-        {% for event_type in dropdown %}
-        <li role="presentation"><a role="menuitem" tabindex="-1"
-                                   onclick="$('tr.{{ event_type }}').toggle();$('#{{ event_type }}_checkmark').toggle();">
-            <span id="{{ event_type }}_checkmark" class="row_select_dropdown glyphicon glyphicon-ok" aria-hidden="true"></span> Show
-            {{ event_type.capitalize }}</a></li>
-        {% endfor %}
-    </ul>
-</li>
 {% endblock %}
 {% block content %}
-<div><h1>Project: {{ project }}</h1></div>
-<div class="btn-group" role="group" aria-label="Large button group">
-    {% for button in buttons %}
-    <button type="button" class="btn btn-default"><a href="{{ button.url }}">{{ button.text }}</a></button>
-    {% endfor %}
-</div>
-<br/><br/>
 <table id="table_summary" class="table table-bordered"></table><br/>
 <table id="table_events" class="table table-bordered"></table>
-<div class="btn-group" role="group" aria-label="Large button group">
-    {% for button in buttons %}
-    <button type="button" class="btn btn-default"><a href="{{ button.url }}">{{ button.text }}</a></button>
-    {% endfor %}
-</div>
 {% endblock %}

@@ -24,6 +24,11 @@ body {
   margin-bottom: 10px;
 }
 
+.navbar-secondary {
+  top: 50px;
+  border-top-width: 2px
+}
+
 
 /* Non-responsive overrides
  *
@@ -137,4 +142,7 @@ body {
 .search-help {
     margin:10px;
     display: inline-block;
+}
+body{
+  margin-top: 50px;
 }
