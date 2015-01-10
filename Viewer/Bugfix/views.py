@@ -28,7 +28,7 @@ from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorLessThanEqual
+from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween
 from AWS.tables import TelemetryTable
 from monitors.monitor_base import Monitor
 from misc.support import Support
@@ -443,26 +443,37 @@ def entry_page_base(project, client, after, before, logger):
     params = dict()
     params['start'] = after
     params['stop'] = before
-    params['client'] = client
     params['event_count'] = event_count
     # Query the user device info
     try:
         user_query = Query()
         user_query.add('client', SelectorEqual(client))
+        user_query.add('uploaded_at', SelectorBetween(UtcDateTime(after), UtcDateTime(before)))
         client_list = Query.users(user_query, conn)
+        if len(client_list) == 0:
+            # widen the search :-(
+            user_query = Query()
+            user_query.add('client', SelectorEqual(client))
+            client_list = Query.users(user_query, conn)
 
         if len(client_list) > 0:
-            # Get the user from the first client
-            params['os_type'] = client_list[0]['os_type']
-            params['os_version'] = client_list[0]['os_version']
-            params['device_model'] = client_list[0]['device_model']
-            params['build_version'] = client_list[0]['build_version']
+            # Get the data from the LAST client-entry
+            params.update(client_list[-1])
     except DynamoDBError, e:
         return HttpResponseBadRequest('fail to query device info - %s', str(e))
 
     context = {'project': project,
                'params': json.dumps(params, default=json_formatter),
                }
+    params.setdefault('client', '')
+    params.setdefault('device_id', '')
+    params.setdefault('os_type', '')
+    params.setdefault('os_version', '')
+    params.setdefault('device_model', '')
+    params.setdefault('build_version', '')
+    params.setdefault('build_number', '')
+
+    assert(params['client'] == client)
 
     # Generate the events JSON
     event_list = [dict(x.items()) for x in obj_list]

@@ -178,6 +178,9 @@ function refreshSummary() {
     table.appendChild(tr);
 
     addSummaryRow(table, 'Client', params.client);
+    if (params.hasOwnProperty('device_id')) {
+        addSummaryRow(table, 'Device ID', params.device_id);
+    }
     addSummaryRow(table, '# Events', params.event_count);
     if (params.event_count > events.length) {
         alert(params.event_count + ' events exist but we are only able to retrieve the first ' + events.length + ' events. Please zoom in to reduce the time window.')
@@ -193,6 +196,9 @@ function refreshSummary() {
     }
     if (params.hasOwnProperty('build_version')) {
         addSummaryRow(table, 'Build Version', params.build_version);
+    }
+    if (params.hasOwnProperty('build_number')) {
+        addSummaryRow(table, 'Build Number', params.build_number);
     }
 }
 
