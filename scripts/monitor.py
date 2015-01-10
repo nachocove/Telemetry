@@ -133,6 +133,11 @@ def main():
                               help='Set the ending time to exactly one day after the starting time',
                               action='store_true',
                               default=False)
+    filter_group.add_argument('--weekly',
+                              help='Set the ending time to exactly one week after the starting time',
+                              action='store_true',
+                              default=False)
+
 
     misc_group = parser.add_argument_group(title='Miscellaneous Option')
     misc_group.add_argument('-h', '--help', help='Print this help message', action='store_true', dest='help')
@@ -179,6 +184,9 @@ def main():
             options.start = timestamp_state.last
         except Config.FileNotFoundException:
             logger.error('Could not retrieve "last" timestamp. Could not read file %s', state_file)
+            exit(1)
+        except ValueError as e:
+            logger.error("Could not read last timestamp from file %s. Error=%s", state_file, e)
             exit(1)
     if isinstance(options.end, str) and options.end == 'now':
         options.end = UtcDateTime.now()
@@ -283,7 +291,7 @@ def main():
                 email.send(smtp_server)
                 break
             except Exception, e:
-                logger.error('fail to send email (%s)' % e.message)
+                logger.error('fail to send email: %s', e)
                 num_retries += 1
         else:
             logger.error('fail to send email after %d retries' % num_retries)
