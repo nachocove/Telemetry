@@ -152,6 +152,10 @@ def main():
     if options.help:
         parser.print_help()
         exit(0)
+    if options.weekly and options.daily:
+        logger.error("Daily and weekly? Really? Pick one.")
+        parser.print_help()
+        exit(0)
 
     # If no key is provided in command line, get them from config.
     config_file = Config(options.config)
@@ -191,12 +195,15 @@ def main():
     if isinstance(options.end, str) and options.end == 'now':
         options.end = UtcDateTime.now()
         do_update_timestamp = True
-    if options.daily:
+    if options.daily or options.weekly:
         if not options.start:
             from datetime import datetime
             options.start = UtcDateTime(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
         options.end = UtcDateTime(options.start)
-        options.end.datetime += timedelta(days=1)
+        if options.daily:
+            options.end.datetime += timedelta(days=1)
+        elif options.weekly:
+            options.end.datetime += timedelta(days=7)
         do_update_timestamp = True
 
     if options.debug:
