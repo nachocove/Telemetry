@@ -31,7 +31,8 @@ class EmailConfig(SectionConfig):
         'tls',
         'username',
         'password',
-        'recipient'
+        'recipient',
+        'fromaddr',
     )
 
     def __init__(self, config_file):
@@ -73,7 +74,7 @@ class EmailConfig(SectionConfig):
         if self.tls is not None:
             tls = self.tls
 
-        email.from_address = username
+        email.from_address = self.fromaddr if self.fromaddr else username
         email.to_addresses = self.recipient.split(',')
 
         smtp_server = EmailServer(server=server,

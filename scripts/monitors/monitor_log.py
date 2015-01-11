@@ -72,7 +72,7 @@ class MonitorLog(Monitor):
     def _get_trace(self, event):
         assert 'client' in event and 'timestamp' in event
         (start, end) = LogTrace.get_time_window(event['timestamp'], 2, 0)
-        trace = LogTrace(desc=self.desc, client=event['client'], start=start, end=end)
+        trace = LogTrace(desc=self.desc, client=event['client'], start=start, end=end, prefix=self.prefix)
         return trace
 
     def _get_traces(self):
@@ -163,7 +163,7 @@ class MonitorLog(Monitor):
     def attachment(self):
         if len(self.events) == 0:
             return None
-        ef = event_formatter.RecordStyleEventFormatter()
+        ef = event_formatter.RecordStyleEventFormatter(prefix=self.prefix)
         raw_log_prefix = '%s_%s' % (self.desc, self.end.file_suffix())
         raw_log_path = raw_log_prefix + '.txt'
         with open(raw_log_path, 'w') as raw_log:

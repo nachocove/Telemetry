@@ -1,11 +1,14 @@
 import os
+
 import unittest
 from boto.dynamodb2.layer1 import DynamoDBConnection
-from events import *
-from selectors import *
-from tables import *
-from query import Query
-from query_filter import QueryFilter
+import time
+
+from AWS.events import *
+from AWS.selectors import *
+from AWS.tables import *
+from AWS.query import Query
+from AWS.query_filter import QueryFilter
 
 
 def sublist(list_, indexes):
@@ -71,8 +74,11 @@ def start_dynamo(port):
         from multiprocessing import Process
         p = Process(target=dynamo_server, args=(os.environ['DYNAMODBLOCAL_HOME'], port))
         p.start()
+        time.sleep(2)
         print "Started process %d" % p.pid
         DynamoLocalProcess = p
+    else:
+        raise Exception('Could not start the local dynamoDB server. Perhaps env["DYNAMODBLOCAL_HOME"] is not set?')
 
 def kill_dynamo():
     global DynamoLocalProcess

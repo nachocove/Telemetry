@@ -1,6 +1,9 @@
+import json
+import time
 from AWS.query import Query
 from AWS.tables import TABLE_CLASSES
-from AWS.selectors import SelectorEqual
+from AWS.selectors import SelectorEqual, SelectorStartsWith
+from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
 
@@ -34,16 +37,115 @@ class MonitorCount(Monitor):
     def attachment(self):
         return None
 
-
 class MonitorUsers(MonitorCount):
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault('desc', 'New user count')
-        kwargs.setdefault('rate_desc', 'New user rate')
+        kwargs.setdefault('desc', 'Active user count')
         MonitorCount.__init__(self, *args, **kwargs)
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
         self.count = Query.users(self.query, self.conn)
+
+    def report(self, summary, **kwargs):
+        count_str = pretty_number(self.count)
+        self.logger.info('%s: %s', self.desc, count_str)
+        summary.add_entry(self.desc, count_str)
+        return None  # does not have its own report
+
+class MonitorEmails(MonitorCount):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('desc', 'New user count (fresh install)')
+        kwargs.setdefault('rate_desc', 'New user rate')
+        MonitorCount.__init__(self, *args, **kwargs)
+        self.query.count = False
+        self.active_clients_this_period = set()
+        self.clients_that_did_autod = set()
+        self.email_addresses = set()
+        self.emails_per_domain = dict()
+        self.debug_timing = False
+
+    def run(self):
+        self.logger.info('Querying %s...', self.desc)
+        # find all users that ran the client (i.e. inserted a device_info row) in the given timeframe
+        # NOTE This is looking at timestamp (when the log was created) and NOT when it was uploaded
+        query = Query()
+        query.add_range('timestamp', self.start, self.end)
+        t1 = time.time()
+        results = Query.users(query, self.conn)
+        t2 = time.time()
+        if self.debug_timing: self.logger.debug("TIME active_clients_this_period %s: results %d %s", (t2-t1), len(results), query)
+        for x in results:
+            self.active_clients_this_period.add(x['client'])
+
+        # Using the client and timestamp range, see which of the active users ran auto-d at all
+        results = []
+        for client_id in self.active_clients_this_period:
+            query = Query()
+            query.add_range('timestamp', self.start, self.end)
+            query.add('client', SelectorEqual(client_id))
+            query.add('message', SelectorStartsWith('AUTOD'))
+            t1 = time.time()
+            r = Query.events(query, self.conn)
+            t2 = time.time()
+            if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
+            results.extend(r)
+
+        for event in results:
+            self.clients_that_did_autod.add(event['client'])
+        results = []
+        for client_id in self.clients_that_did_autod:
+            query = Query()
+            query.add('event_type', SelectorEqual('SUPPORT'))
+            query.add('client', SelectorEqual(client_id))
+            query.add_range('timestamp', self.start, self.end)
+            t1 = time.time()
+            r = Query.events(query, self.conn)
+            t2 = time.time()
+            if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
+            results.extend(r)
+
+        for event in results:
+            try:
+                email = json.loads(event.get('support', '{}')).get('sha256_email_address', '')
+                if email:
+                    self.email_addresses.add(email)
+            except ValueError:
+                # bad json
+                continue
+        self.count = len(self.email_addresses)
+        self.logger.debug('Found %d emails: %s', self.count, self.email_addresses)
+        for email in self.email_addresses:
+            userhash, domain = email.split('@')
+            if domain not in self.emails_per_domain:
+                self.emails_per_domain[domain] = []
+            self.emails_per_domain[domain].append(email)
+
+    def report(self, summary, **kwargs):
+        rate = Monitor.compute_rate(self.count, self.start, self.end, 'hr')
+        count_str = pretty_number(self.count)
+        self.logger.info('%s: %s', self.desc, count_str)
+        self.logger.info('%s: %s', self.rate_desc, rate)
+        summary.add_entry(self.desc, count_str)
+
+        if self.rate_desc and rate is not None:
+            summary.add_entry(self.rate_desc, rate)
+        table = Table()
+        table.add_row(TableRow([TableHeader(Bold('Domain')),
+                                TableHeader(Bold('# clients')),
+                                ]))
+        for domain in sorted(self.emails_per_domain.keys()):
+            table.add_row(TableRow([TableElement(Text(domain)),
+                                    TableElement(Text(pretty_number(len(self.emails_per_domain[domain]))), align='right'),
+                                    ]))
+
+        title = self.title()
+        paragraph = Paragraph([Bold(title), table])
+        return paragraph
+
+    def attachment(self):
+        return None
+
+
 
 
 class MonitorEvents(MonitorCount):

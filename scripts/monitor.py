@@ -19,7 +19,7 @@ from misc.config import Config
 from monitors.monitor_base import Summary, Monitor
 from monitors.monitor_cost import MonitorCost
 from monitors.monitor_log import MonitorErrors, MonitorWarnings
-from monitors.monitor_count import MonitorUsers, MonitorEvents
+from monitors.monitor_count import MonitorUsers, MonitorEvents, MonitorEmails
 from monitors.monitor_captures import MonitorCaptures
 from monitors.monitor_counters import MonitorCounters
 from monitors.monitor_hockeyapp import MonitorHockeyApp
@@ -58,7 +58,10 @@ class DateTimeAction(argparse.Action):
         elif (option_string == '--before') and ('now' == value):
             setattr(namespace, self.dest, 'now')
         else:
-            setattr(namespace, self.dest, UtcDateTime(value))
+            try:
+                setattr(namespace, self.dest, UtcDateTime(value))
+            except Exception:
+                raise argparse.ArgumentError(self, "not a valid Date-time argument: %s" % value)
 
 
 def datetime_tostr(iso_datetime):
@@ -74,6 +77,20 @@ def main():
     logging.basicConfig(format='%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('monitor')
     logger.setLevel(logging.INFO)
+
+    mapping = {'errors': MonitorErrors,
+               'warnings': MonitorWarnings,
+               'users': MonitorUsers,
+               'emails': MonitorEmails,
+               'events': MonitorEvents,
+               'captures': MonitorCaptures,
+               'counters': MonitorCounters,
+               'crashes': MonitorHockeyApp,
+               'ui': MonitorUi,
+               'support': MonitorSupport,
+               'cost': MonitorCost,
+               }
+
 
     parser = argparse.ArgumentParser(add_help=False)
     config_group = parser.add_argument_group(title='Configuration Options',
@@ -94,6 +111,10 @@ def main():
                               help='Debug',
                               action='store_true',
                               default=False)
+    config_group.add_argument('--debug-boto',
+                              help='Debug Boto',
+                              action='store_true',
+                              default=False)
 
     filter_group = parser.add_argument_group(title='Filtering Options',
                                              description='These options specify a time '
@@ -112,6 +133,11 @@ def main():
                               help='Set the ending time to exactly one day after the starting time',
                               action='store_true',
                               default=False)
+    filter_group.add_argument('--weekly',
+                              help='Set the ending time to exactly one week after the starting time',
+                              action='store_true',
+                              default=False)
+
 
     misc_group = parser.add_argument_group(title='Miscellaneous Option')
     misc_group.add_argument('-h', '--help', help='Print this help message', action='store_true', dest='help')
@@ -120,8 +146,7 @@ def main():
     report_group.add_argument('monitors',
                               nargs='*',
                               metavar='MONITOR',
-                              help='Choices are: users, events, errors, warnings, captures, counters, crashes, ui, '
-                                   'support')
+                              help='Choices are: %s' % ", ".join(mapping.keys()))
     options = parser.parse_args()
 
     if options.help:
@@ -152,9 +177,17 @@ def main():
     # If we want a time window but do not have one from command line, get it
     # from config and current time
     do_update_timestamp = False
-    timestamp_state = TimestampConfig(Config(options.config + '.state'))
+    state_file = options.config + '.state'
     if isinstance(options.start, str) and options.start == 'last':
-        options.start = timestamp_state.last
+        try:
+            timestamp_state = TimestampConfig(Config(state_file))
+            options.start = timestamp_state.last
+        except Config.FileNotFoundException:
+            logger.error('Could not retrieve "last" timestamp. Could not read file %s', state_file)
+            exit(1)
+        except ValueError as e:
+            logger.error("Could not read last timestamp from file %s. Error=%s", state_file, e)
+            exit(1)
     if isinstance(options.end, str) and options.end == 'now':
         options.end = UtcDateTime.now()
         do_update_timestamp = True
@@ -193,18 +226,6 @@ def main():
 
     # Run each monitor
     monitors = list()
-    mapping = {'errors': MonitorErrors,
-               'warnings': MonitorWarnings,
-               'users': MonitorUsers,
-               'events': MonitorEvents,
-               'captures': MonitorCaptures,
-               'counters': MonitorCounters,
-               'crashes': MonitorHockeyApp,
-               'ui': MonitorUi,
-               'support': MonitorSupport,
-               'cost': MonitorCost,
-               }
-
     for monitor_name in options.monitors:
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
@@ -219,9 +240,6 @@ def main():
                                                                       aws_secret_access_key=options.aws_secret_access_key,
                                                                       aws_access_key_id=options.aws_access_key_id,
                                                                       is_secure=True)
-            extra_params['prefix'] = options.aws_prefix
-        elif monitor_name == 'support':
-            extra_params['prefix'] = options.aws_prefix
 
         # Run the monitor with retries to robustly handle service failures
         def run_monitor():
@@ -230,9 +248,11 @@ def main():
                               aws_secret_access_key=options.aws_secret_access_key,
                               aws_access_key_id=options.aws_access_key_id,
                               region='us-west-2',
-                              is_secure=True)
+                              is_secure=True,
+                              debug=2 if options.debug_boto else 0)
             monitor_cls = mapping[monitor_name]
-            new_monitor = monitor_cls(conn=conn, start=options.start, end=options.end, **extra_params)
+            new_monitor = monitor_cls(conn=conn, start=options.start, end=options.end, prefix=options.aws_prefix,
+                                      **extra_params)
             new_monitor.run()
             return new_monitor
         monitor = Monitor.run_with_retries(run_monitor, 'monitor %s' % monitor_name, 5)
@@ -271,7 +291,7 @@ def main():
                 email.send(smtp_server)
                 break
             except Exception, e:
-                logger.error('fail to send email (%s)' % e.message)
+                logger.error('fail to send email: %s', e)
                 num_retries += 1
         else:
             logger.error('fail to send email after %d retries' % num_retries)
@@ -281,6 +301,7 @@ def main():
     # Update timestamp in config if necessary after we have successfully
     # send the notification email
     if do_update_timestamp:
+        timestamp_state = TimestampConfig(Config(state_file, create=True))
         timestamp_state.last = options.end
         timestamp_state.save()
 

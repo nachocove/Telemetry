@@ -1,12 +1,12 @@
 import unittest
-from hockeyapp import HockeyApp
-from app import App
-from version import Version
+from HockeyApp.hockeyapp import HockeyApp
+from HockeyApp.app import App
+from HockeyApp.version import Version
 
-
+@unittest.skip('Needs active api-token matching an app')
 class TestHockeyApp(unittest.TestCase):
     def setUp(self):
-        self.ha_obj = HockeyApp(api_token='86697957b3f54a8e86c8473e2003b810')
+        self.ha_obj = HockeyApp(api_token='4a472c5e774a4004a4eb1dd648b8af8a')
 
     @staticmethod
     def remove_nachomail_app(app_list):

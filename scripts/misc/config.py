@@ -12,15 +12,17 @@
 import ConfigParser
 import os.path
 
-
 class Config:
-    def __init__(self, cfg_file):
-        if not os.path.exists(cfg_file):
-            raise ValueError("Config file %s does not exist" % cfg_file)
+    class FileNotFoundException(Exception):
+        pass
+
+    def __init__(self, cfg_file, create=True):
         self.cfg_file = cfg_file
         self.config = ConfigParser.RawConfigParser()
         if os.path.exists(self.cfg_file):
             self.config.read(self.cfg_file)
+        elif not create:
+            raise self.FileNotFoundException(cfg_file)
 
     def _section_and_key_exist(self, section, key):
         if not self.config.has_section(section):
@@ -87,7 +89,6 @@ class SectionConfig:
             value = getattr(self, key)
             if value is not None:
                 setattr(options, cls.SECTION + '_' + key, value)
-
 
 class ColorsConfig(SectionConfig):
     SECTION = 'colors'

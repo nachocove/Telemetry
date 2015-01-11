@@ -169,7 +169,7 @@ def count(options):
 
 
 def setup_event_formatter(cls, options):
-    formatter = cls()
+    formatter = cls(options.aws_prefix)
     for event_type in events.TYPES:
         if not hasattr(options, event_type.lower()):
             continue
