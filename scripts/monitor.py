@@ -4,7 +4,14 @@ import argparse
 import ConfigParser
 import logging
 from datetime import timedelta, datetime, date
+import os
 from boto.ec2 import cloudwatch
+import sys
+
+try:
+    from cloghandler import ConcurrentRotatingFileHandler as RFHandler
+except ImportError:
+    from logging.handlers import RotatingFileHandler as RFHandler
 
 from AWS.config import AwsConfig
 from AWS.tables import TelemetryTable
@@ -119,10 +126,6 @@ def period_to_seconds(period):
     return ret
 
 def main():
-    logging.basicConfig(format='%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    logger = logging.getLogger('monitor')
-    logger.setLevel(logging.INFO)
-
     mapping = {'errors': MonitorErrors,
                'warnings': MonitorWarnings,
                'users': MonitorUsers,
@@ -163,6 +166,10 @@ def main():
 
     config_group.add_argument('-d', '--debug',
                               help='Debug',
+                              action='store_true',
+                              default=False)
+    config_group.add_argument('-v', '--verbose',
+                              help='Output logging to stdout',
                               action='store_true',
                               default=False)
     config_group.add_argument('--debug-boto',
@@ -206,6 +213,24 @@ def main():
                               metavar='MONITOR',
                               help='Choices are: %s' % ", ".join(mapping.keys()))
     options = parser.parse_args()
+
+    logging_format = '%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s'
+    logger = logging.getLogger('monitor')
+
+    logger.setLevel(logging.DEBUG)
+    if options.debug or options.verbose:
+        streamhandler = logging.StreamHandler(sys.stdout)
+        streamhandler.setLevel(logging.DEBUG if options.debug else logging.INFO)
+        streamhandler.setFormatter(logging.Formatter(logging_format))
+        logger.addHandler(streamhandler)
+
+    log_file = os.path.abspath(options.config+'.log')
+    handler = RFHandler(log_file)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter(logging_format))
+    logger.addHandler(handler)
+
+    logger.debug("Monitor started: %s, cwd=%s, euid=%d", " ".join(sys.argv[1:]), os.getcwd(), os.geteuid())
 
     if options.help:
         parser.print_help()
