@@ -1,3 +1,0 @@
-# Delay a random time between 0 and 360 minutes (6 hours)
-RANDOM_DELAY=360
-@weekly ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/email_report_beta1.cfg --after last --weekly emails
