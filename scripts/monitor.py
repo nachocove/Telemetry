@@ -225,7 +225,7 @@ def main():
         logger.addHandler(streamhandler)
 
     log_file = os.path.abspath(options.config+'.log')
-    handler = RFHandler(log_file)
+    handler = RFHandler(log_file, maxBytes=10*1024*1024, backupCount=10)
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(logging.Formatter(logging_format))
     logger.addHandler(handler)
