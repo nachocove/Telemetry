@@ -80,6 +80,45 @@ def last_sunday():
 def today_midnight():
     return UtcDateTime(datetime.fromordinal(date.today().toordinal()))
 
+def guess_last(period):
+    ret = None
+    if isinstance(period, (unicode, str)):
+        if period == 'weekly':
+            ret = last_sunday()
+        elif period == 'daily':
+            ret = today_midnight()
+        else:
+            try:
+                ret = UtcDateTime(datetime.now()-timedelta(seconds=int(period)))
+            except ValueError:
+                pass
+    elif isinstance(period, (int, long)):
+        ret = UtcDateTime(datetime.now()-timedelta(seconds=period))
+    elif isinstance(period, timedelta):
+        ret = UtcDateTime(datetime.now()-period)
+
+    if not ret:
+        raise ValueError('Unknown value %s for period' % period)
+    return ret
+
+def period_to_seconds(period):
+    ret = None
+    if isinstance(period, (unicode, str)):
+        if period == 'weekly':
+            ret = 7*24*60*60
+        elif period == 'daily':
+            ret = 60*60*24
+        else:
+            try:
+                ret = int(period)
+            except ValueError:
+                pass
+    elif isinstance(period, (int, long)):
+        ret = period
+    if not ret:
+        raise ValueError('Unknown value %s for period' % period)
+    return ret
+
 def main():
     logging.basicConfig(format='%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('monitor')
@@ -136,12 +175,16 @@ def main():
                               action=DateTimeAction,
                               dest='end',
                               default=None)
+
+    filter_group.add_argument('--period',
+                              help='Indicate the periodicity with which this job runs',
+                              default=None, type=str)
     filter_group.add_argument('--daily',
-                              help='Set the ending time to exactly one day after the starting time',
+                              help='(DEPRECATED. Use --period daily). Set the ending time to exactly one day after the starting time',
                               action='store_true',
                               default=False)
     filter_group.add_argument('--weekly',
-                              help='Set the ending time to exactly one week after the starting time',
+                              help='(DEPRECATED. Use --period weekly). Set the ending time to exactly one week after the starting time',
                               action='store_true',
                               default=False)
 
@@ -163,6 +206,10 @@ def main():
         logger.error("Daily and weekly? Really? Pick one.")
         parser.print_help()
         exit(0)
+    if options.weekly:
+        options.period = 'weekly'
+    if options.daily:
+        options.period = 'daily'
 
     # If no key is provided in command line, get them from config.
     config_file = Config(options.config)
@@ -195,19 +242,23 @@ def main():
             options.start = timestamp_state.last
         except (Config.FileNotFoundException, ValueError) as e:
             logger.warn("Could not read last timestamp from file %s. Error=%s:%s.", state_file, e.__class__.__name__, e)
-            if not options.daily or not options.weekly:
-                raise ValueError("Not daily and not weekly. Can't guess 'last'. Please create state file manually.")
-            options.start = today_midnight() if options.daily else last_sunday()
+            if not options.period:
+                raise ValueError("No period set. Can't guess 'last'. Please create state file manually.")
+            try:
+                options.start = guess_last(options.period)
+            except ValueError as e:
+                raise ValueError("Can't guess 'last': %s. Please create state file manually.", e)
+
             do_update_timestamp = True
 
     if isinstance(options.end, str) and options.end == 'now':
         options.end = UtcDateTime.now()
         do_update_timestamp = True
-    if options.daily or options.weekly:
+    if options.period:
         if not options.start:
-            options.start = today_midnight() if options.daily else last_sunday()
+            options.start = guess_last(options.period)
         options.end = UtcDateTime(options.start)
-        options.end.datetime += timedelta(days=1 if options.daily else 7)
+        options.end.datetime += timedelta(seconds=period_to_seconds(options.period))
         do_update_timestamp = True
 
     if options.debug:
