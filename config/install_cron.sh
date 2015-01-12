@@ -27,5 +27,5 @@ fi
 temp=$TMPDIR/$$.$RANDOM
 
 echo "Copying cron definitions from $scripts_path/cron/ to /etc/cron.d/"
-m4 -DCONFIG_DIR=$config_path -DEMAIL_CFG=$1 $scripts_path/cron/nacho-cove.template > $temp || rm -f $temp
+m4 -DCONFIG_DIR=$config_path -DEMAIL_CFG=$1 -DSCRIPTS_DIR=$scripts_path $scripts_path/cron/nacho-cove.template > $temp || rm -f $temp
 sudo mv $temp /etc/cron.d/nacho-cove
