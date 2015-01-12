@@ -156,6 +156,10 @@ def main():
                               help='Send email notification to a destination (override config file)',
                               action='append',
                               default=[])
+    config_group.add_argument('--email-config',
+                              help='Read email settings from a separate config file. Merge with existing file.',
+                              type=str,
+                              default=None)
 
     config_group.add_argument('-d', '--debug',
                               help='Debug',
@@ -223,7 +227,8 @@ def main():
     config_file = Config(options.config)
     AwsConfig(config_file).read(options)
     HockeyAppConfig(config_file).read(options)
-    MonitorProfileConfig(config_file).read(options)
+    monitor_profile = MonitorProfileConfig(config_file)
+    monitor_profile.read(options)
     if 'profile_name' in dir(options):
         logger.info('Running profile "%s"', options.profile_name)
 
@@ -276,10 +281,26 @@ def main():
     summary_table = Summary()
     summary_table.colors = [None, '#f0f0f0']
     if options.email:
-        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email(recipients=options.email_to if options.email_to else None)
-        if smtp_server is None:
-            logger.error('no email configuration')
-            exit(1)
+        emailConfig = EmailConfig(Config(options.email_config) if options.email_config else config_file)
+        if emailConfig.recipient:
+            logger.warn("Using 'recipient' in the email config is DEPRECATED. Please move it to the monitor profile section.")
+
+        recipients = None
+        if options.email_to:
+            recipients = options.email_to
+        elif monitor_profile.recipient:
+            recipients=monitor_profile.recipient.split(',')
+        elif emailConfig.recipient:
+            recipients=emailConfig.recipient.split(',')
+        if not recipients:
+            logger.error('No email recipient list! No emails will be sent')
+            email = Email()
+            smtp_server = None
+        else:
+            (smtp_server, email) = emailConfig.configure_server_and_email(recipients=recipients)
+            if smtp_server is None:
+                logger.error('no email configuration')
+                exit(1)
     else:
         email = Email()
         smtp_server = None

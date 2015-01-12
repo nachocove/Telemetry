@@ -10,7 +10,8 @@ class MonitorProfileConfig(SectionConfig):
     SECTION = 'profile'
     KEYS = (
         'monitors',
-        'name'
+        'name',
+        'recipient'
     )
 
     def __init__(self, config_file):
