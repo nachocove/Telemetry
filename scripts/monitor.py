@@ -207,8 +207,10 @@ def main():
         parser.print_help()
         exit(0)
     if options.weekly:
+        logger.info('--weekly is DEPRECATED. Please use --period weekly')
         options.period = 'weekly'
     if options.daily:
+        logger.info('--daily is DEPRECATED. Please use --period daily')
         options.period = 'daily'
 
     # If no key is provided in command line, get them from config.

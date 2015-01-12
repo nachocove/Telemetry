@@ -1,7 +1,7 @@
 # Delay a random time between 0 and 360 minutes (6 hours)
 RANDOM_DELAY=360
-@daily ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/monitor_beta1.cfg --after last --daily --email
-@daily ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/monitor_alpha.cfg --after last --daily --email
-@daily ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/monitor_dev.cfg --after last --daily --email
-*/15 * * * * ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/support_beta1.cfg --after last --before now --email
-@weekly ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/email_report_beta.cfg --after last --weekly --email
+@daily ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/monitor_beta1.cfg --after last --period daily --email
+@daily ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/monitor_alpha.cfg --after last --period daily --email
+@daily ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/monitor_dev.cfg --after last --period daily --email
+*/15 * * * * ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/support_beta1.cfg --after last --before now --period 900 --email
+@weekly ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/email_report_beta.cfg --after last --period weekly --email

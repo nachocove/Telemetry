@@ -14,7 +14,7 @@ http://www.apple.com/DTDs/PropertyList-1.0.dtd >
         <string>../config/email_report_beta1.cfg</string>
         <string>--after</string>
         <string>last</string>
-        <string>--weekly</string>
+        <string>--period weekly</string>
         <string>--email</string>
         <string>emails</string>
     </array>
