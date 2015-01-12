@@ -1,7 +1,7 @@
 #!/bin/sh
 
 script_name=`basename $0`
-config_path=`dirname $0`
+pushd `dirname $0` > /dev/null;config_path=`pwd`;popd > /dev/null
 repo_path=`dirname $config_path`
 scripts_path=$repo_path/scripts
 
