@@ -63,7 +63,6 @@ class DateTimeAction(argparse.Action):
             except Exception:
                 raise argparse.ArgumentError(self, "not a valid Date-time argument: %s" % value)
 
-
 def datetime_tostr(iso_datetime):
     """
     This function returns a string from a UtcDateTime object that is good for
@@ -153,6 +152,11 @@ def main():
                               help='Send email notification',
                               action='store_true',
                               default=False)
+    config_group.add_argument('--email-to',
+                              help='Send email notification to a destination (override config file)',
+                              action='append',
+                              default=[])
+
     config_group.add_argument('-d', '--debug',
                               help='Debug',
                               action='store_true',
@@ -212,6 +216,8 @@ def main():
     if options.daily:
         logger.info('--daily is DEPRECATED. Please use --period daily')
         options.period = 'daily'
+    if options.email_to:
+        options.email = True
 
     # If no key is provided in command line, get them from config.
     config_file = Config(options.config)
@@ -270,7 +276,7 @@ def main():
     summary_table = Summary()
     summary_table.colors = [None, '#f0f0f0']
     if options.email:
-        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email()
+        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email(recipients=options.email_to if options.email_to else None)
         if smtp_server is None:
             logger.error('no email configuration')
             exit(1)
