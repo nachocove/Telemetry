@@ -3,7 +3,7 @@
 import argparse
 import ConfigParser
 import logging
-from datetime import timedelta
+from datetime import timedelta, datetime, date
 from boto.ec2 import cloudwatch
 
 from AWS.config import AwsConfig
@@ -72,6 +72,13 @@ def datetime_tostr(iso_datetime):
     datetime_str = str(iso_datetime)
     return datetime_str.replace(':', '_').replace('-', '_').replace('.', '_')
 
+def last_sunday():
+    today = date.today().toordinal()
+    sunday = today - (today % 7)
+    return UtcDateTime(datetime.fromordinal(sunday))
+
+def today_midnight():
+    return UtcDateTime(datetime.fromordinal(date.today().toordinal()))
 
 def main():
     logging.basicConfig(format='%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
@@ -186,24 +193,21 @@ def main():
         try:
             timestamp_state = TimestampConfig(Config(state_file))
             options.start = timestamp_state.last
-        except Config.FileNotFoundException:
-            logger.error('Could not retrieve "last" timestamp. Could not read file %s', state_file)
-            exit(1)
-        except ValueError as e:
-            logger.error("Could not read last timestamp from file %s. Error=%s", state_file, e)
-            exit(1)
+        except (Config.FileNotFoundException, ValueError) as e:
+            logger.warn("Could not read last timestamp from file %s. Error=%s:%s.", state_file, e.__class__.__name__, e)
+            if not options.daily or not options.weekly:
+                raise ValueError("Not daily and not weekly. Can't guess 'last'. Please create state file manually.")
+            options.start = today_midnight() if options.daily else last_sunday()
+            do_update_timestamp = True
+
     if isinstance(options.end, str) and options.end == 'now':
         options.end = UtcDateTime.now()
         do_update_timestamp = True
     if options.daily or options.weekly:
         if not options.start:
-            from datetime import datetime
-            options.start = UtcDateTime(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
+            options.start = today_midnight() if options.daily else last_sunday()
         options.end = UtcDateTime(options.start)
-        if options.daily:
-            options.end.datetime += timedelta(days=1)
-        elif options.weekly:
-            options.end.datetime += timedelta(days=7)
+        options.end.datetime += timedelta(days=1 if options.daily else 7)
         do_update_timestamp = True
 
     if options.debug:
