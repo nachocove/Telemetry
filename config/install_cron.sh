@@ -1,7 +1,7 @@
 #!/bin/sh
 
 script_name=`basename $0`
-config_path=`dirname $0`
+pushd `dirname $0` > /dev/null;config_path=`pwd`;popd > /dev/null
 repo_path=`dirname $config_path`
 scripts_path=$repo_path/scripts
 
@@ -21,5 +21,12 @@ then
   exit 1
 fi
 
+if [ -z "$TMPDIR" ] ; then
+    TMPDIR=/tmp
+fi
+temp=$TMPDIR/$$.$RANDOM
+
 echo "Copying cron definitions from $scripts_path/cron/ to /etc/cron.d/"
-sudo m4 -DCONFIG_DIR=$config_path -DEMAIL_CFG=$1 $scripts_path/cron/nacho-cove.template > /etc/cron.d/nacho-cove
+m4 -DCONFIG_DIR=$config_path -DEMAIL_CFG=$1 $scripts_path/cron/nacho-cove.template > $temp || rm -f $temp
+sudo mv $temp /etc/cron.d/nacho-cove
+
