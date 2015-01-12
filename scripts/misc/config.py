@@ -16,7 +16,7 @@ class Config:
     class FileNotFoundException(Exception):
         pass
 
-    def __init__(self, cfg_file, create=True):
+    def __init__(self, cfg_file, create=False):
         self.cfg_file = cfg_file
         self.config = ConfigParser.RawConfigParser()
         if os.path.exists(self.cfg_file):

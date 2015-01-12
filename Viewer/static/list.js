@@ -172,6 +172,9 @@ function refreshSummary() {
     table.append(tr);
 
     addSummaryRow(table, 'Client', params.client);
+    if (params.hasOwnProperty('device_id')) {
+        addSummaryRow(table, 'Device ID', params.device_id);
+    }
     addSummaryRow(table, '# Events', params.event_count);
     if (params.event_count > events.length) {
         alert(params.event_count + ' events exist but we are only able to retrieve the first ' + events.length + ' events. Please zoom in to reduce the time window.')
@@ -187,6 +190,9 @@ function refreshSummary() {
     }
     if (params.hasOwnProperty('build_version')) {
         addSummaryRow(table, 'Build Version', params.build_version);
+    }
+    if (params.hasOwnProperty('build_number')) {
+        addSummaryRow(table, 'Build Number', params.build_number);
     }
 }
 
@@ -285,15 +291,15 @@ function refreshEvents() {
                 table.append(row);
 
                 row = getRow(event);
-                addFieldToRow(row, 'counter_start (UTC)', dateTimeUtc(event.counter_start.iso));
+                addFieldToRow(row, 'counter_start (UTC)', dateTimeUtc(event.counter_start));
                 table.append(row)
 
                 row = getRow(event)
-                addFieldToRow(row, 'counter_end (UTC)', dateTimeUtc(event.counter_end.iso));
+                addFieldToRow(row, 'counter_end (UTC)', dateTimeUtc(event.counter_end));
                 break;
             }
             case 'CAPTURE': {
-                row = getRowWithCommonFields(i, event, 6);
+                row = getRowWithCommonFields(i, event, 8);
                 addFieldToRow(row, 'capture_name', event.capture_name);
                 table.append(row);
 
@@ -306,15 +312,34 @@ function refreshEvents() {
                 table.append(row);
 
                 row = getRow(event);
-                addFieldToRow(row,'average', event.average);
-                table.append(row);
-
-                row = getRow(event);
                 addFieldToRow(row, 'max', event.max);
                 table.append(row);
 
+                var average = 0.0;
+                var moment2 = 0.0;
+                if (0 < event.count) {
+                    average = event.sum / event.count;
+                    moment2 = event.sum2 / event.count;
+                }
+                var variance = moment2 - (average * average);
+
                 row = getRow(event);
-                addFieldToRow(row, 'stddev', event.stddev);
+                addFieldToRow(row,'average', average);
+                table.append(row);
+
+                if (0 <= variance) {
+                    stddev = Math.sqrt(variance);
+                    row = getRow(event);
+                    addFieldToRow(row, 'stddev', stddev);
+                    table.append(row);
+                }
+
+                row = getRow(event);
+                addFieldToRow(row, 'sum', event.sum);
+                table.append(row);
+
+                row = getRow(event);
+                addFieldToRow(row, 'sum2', event.sum2);
                 break;
             }
             case 'SUPPORT': {
