@@ -10,7 +10,8 @@ class MonitorProfileConfig(SectionConfig):
     SECTION = 'profile'
     KEYS = (
         'monitors',
-        'name'
+        'name',
+        'recipient'
     )
 
     def __init__(self, config_file):
@@ -45,7 +46,7 @@ class EmailConfig(SectionConfig):
             return self.config_file.getbool(EmailConfig.SECTION, key)
         return SectionConfig.__getattr__(self, key)
 
-    def configure_server_and_email(self, debug=False):
+    def configure_server_and_email(self, debug=False, recipients=None):
         email = Email(debug)
         server = self.smtp_server
         port = self.port
@@ -75,7 +76,7 @@ class EmailConfig(SectionConfig):
             tls = self.tls
 
         email.from_address = self.fromaddr if self.fromaddr else username
-        email.to_addresses = self.recipient.split(',')
+        email.to_addresses = recipients if recipients is not None else self.recipient.split(',')
 
         smtp_server = EmailServer(server=server,
                                   port=port,

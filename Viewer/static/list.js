@@ -329,15 +329,15 @@ function refreshEvents() {
                 table.appendChild(row);
 
                 row = getRow(event);
-                addFieldToRow(row, 'counter_start (UTC)', dateTimeUtc(event.counter_start.iso));
+                addFieldToRow(row, 'counter_start (UTC)', dateTimeUtc(event.counter_start));
                 table.appendChild(row)
 
                 row = getRow(event)
-                addFieldToRow(row, 'counter_end (UTC)', dateTimeUtc(event.counter_end.iso));
+                addFieldToRow(row, 'counter_end (UTC)', dateTimeUtc(event.counter_end));
                 break;
             }
             case 'CAPTURE': {
-                row = getRowWithCommonFields(i, event, 6);
+                row = getRowWithCommonFields(i, event, 8);
                 addFieldToRow(row, 'capture_name', event.capture_name);
                 table.appendChild(row);
 
@@ -350,15 +350,34 @@ function refreshEvents() {
                 table.appendChild(row);
 
                 row = getRow(event);
-                addFieldToRow(row,'average', event.average);
-                table.appendChild(row);
-
-                row = getRow(event);
                 addFieldToRow(row, 'max', event.max);
                 table.appendChild(row);
 
+                var average = 0.0;
+                var moment2 = 0.0;
+                if (0 < event.count) {
+                    average = event.sum / event.count;
+                    moment2 = event.sum2 / event.count;
+                }
+                var variance = moment2 - (average * average);
+
                 row = getRow(event);
-                addFieldToRow(row, 'stddev', event.stddev);
+                addFieldToRow(row,'average', average);
+                table.appendChild(row);
+
+                if (0 <= variance) {
+                    stddev = Math.sqrt(variance);
+                    row = getRow(event);
+                    addFieldToRow(row, 'stddev', stddev);
+                    table.appendChild(row);
+                }
+
+                row = getRow(event);
+                addFieldToRow(row, 'sum', event.sum);
+                table.appendChild(row);
+
+                row = getRow(event);
+                addFieldToRow(row, 'sum2', event.sum2);
                 break;
             }
             case 'SUPPORT': {

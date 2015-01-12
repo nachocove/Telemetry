@@ -3,8 +3,15 @@
 import argparse
 import ConfigParser
 import logging
-from datetime import timedelta
+from datetime import timedelta, datetime, date
+import os
 from boto.ec2 import cloudwatch
+import sys
+
+try:
+    from cloghandler import ConcurrentRotatingFileHandler as RFHandler
+except ImportError:
+    from logging.handlers import RotatingFileHandler as RFHandler
 
 from AWS.config import AwsConfig
 from AWS.tables import TelemetryTable
@@ -63,7 +70,6 @@ class DateTimeAction(argparse.Action):
             except Exception:
                 raise argparse.ArgumentError(self, "not a valid Date-time argument: %s" % value)
 
-
 def datetime_tostr(iso_datetime):
     """
     This function returns a string from a UtcDateTime object that is good for
@@ -72,12 +78,54 @@ def datetime_tostr(iso_datetime):
     datetime_str = str(iso_datetime)
     return datetime_str.replace(':', '_').replace('-', '_').replace('.', '_')
 
+def last_sunday():
+    today = date.today().toordinal()
+    sunday = today - (today % 7)
+    return UtcDateTime(datetime.fromordinal(sunday))
+
+def today_midnight():
+    return UtcDateTime(datetime.fromordinal(date.today().toordinal()))
+
+def guess_last(period):
+    ret = None
+    if isinstance(period, (unicode, str)):
+        if period == 'weekly':
+            ret = last_sunday()
+        elif period == 'daily':
+            ret = today_midnight()
+        else:
+            try:
+                ret = UtcDateTime(datetime.now()-timedelta(seconds=int(period)))
+            except ValueError:
+                pass
+    elif isinstance(period, (int, long)):
+        ret = UtcDateTime(datetime.now()-timedelta(seconds=period))
+    elif isinstance(period, timedelta):
+        ret = UtcDateTime(datetime.now()-period)
+
+    if not ret:
+        raise ValueError('Unknown value %s for period' % period)
+    return ret
+
+def period_to_seconds(period):
+    ret = None
+    if isinstance(period, (unicode, str)):
+        if period == 'weekly':
+            ret = 7*24*60*60
+        elif period == 'daily':
+            ret = 60*60*24
+        else:
+            try:
+                ret = int(period)
+            except ValueError:
+                pass
+    elif isinstance(period, (int, long)):
+        ret = period
+    if not ret:
+        raise ValueError('Unknown value %s for period' % period)
+    return ret
 
 def main():
-    logging.basicConfig(format='%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    logger = logging.getLogger('monitor')
-    logger.setLevel(logging.INFO)
-
     mapping = {'errors': MonitorErrors,
                'warnings': MonitorWarnings,
                'users': MonitorUsers,
@@ -107,8 +155,21 @@ def main():
                               help='Send email notification',
                               action='store_true',
                               default=False)
+    config_group.add_argument('--email-to',
+                              help='Send email notification to a destination (override config file)',
+                              action='append',
+                              default=[])
+    config_group.add_argument('--email-config',
+                              help='Read email settings from a separate config file. Merge with existing file.',
+                              type=str,
+                              default=None)
+
     config_group.add_argument('-d', '--debug',
                               help='Debug',
+                              action='store_true',
+                              default=False)
+    config_group.add_argument('-v', '--verbose',
+                              help='Output logging to stdout',
                               action='store_true',
                               default=False)
     config_group.add_argument('--debug-boto',
@@ -129,12 +190,16 @@ def main():
                               action=DateTimeAction,
                               dest='end',
                               default=None)
+
+    filter_group.add_argument('--period',
+                              help='Indicate the periodicity with which this job runs',
+                              default=None, type=str)
     filter_group.add_argument('--daily',
-                              help='Set the ending time to exactly one day after the starting time',
+                              help='(DEPRECATED. Use --period daily). Set the ending time to exactly one day after the starting time',
                               action='store_true',
                               default=False)
     filter_group.add_argument('--weekly',
-                              help='Set the ending time to exactly one week after the starting time',
+                              help='(DEPRECATED. Use --period weekly). Set the ending time to exactly one week after the starting time',
                               action='store_true',
                               default=False)
 
@@ -149,15 +214,46 @@ def main():
                               help='Choices are: %s' % ", ".join(mapping.keys()))
     options = parser.parse_args()
 
+    logging_format = '%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s'
+    logger = logging.getLogger('monitor')
+
+    logger.setLevel(logging.DEBUG)
+    if options.debug or options.verbose:
+        streamhandler = logging.StreamHandler(sys.stdout)
+        streamhandler.setLevel(logging.DEBUG if options.debug else logging.INFO)
+        streamhandler.setFormatter(logging.Formatter(logging_format))
+        logger.addHandler(streamhandler)
+
+    log_file = os.path.abspath(os.path.basename(options.config+'.log'))
+    handler = RFHandler(log_file, maxBytes=10*1024*1024, backupCount=10)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter(logging_format))
+    logger.addHandler(handler)
+
+    logger.debug("Monitor started: %s, cwd=%s, euid=%d", " ".join(sys.argv[1:]), os.getcwd(), os.geteuid())
+
     if options.help:
         parser.print_help()
         exit(0)
+    if options.weekly and options.daily:
+        logger.error("Daily and weekly? Really? Pick one.")
+        parser.print_help()
+        exit(0)
+    if options.weekly:
+        logger.info('--weekly is DEPRECATED. Please use --period weekly')
+        options.period = 'weekly'
+    if options.daily:
+        logger.info('--daily is DEPRECATED. Please use --period daily')
+        options.period = 'daily'
+    if options.email_to:
+        options.email = True
 
     # If no key is provided in command line, get them from config.
     config_file = Config(options.config)
     AwsConfig(config_file).read(options)
     HockeyAppConfig(config_file).read(options)
-    MonitorProfileConfig(config_file).read(options)
+    monitor_profile = MonitorProfileConfig(config_file)
+    monitor_profile.read(options)
     if 'profile_name' in dir(options):
         logger.info('Running profile "%s"', options.profile_name)
 
@@ -182,21 +278,25 @@ def main():
         try:
             timestamp_state = TimestampConfig(Config(state_file))
             options.start = timestamp_state.last
-        except Config.FileNotFoundException:
-            logger.error('Could not retrieve "last" timestamp. Could not read file %s', state_file)
-            exit(1)
-        except ValueError as e:
-            logger.error("Could not read last timestamp from file %s. Error=%s", state_file, e)
-            exit(1)
+        except (Config.FileNotFoundException, ValueError) as e:
+            logger.warn("Could not read last timestamp from file %s. Error=%s:%s.", state_file, e.__class__.__name__, e)
+            if not options.period:
+                raise ValueError("No period set. Can't guess 'last'. Please create state file manually.")
+            try:
+                options.start = guess_last(options.period)
+            except ValueError as e:
+                raise ValueError("Can't guess 'last': %s. Please create state file manually.", e)
+
+            do_update_timestamp = True
+
     if isinstance(options.end, str) and options.end == 'now':
         options.end = UtcDateTime.now()
         do_update_timestamp = True
-    if options.daily:
+    if options.period:
         if not options.start:
-            from datetime import datetime
-            options.start = UtcDateTime(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
+            options.start = guess_last(options.period)
         options.end = UtcDateTime(options.start)
-        options.end.datetime += timedelta(days=1)
+        options.end.datetime += timedelta(seconds=period_to_seconds(options.period))
         do_update_timestamp = True
 
     if options.debug:
@@ -206,10 +306,26 @@ def main():
     summary_table = Summary()
     summary_table.colors = [None, '#f0f0f0']
     if options.email:
-        (smtp_server, email) = EmailConfig(config_file).configure_server_and_email()
-        if smtp_server is None:
-            logger.error('no email configuration')
-            exit(1)
+        emailConfig = EmailConfig(Config(options.email_config) if options.email_config else config_file)
+        if emailConfig.recipient:
+            logger.warn("Using 'recipient' in the email config is DEPRECATED. Please move it to the monitor profile section.")
+
+        recipients = None
+        if options.email_to:
+            recipients = options.email_to
+        elif monitor_profile.recipient:
+            recipients=monitor_profile.recipient.split(',')
+        elif emailConfig.recipient:
+            recipients=emailConfig.recipient.split(',')
+        if not recipients:
+            logger.error('No email recipient list! No emails will be sent')
+            email = Email()
+            smtp_server = None
+        else:
+            (smtp_server, email) = emailConfig.configure_server_and_email(recipients=recipients)
+            if smtp_server is None:
+                logger.error('no email configuration')
+                exit(1)
     else:
         email = Email()
         smtp_server = None
