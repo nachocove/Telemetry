@@ -329,11 +329,11 @@ function refreshEvents() {
                 table.appendChild(row);
 
                 row = getRow(event);
-                addFieldToRow(row, 'counter_start (UTC)', dateTimeUtc(event.counter_start.iso));
+                addFieldToRow(row, 'counter_start (UTC)', dateTimeUtc(event.counter_start));
                 table.appendChild(row)
 
                 row = getRow(event)
-                addFieldToRow(row, 'counter_end (UTC)', dateTimeUtc(event.counter_end.iso));
+                addFieldToRow(row, 'counter_end (UTC)', dateTimeUtc(event.counter_end));
                 break;
             }
             case 'CAPTURE': {
