@@ -3,6 +3,7 @@ jobs="
 com.nachocove.dev.DailyMonitors
 com.nachocove.beta1.DailyMonitors
 com.nachocove.beta1.SupportMonitor
+com.nachocove.beta1.EmailPerDomainReport
 "
 
 function install_plist {

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC -//Apple Computer//DTD PLIST 1.0//EN
+http://www.apple.com/DTDs/PropertyList-1.0.dtd >
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.nachocove.beta1.EmailPerDomainReport</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>python2.7</string>
+        <string>monitor.py</string>
+        <string>--config</string>
+        <string>../config/email_report_beta1.cfg</string>
+        <string>--after</string>
+        <string>last</string>
+        <string>--weekly</string>
+        <string>--email</string>
+        <string>emails</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>0</integer>
+        <key>Minute</key>
+        <integer>10</integer>
+    </dict>
+
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>WorkingDirectory</key>
+    <string>REPO/scripts</string>
+</dict>
+</plist>
