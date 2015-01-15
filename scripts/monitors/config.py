@@ -51,22 +51,24 @@ class EmailConfig(SectionConfig):
         server = self.smtp_server
         port = self.port
         username = self.username
-        # We need to get the email account password
-        if self.password is not None:
-            # Option 1 - hardcoded into the file. highly not recommended.
-            password = self.password
-        else:
-            # Option 2 - try to get it from keychain
-            try:
-                password = keyring.get_password('NachoCove Telemetry', username)
-            except ImportError:
-                password = None
-            if password is None:
-                # Option 3 - user input
-                password = getpass.getpass('Email password: ')
+        if username:
+            # We need to get the email account password
+            if self.password is not None:
+                # Option 1 - hardcoded into the file. highly not recommended.
+                password = self.password
             else:
-                logging.getLogger('monitor').info('Got email account password from keychain.')
-
+                # Option 2 - try to get it from keychain
+                try:
+                    password = keyring.get_password('NachoCove Telemetry', username)
+                except ImportError:
+                    password = None
+                if password is None:
+                    # Option 3 - user input
+                    password = getpass.getpass('Email password: ')
+                else:
+                    logging.getLogger('monitor').info('Got email account password from keychain.')
+        else:
+            password = None
         start_tls = False
         if self.start_tls is not None:
             start_tls = self.start_tls
