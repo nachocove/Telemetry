@@ -1,8 +1,7 @@
 # Delay a random time between 0 and 360 minutes (6 hours)
 RANDOM_DELAY=360
-@daily ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/monitor_beta1.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period daily --email
-@daily ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/monitor_alpha.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period daily --email
-@daily ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/monitor_dev.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period daily --email
+0    7 * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/monitor_beta1.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period daily --email
+0    7 * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/monitor_alpha.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period daily --email
+0    7 * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/monitor_dev.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period daily --email
 */15 * * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/support_beta1.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --before now --period 900 --email
-@weekly ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/email_report_beta1.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period weekly --email
-
+0    7 * * 0 ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/email_report_beta1.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period weekly --email
