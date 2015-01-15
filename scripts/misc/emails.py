@@ -23,7 +23,8 @@ class EmailServer:
         smtp_svr.connect(self.server, self.port)
         if self.start_tls:
             smtp_svr.starttls()
-        smtp_svr.login(self.username, self.password)
+        if self.username:
+            smtp_svr.login(self.username, self.password)
         smtp_svr.sendmail(from_address, to_addresses, email_)
         smtp_svr.quit()
 
