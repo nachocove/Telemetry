@@ -76,7 +76,7 @@ class Email:
         email_['Subject'] = self.subject
 
         if not self.debug:
-            server.send(self.from_address, self.to_addresses_str(), email_.as_string())
+            server.send(self.from_address, self.to_addresses, email_.as_string())
         else:
             print "From: %(from)s\nTo: %(to)s\n\n%(email)s" %{'from': self.from_address, 'to': self.to_addresses_str(),
                                                               'email': email_.as_string()}
