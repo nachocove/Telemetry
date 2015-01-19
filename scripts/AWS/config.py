@@ -10,6 +10,7 @@ class AwsConfig(SectionConfig):
         'prefix',
         'secret_access_key',
         's3_bucket',
+        'sns_platform_app_arn'
     )
 
     def __init__(self, config_file):
