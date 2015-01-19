@@ -368,7 +368,7 @@ class SetupPool(Boto3CliFunc):
         if not pool:
             logger.error("Could not create pool.")
             return False
-        self.create_or_adjust_s3_bucket(session, aws_s3_bucket)
+        self.check_and_adjust_s3_bucket(session, aws_s3_bucket)
         self.create_identity_roles_and_policy(session, pool, aws_account_id,
                                               self.role_name_path,
                                               [x % {'project': aws_prefix} for x in self.default_dynamo_tables],
@@ -380,7 +380,7 @@ class SetupPool(Boto3CliFunc):
 
 
     @classmethod
-    def create_or_adjust_s3_bucket(cls, session, bucket_name, path_prefix=None):
+    def check_and_adjust_s3_bucket(cls, session, bucket_name, path_prefix=None):
         if path_prefix is None:
             path_prefix = cls.default_bucket_prefix
         s3_conn = session.client('s3')
@@ -394,7 +394,7 @@ class SetupPool(Boto3CliFunc):
         s3 = session.resource('s3')
         bucket = s3.Bucket(bucket_name)
         if not found:
-            bucket.create()
+            raise Exception("Bucket %s does not exist. Please create it first." % bucket_name)
         versioning = bucket.BucketVersioning()
         if not versioning.status == 'Enabled':
             response = versioning.enable()
