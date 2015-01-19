@@ -234,9 +234,13 @@ class ListPools(Boto3CliFunc):
     def run(self, args, **kwargs):
         super(ListPools, self).run(args, **kwargs)
         conn = self.session.client('cognito-identity')
+        iam = self.session.client('iam')
         logger.setLevel(logging.INFO)
 
         identity_pools = conn.list_identity_pools(MaxResults=60)
+        response = iam.list_roles(PathPrefix=SetupPool.role_name_path)
+        self.check_response(response, expected_keys=('Roles',))
+        roles = response['Roles']
         for ip in identity_pools['IdentityPools']:
             pool = conn.describe_identity_pool(IdentityPoolId=ip['IdentityPoolId'])
             logger.info("%(IdentityPoolName)s: id=%(IdentityPoolId)s "
@@ -254,13 +258,12 @@ class ListPools(Boto3CliFunc):
                     id_list = [x['IdentityId'] for x in ids['Identities']]
                     logger.info(",".join(id_list))
                     next_token = ids['NextToken']
-        iam = self.session.client('iam')
-        response = iam.list_roles()
-        self.check_response(response, expected_keys=('Roles',))
-        logger.info("Roles:")
-        for role in response['Roles']:
-            logger.info('%(RoleName)s: id=%(RoleId)s, Path=%(Path)s, Arn=%(Arn)s', role)
-            logger.debug("Policy=%s", json.dumps(role[u'AssumeRolePolicyDocument']['Statement'], indent=4))
+            logger.info("Roles:")
+            for role in roles:
+                if not role['RoleName'].startswith(pool['IdentityPoolName']):
+                    continue
+                logger.info('    %(RoleName)s: id=%(RoleId)s, Path=%(Path)s, Arn=%(Arn)s', role)
+                logger.debug("    Policy=%s", json.dumps(role[u'AssumeRolePolicyDocument']['Statement'], indent=4))
         return True
 
 
