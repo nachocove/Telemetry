@@ -161,8 +161,8 @@ class DeletePools(Boto3CliFunc):
 
     @classmethod
     def delete_s3_user_resources(cls, session, pool_id, s3_bucket, bucket_prefix):
-        conn = session.client('cognito-identity')
-        s3 = session.resource('s3')
+        conn = session.client('cognito-identity', region_name='us-east-1')
+        s3 = session.resource('s3', region_name='us-east-1')
         bucket = s3.Bucket(s3_bucket)
         next_token = None
         while True:
@@ -182,7 +182,7 @@ class DeletePools(Boto3CliFunc):
 
     @classmethod
     def delete_pools(cls, session, pool_id, name_prefix, s3_bucket):
-        conn = session.client('cognito-identity')
+        conn = session.client('cognito-identity', region_name='us-east-1')
         pool_list = []
         if pool_id:
             response = conn.describe_identity_pool(IdentityPoolId=pool_id)
@@ -233,7 +233,7 @@ class ListPools(Boto3CliFunc):
 
     def run(self, args, **kwargs):
         super(ListPools, self).run(args, **kwargs)
-        conn = self.session.client('cognito-identity')
+        conn = self.session.client('cognito-identity', region_name='us-east-1')
         iam = self.session.client('iam')
         logger.setLevel(logging.INFO)
 
@@ -383,7 +383,7 @@ class SetupPool(Boto3CliFunc):
     def check_and_adjust_s3_bucket(cls, session, bucket_name, path_prefix=None):
         if path_prefix is None:
             path_prefix = cls.default_bucket_prefix
-        s3_conn = session.client('s3')
+        s3_conn = session.client('s3', region_name='us-east-1')
         response = s3_conn.list_buckets()
         cls.check_response(response, expected_keys=('Buckets',))
         found = False
@@ -391,7 +391,7 @@ class SetupPool(Boto3CliFunc):
             if bucket['Name'] == bucket_name:
                 found = True
                 break
-        s3 = session.resource('s3')
+        s3 = session.resource('s3', region_name='us-east-1')
         bucket = s3.Bucket(bucket_name)
         if not found:
             raise Exception("Bucket %s does not exist. Please create it first." % bucket_name)
@@ -450,7 +450,7 @@ class SetupPool(Boto3CliFunc):
 
     @classmethod
     def create_identity_pool(cls, session, name, developer_provider_name=None, unauth_policy_supported=True):
-        conn = session.client('cognito-identity')
+        conn = session.client('cognito-identity', region_name='us-east-1')
 
         response = conn.list_identity_pools(MaxResults=60)
         pools = cls.check_response(response, expected_keys=('IdentityPools',))
@@ -544,7 +544,7 @@ class TestAccess(Boto3CliFunc):
 
     def run(self, args, **kwargs):
         super(TestAccess, self).run(args, **kwargs)
-        conn = self.session.client('cognito-identity')
+        conn = self.session.client('cognito-identity', region_name='us-east-1')
         response = conn.list_identity_pools(MaxResults=60)
         id_pools = self.check_response(response, expected_keys=('IdentityPools',))
         pool = None
@@ -580,7 +580,7 @@ class TestAccess(Boto3CliFunc):
 
             @classmethod
             def setUpClass(cls):
-                s3 = self.session.resource('s3')
+                s3 = self.session.resource('s3', region_name='us-east-1')
                 cls.nacho_bucket = s3.Bucket(args.aws_s3_bucket)
                 cls.test_bucket = s3.Bucket('SomeTestBucket' + uuid.uuid4().hex)
                 cls.test_bucket.create()
@@ -593,7 +593,7 @@ class TestAccess(Boto3CliFunc):
 
                 anon_session = boto3.session.Session(aws_access_key_id='', aws_secret_access_key='', region_name=args.region)
                 anon_session._session.set_credentials(access_key='', secret_key='')
-                anon_conn = anon_session.client('cognito-identity')
+                anon_conn = anon_session.client('cognito-identity', region_name="us-east-1")
                 cls.my_id = cls.get_id(anon_conn)
                 logger.info("Got Cognito ID: %s", cls.my_id)
 
@@ -608,7 +608,7 @@ class TestAccess(Boto3CliFunc):
                                                         aws_secret_access_key=cls.my_creds['Credentials']['SecretAccessKey'],
                                                         aws_session_token=cls.my_creds['Credentials']['SessionToken'],
                                                         region_name=args.region)
-                cls.s3_conn = cls.new_session.client('s3')
+                cls.s3_conn = cls.new_session.client('s3', region_name='us-east-1')
 
                 dynamo_session = boto3.session.Session(aws_access_key_id=cls.my_creds['Credentials']['AccessKeyId'],
                                                     aws_secret_access_key=cls.my_creds['Credentials']['SecretAccessKey'],
