@@ -292,11 +292,12 @@ def main():
     if isinstance(options.end, str) and options.end == 'now':
         options.end = UtcDateTime.now()
         do_update_timestamp = True
-    if options.period:
+    if (not options.start or not options.end) and options.period:
         if not options.start:
             options.start = guess_last(options.period)
-        options.end = UtcDateTime(options.start)
-        options.end.datetime += timedelta(seconds=period_to_seconds(options.period))
+        if not options.end:
+            options.end = UtcDateTime(options.start)
+            options.end.datetime += timedelta(seconds=period_to_seconds(options.period))
         do_update_timestamp = True
 
     if options.debug:
