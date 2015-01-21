@@ -14,7 +14,7 @@ if [ ! -f $config_path/$1 ] ; then
    echo "ERROR: Email config file $config_path/$1 does not exist."
    exit 1
 fi
-email_config=$config_path/$1
+email_config=$1
 
 if [ ! -d $scripts_path ]
 then
