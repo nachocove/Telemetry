@@ -162,7 +162,7 @@ class CrashInfoIos(CrashInfo):
 
     def _determine_crash_time(self):
         for line in self.log.split('\n')[:11]:
-            match = re.search('^Date/Time:(\s+)(?P<crash_utc>\S+)$', line)
+            match = re.search('^Date/Time:(\s+)(?P<crash_utc>[0-9]{4}.*)$', line)
             if not match:
                 continue
             return match.group('crash_utc')
@@ -264,6 +264,8 @@ class MonitorHockeyApp(Monitor):
             reason = '\n'.join(lines)
             client_set = set()
             for crash in self.crashes[crash_id]['crashes']:
+                if crash.client is None:
+                    continue
                 client_set.add(crash.client)
 
             link = 'https://rink.hockeyapp.net/manage/apps/%s/app_versions/1/crash_reasons/%s?type=crashes' % \
