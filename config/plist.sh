@@ -1,8 +1,10 @@
 # Add the list of launchd jobs to this variable
 jobs="
 com.nachocove.dev.DailyMonitors
+com.nachocove.alpha.DailyMonitors
 com.nachocove.beta1.DailyMonitors
 com.nachocove.beta1.SupportMonitor
+com.nachocove.alpha.SupportMonitor
 com.nachocove.beta1.EmailPerDomainReport
 "
 
