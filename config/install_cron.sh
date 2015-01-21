@@ -14,6 +14,7 @@ if [ ! -f $config_path/$1 ] ; then
    echo "ERROR: Email config file $config_path/$1 does not exist."
    exit 1
 fi
+email_config=$config_path/$1
 
 if [ ! -d $scripts_path ]
 then
@@ -27,7 +28,7 @@ fi
 temp=$TMPDIR/$$.$RANDOM
 cronfile=/etc/cron.d/nacho-cove
 echo "Copying cron definitions from $scripts_path/cron/ to /etc/cron.d/"
-m4 -DCONFIG_DIR=$config_path -DEMAIL_CFG=$1 -DSCRIPTS_DIR=$scripts_path $scripts_path/cron/nacho-cove.template > $temp || rm -f $temp
+m4 -DCONFIG_DIR=$config_path -DEMAIL_CFG=$email_config -DSCRIPTS_DIR=$scripts_path $scripts_path/cron/nacho-cove.template > $temp || rm -f $temp
 sudo chown root $temp
 sudo chgrp root $temp
 sudo chmod 644 $temp
