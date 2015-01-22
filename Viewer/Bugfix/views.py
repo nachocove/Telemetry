@@ -6,6 +6,7 @@ import os
 import sys
 import dateutil.parser
 from datetime import timedelta, datetime
+from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
@@ -330,7 +331,10 @@ def json_formatter(obj):
     elif isinstance(obj, datetime):
         return obj.isoformat('T')
     else:
-        raise TypeError, 'Object of type %s with value of %s is not JSON serializable' % (type(obj), repr(obj))
+        try:
+            return str(obj)
+        except Exception as e:
+            raise TypeError, 'Object of type %s with value of %s not converted to string: %s' % (type(obj), repr(obj), e)
 
 @nachotoken_required
 @nacho_cache
