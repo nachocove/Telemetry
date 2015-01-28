@@ -6,7 +6,6 @@ import os
 
 import dateutil.parser
 from datetime import timedelta, datetime
-from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
