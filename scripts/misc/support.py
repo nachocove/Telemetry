@@ -85,7 +85,7 @@ class Support:
             raise ValueError('Invalid email address')
         email, domain = email_address.split('@')
 
-        obfuscated = "%s@%s" % (hashlib.sha256(email).hexdigest(), domain)
+        obfuscated = "%s@%s" % (hashlib.sha256(email.lower()).hexdigest(), domain)
         email_events = Support.filter(events, [SupportSha256EmailAddressEvent])
         filtered_events = filter(lambda x: x.sha256_email_address == obfuscated, email_events)
         if len(filtered_events) == 0 and len(email) == 64:
