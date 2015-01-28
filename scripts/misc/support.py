@@ -83,6 +83,14 @@ class Support:
             raise ValueError('Invalid email address')
         if index != email_address.rfind('@'):
             raise ValueError('Invalid email address')
-        obfuscated = hashlib.sha256(email_address[:index]).hexdigest() + email_address[index:]
+        email, domain = email_address.split('@')
+
+        obfuscated = "%s@%s" % (hashlib.sha256(email).hexdigest(), domain)
         email_events = Support.filter(events, [SupportSha256EmailAddressEvent])
-        return obfuscated, filter(lambda x: x.sha256_email_address == obfuscated, email_events)
+        filtered_events = filter(lambda x: x.sha256_email_address == obfuscated, email_events)
+        if len(filtered_events) == 0 and len(email) == 64:
+            obfuscated = email_address
+            # perhaps the email given is already an obfuscated one? Let's try it.
+            filtered_events = filter(lambda x: x.sha256_email_address == obfuscated, email_events)
+        return obfuscated, filtered_events
+
