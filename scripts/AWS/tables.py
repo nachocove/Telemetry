@@ -237,9 +237,11 @@ class TelemetryTable(Table):
             item[k] = {'S': str(kwargs[k])}
         return item
 
+
 class DeviceInfoTable(TelemetryTable):
     TABLE_NAME = 'device_info'
-    FIELD_NAMES = ['os_type', 'os_version', 'device_model', 'build_version', 'build_number', 'device_id']
+    FIELD_NAMES = ['os_type', 'os_version', 'device_model', 'build_version', 'build_number', 'device_id',
+                   'fresh_install']
 
     def __init__(self, connection):
         TelemetryTable.__init__(self, connection=connection, table_name=DeviceInfoTable.TABLE_NAME)

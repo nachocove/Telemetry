@@ -3,6 +3,8 @@ from __future__ import absolute_import
 import os
 import sys
 from argparse import ArgumentParser
+from AWS.sns import ListApplicationARNs
+
 sys.path.append('../')
 from AWS import cognito, dynamoDB, config
 from misc.config import Config
@@ -18,6 +20,7 @@ def main():
                             cognito.ListPools(),
                             cognito.TestAccess(),
                             ),
+                'sns': (ListApplicationARNs(),)
                 }
     parser = ArgumentParser(add_help=False)
     parser.add_argument('--secret-access-key', '-s',

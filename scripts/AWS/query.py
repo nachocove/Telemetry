@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from events import LogEvent, WbxmlEvent, CounterEvent, CaptureEvent, SupportEvent, UiEvent, DeviceInfoEvent
 from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan, SelectorBetween, SelectorEqual, \
     SelectorStartsWith
@@ -72,7 +73,9 @@ class Query(object):
 
     @staticmethod
     def _query(table, table_query, is_count, limit, logger=None):
-        logger = logger or logging.getLogger('monitor')
+        logger = logger or logging.getLogger('monitor').getChild("_query")
+        logger.debug("_query: is_count:%s, limit:%s %s: %s ", is_count, limit, table.table_name, table_query)
+        t1 = time.time()
         if table_query.has_primary_keys():
             if is_count:
                 results = table.query_count(limit=limit,
@@ -101,7 +104,7 @@ class Query(object):
                                         **table_query.secondary_keys.data())
         else:
             # No keys in any of the indexes. Fall back to scan
-            logger.warn('Scanning of table %s: %s', table.table_name, table_query.query_filter)
+            logger.warn('_query: Scanning of table %s: %s', table.table_name, table_query.query_filter)
             if is_count:
                 # count += table.query_count(**table_query.query_filter.data())
                 # Somehow, query_count does not like it when there is no index. Use a scan instead
@@ -113,6 +116,8 @@ class Query(object):
             else:
                 results = table.scan(limit=limit,
                                      **table_query.query_filter.data())
+        t2 = time.time()
+        logger.debug("_query: Done (%ss)", (t2-t1))
         return results
 
     @staticmethod

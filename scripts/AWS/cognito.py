@@ -85,8 +85,10 @@ import copy
 from datetime import datetime
 import json
 import logging
+import os
 import sys
 import uuid
+import binascii
 import boto3
 from botocore.exceptions import ClientError
 from AWS.config import AwsConfig, CliFunc
@@ -161,8 +163,8 @@ class DeletePools(Boto3CliFunc):
 
     @classmethod
     def delete_s3_user_resources(cls, session, pool_id, s3_bucket, bucket_prefix):
-        conn = session.client('cognito-identity')
-        s3 = session.resource('s3')
+        conn = session.client('cognito-identity', region_name='us-east-1')
+        s3 = session.resource('s3', region_name='us-east-1')
         bucket = s3.Bucket(s3_bucket)
         next_token = None
         while True:
@@ -182,7 +184,7 @@ class DeletePools(Boto3CliFunc):
 
     @classmethod
     def delete_pools(cls, session, pool_id, name_prefix, s3_bucket):
-        conn = session.client('cognito-identity')
+        conn = session.client('cognito-identity', region_name='us-east-1')
         pool_list = []
         if pool_id:
             response = conn.describe_identity_pool(IdentityPoolId=pool_id)
@@ -233,10 +235,14 @@ class ListPools(Boto3CliFunc):
 
     def run(self, args, **kwargs):
         super(ListPools, self).run(args, **kwargs)
-        conn = self.session.client('cognito-identity')
+        conn = self.session.client('cognito-identity', region_name='us-east-1')
+        iam = self.session.client('iam')
         logger.setLevel(logging.INFO)
 
         identity_pools = conn.list_identity_pools(MaxResults=60)
+        response = iam.list_roles(PathPrefix=SetupPool.role_name_path)
+        self.check_response(response, expected_keys=('Roles',))
+        roles = response['Roles']
         for ip in identity_pools['IdentityPools']:
             pool = conn.describe_identity_pool(IdentityPoolId=ip['IdentityPoolId'])
             logger.info("%(IdentityPoolName)s: id=%(IdentityPoolId)s "
@@ -254,13 +260,12 @@ class ListPools(Boto3CliFunc):
                     id_list = [x['IdentityId'] for x in ids['Identities']]
                     logger.info(",".join(id_list))
                     next_token = ids['NextToken']
-        iam = self.session.client('iam')
-        response = iam.list_roles()
-        self.check_response(response, expected_keys=('Roles',))
-        logger.info("Roles:")
-        for role in response['Roles']:
-            logger.info('%(RoleName)s: id=%(RoleId)s, Path=%(Path)s, Arn=%(Arn)s', role)
-            logger.debug("Policy=%s", json.dumps(role[u'AssumeRolePolicyDocument']['Statement'], indent=4))
+            logger.info("Roles:")
+            for role in roles:
+                if not role['RoleName'].startswith(pool['IdentityPoolName']):
+                    continue
+                logger.info('    %(RoleName)s: id=%(RoleId)s, Path=%(Path)s, Arn=%(Arn)s', role)
+                logger.debug("    Policy=%s", json.dumps(role[u'AssumeRolePolicyDocument']['Statement'], indent=4))
         return True
 
 
@@ -321,6 +326,11 @@ class SetupPool(Boto3CliFunc):
                              "Condition": {"StringLike": {"s3:prefix": ["%(PathPrefix)s${cognito-identity.amazonaws.com:sub}/*"]}}
                              }
 
+    sns_permissions = {"Action": ["sns:CreatePlatformEndpoint",],
+                       "Effect": "Allow",
+                       "Resource": ["%(PlatformApplicationARN)s",],
+                       }
+
     role_name_path = '/nachomail/cognito/'
     role_name_template = '%(Pool_Name)s_%(Auth_or_Unauth)s_DefaultRole'
 
@@ -355,32 +365,33 @@ class SetupPool(Boto3CliFunc):
         auth_policy_supported = False if args.no_auth else True
         return self.setup_cognito(self.session, args.name, unauth_policy_supported, auth_policy_supported,
                                   args.developer_provider_name, args.aws_s3_bucket, args.s3_bucket_prefix,
-                                  args.aws_account_id, args.aws_prefix)
+                                  args.aws_account_id, args.aws_prefix, args.aws_sns_platform_app_arn)
 
     def setup_cognito(self, session, name, unauth_policy_supported, auth_policy_supported, developer_provider_name,
-                      aws_s3_bucket, s3_bucket_prefix, aws_account_id, aws_prefix):
+                      aws_s3_bucket, s3_bucket_prefix, aws_account_id, aws_prefix, sns_application_arn):
         pool = self.create_identity_pool(session, name,
                                          developer_provider_name=developer_provider_name,
                                          unauth_policy_supported=unauth_policy_supported)
         if not pool:
             logger.error("Could not create pool.")
             return False
-        self.create_or_adjust_s3_bucket(session, aws_s3_bucket)
+        self.check_and_adjust_s3_bucket(session, aws_s3_bucket)
         self.create_identity_roles_and_policy(session, pool, aws_account_id,
                                               self.role_name_path,
                                               [x % {'project': aws_prefix} for x in self.default_dynamo_tables],
                                               aws_s3_bucket,
                                               s3_bucket_prefix,
                                               unauth_policy_supported=unauth_policy_supported,
-                                              auth_policy_supported=auth_policy_supported)
+                                              auth_policy_supported=auth_policy_supported,
+                                              sns_platform_arn=sns_application_arn)
         return True
 
 
     @classmethod
-    def create_or_adjust_s3_bucket(cls, session, bucket_name, path_prefix=None):
+    def check_and_adjust_s3_bucket(cls, session, bucket_name, path_prefix=None):
         if path_prefix is None:
             path_prefix = cls.default_bucket_prefix
-        s3_conn = session.client('s3')
+        s3_conn = session.client('s3', region_name='us-east-1')
         response = s3_conn.list_buckets()
         cls.check_response(response, expected_keys=('Buckets',))
         found = False
@@ -388,10 +399,10 @@ class SetupPool(Boto3CliFunc):
             if bucket['Name'] == bucket_name:
                 found = True
                 break
-        s3 = session.resource('s3')
+        s3 = session.resource('s3', region_name='us-east-1')
         bucket = s3.Bucket(bucket_name)
         if not found:
-            bucket.create()
+            raise Exception("Bucket %s does not exist. Please create it first." % bucket_name)
         versioning = bucket.BucketVersioning()
         if not versioning.status == 'Enabled':
             response = versioning.enable()
@@ -447,7 +458,7 @@ class SetupPool(Boto3CliFunc):
 
     @classmethod
     def create_identity_pool(cls, session, name, developer_provider_name=None, unauth_policy_supported=True):
-        conn = session.client('cognito-identity')
+        conn = session.client('cognito-identity', region_name='us-east-1')
 
         response = conn.list_identity_pools(MaxResults=60)
         pools = cls.check_response(response, expected_keys=('IdentityPools',))
@@ -479,13 +490,17 @@ class SetupPool(Boto3CliFunc):
                                          auth_policy_supported=False,
                                          dynamo_table_permissions=None,
                                          s3_object_permissions=None,
-                                         s3_bucket_permissions=None):
+                                         s3_bucket_permissions=None,
+                                         sns_platform_arn=None,
+                                         sns_permissions=None):
         if dynamo_table_permissions is None:
             dynamo_table_permissions = cls.dynamo_table_permissions
         if s3_object_permissions is None:
             s3_object_permissions = cls.s3_object_permissions
         if s3_bucket_permissions is None:
             s3_bucket_permissions = cls.s3_bucket_permissions
+        if sns_permissions is None:
+            sns_permissions = cls.sns_permissions
 
         if not bucket_path_prefix.endswith('/'):
             bucket_path_prefix += '/'
@@ -496,7 +511,8 @@ class SetupPool(Boto3CliFunc):
         statements = cls.munge_statements(aws_account_id, cls.dynamo_region,
                                           dynamo_tables_names, dynamo_table_permissions,
                                           bucket_name, bucket_path_prefix,
-                                          s3_object_permissions, s3_bucket_permissions)
+                                          s3_object_permissions, s3_bucket_permissions,
+                                          sns_platform_arn, sns_permissions)
 
         if auth_policy_supported:
             roles_created.append(cls.create_cognito_role(pool, iam, role_path, statements, auth=True))
@@ -515,7 +531,9 @@ class SetupPool(Boto3CliFunc):
                          dynamo_table_permissions,
                          bucket_name, bucket_path_prefix,
                          s3_object_permissions,
-                         s3_bucket_permissions):
+                         s3_bucket_permissions,
+                         sns_platform_arn,
+                         sns_permissions):
         statements = []
         for table in dynamo_tables_names:
             dynamo_table_permissions['Resource'].append(cls.dynamo_arn_table_template % {'RegionName': aws_dynamo_region,
@@ -527,6 +545,9 @@ class SetupPool(Boto3CliFunc):
                                                                           'PathPrefix': bucket_path_prefix}))
         statements.append(json.loads(json.dumps(s3_bucket_permissions) % {'BucketName': bucket_name,
                                                                           'PathPrefix': bucket_path_prefix}))
+        statements.append(json.loads(json.dumps(sns_permissions) % {'PlatformApplicationARN': sns_platform_arn,
+                                                                    }))
+
         return statements
 
 class TestAccess(Boto3CliFunc):
@@ -541,7 +562,7 @@ class TestAccess(Boto3CliFunc):
 
     def run(self, args, **kwargs):
         super(TestAccess, self).run(args, **kwargs)
-        conn = self.session.client('cognito-identity')
+        conn = self.session.client('cognito-identity', region_name='us-east-1')
         response = conn.list_identity_pools(MaxResults=60)
         id_pools = self.check_response(response, expected_keys=('IdentityPools',))
         pool = None
@@ -574,23 +595,22 @@ class TestAccess(Boto3CliFunc):
             dynamodb_root = None
             nacho_bucket = None
             prefix = None
+            sns_created_endpoints = None
+            root_session = None
 
             @classmethod
             def setUpClass(cls):
-                s3 = self.session.resource('s3')
+                s3 = self.session.resource('s3', region_name='us-east-1')
                 cls.nacho_bucket = s3.Bucket(args.aws_s3_bucket)
                 cls.test_bucket = s3.Bucket('SomeTestBucket' + uuid.uuid4().hex)
                 cls.test_bucket.create()
-                dynamo_session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
+                cls.root_session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
                                                         aws_secret_access_key=args.aws_secret_access_key,
-                                                        region_name='us-west-2')
-
-                cls.dynamodb_root = dynamo_session.client('dynamodb')
-
+                                                        region_name=args.region)
 
                 anon_session = boto3.session.Session(aws_access_key_id='', aws_secret_access_key='', region_name=args.region)
                 anon_session._session.set_credentials(access_key='', secret_key='')
-                anon_conn = anon_session.client('cognito-identity')
+                anon_conn = anon_session.client('cognito-identity', region_name="us-east-1")
                 cls.my_id = cls.get_id(anon_conn)
                 logger.info("Got Cognito ID: %s", cls.my_id)
 
@@ -605,16 +625,14 @@ class TestAccess(Boto3CliFunc):
                                                         aws_secret_access_key=cls.my_creds['Credentials']['SecretAccessKey'],
                                                         aws_session_token=cls.my_creds['Credentials']['SessionToken'],
                                                         region_name=args.region)
-                cls.s3_conn = cls.new_session.client('s3')
+                cls.s3_conn = cls.new_session.client('s3', region_name='us-east-1')
 
-                dynamo_session = boto3.session.Session(aws_access_key_id=cls.my_creds['Credentials']['AccessKeyId'],
-                                                    aws_secret_access_key=cls.my_creds['Credentials']['SecretAccessKey'],
-                                                    aws_session_token=cls.my_creds['Credentials']['SessionToken'],
-                                                    region_name='us-west-2')
-                cls.dynamodb = dynamo_session.client('dynamodb')
+                cls.dynamodb = cls.new_session.client('dynamodb', region_name='us-west-2')
                 cls.prefix = "/".join([args.s3_bucket_prefix, cls.my_id, ''])
                 TelemetryTable.PREFIX = args.aws_prefix
                 cls.dynamo_created_items = []
+                cls.sns_conn = cls.new_session.client('sns')
+                cls.sns_created_endpoints = []
 
             @classmethod
             def get_id(cls, conn):
@@ -649,13 +667,18 @@ class TestAccess(Boto3CliFunc):
                 DeletePools.delete_s3_objects(cls.nacho_bucket, cls.prefix)
 
                 logger.info('Cleaning up DynamoDB items created')
+                dynamodb = cls.root_session.client('dynamodb', region_name='us-west-2')
                 for x in cls.dynamo_created_items:
-                    cls.dynamodb_root.delete_item(TableName=x['TableName'], Key={'id': x['Item']['id']})
+                    dynamodb.delete_item(TableName=x['TableName'], Key={'id': x['Item']['id']})
                 # query = Query()
                 # query.add('event_type', SelectorEqual('DEBUG'))
                 # query.add_range('uploaded_at', self.start, self.end)
                 #
                 # self.events, self.event_count = self.query_all(query)
+                logger.info("Cleaning up SNS EndpointARNs")
+                sns = cls.root_session.client('sns')
+                for x in cls.sns_created_endpoints:
+                    sns.delete_endpoint(EndpointArn=x)
 
             @classmethod
             def check_response(cls, response, status_code=200, expected_keys=None):
@@ -663,8 +686,8 @@ class TestAccess(Boto3CliFunc):
 
             def raisesClientError(self, error, func, *args, **kwargs):
                 try:
-                    func(*args, **kwargs)
-                    raise Exception('Should not have succeeded')
+                    resp = func(*args, **kwargs)
+                    raise Exception('Should not have succeeded: %s', resp)
                 except ClientError as e:
                     self.assertIn(error, str(e))
 
@@ -706,9 +729,9 @@ class TestAccess(Boto3CliFunc):
             def test_dynamo_table_create_denied(self):
                 self.raisesClientError('AccessDeniedException',
                                        self.dynamodb.create_table,
-                                       AttributeDefinitions=[{'AttributeName': 'Foo', 'AttributeType': 'Bar',}],
+                                       AttributeDefinitions=[{'AttributeName': 'Foo', 'AttributeType': 'S',}],
                                        TableName='foo',
-                                       KeySchema=[{'AttributeName': 'Foo', 'KeyType': 'Bar'}],
+                                       KeySchema=[{'AttributeName': 'Foo', 'KeyType': 'HASH'}],
                                        ProvisionedThroughput={'ReadCapacityUnits': 10, 'WriteCapacityUnits': 10})
 
             def test_dynamo_table_list_denied(self):
@@ -747,6 +770,34 @@ class TestAccess(Boto3CliFunc):
                                        TableName=log_table_name,
                                        Key={'id': item['id']})
 
+            def test_sns_get_clientplatformendpoint(self):
+                token = binascii.b2a_hex(os.urandom(32))
+                self.assertEqual(len(token), 64)
+
+                cearn = self.sns_conn.create_platform_endpoint(PlatformApplicationArn=args.aws_sns_platform_app_arn,
+                                                               Token=token,
+                                                               CustomUserData=json.dumps({"Name": "Test script generated endpoint"}))
+                self.assertTrue(cearn)
+                endpointArn = cearn['EndpointArn']
+                self.sns_created_endpoints.append(endpointArn)
+
+                # using this API with the same token should give us the same ARN
+                cearn = self.sns_conn.create_platform_endpoint(PlatformApplicationArn=args.aws_sns_platform_app_arn,
+                                                               Token=token,
+                                                               CustomUserData=json.dumps({"Name": "Test script generated endpoint"}))
+                self.assertTrue(cearn)
+                self.assertEqual(endpointArn, cearn['EndpointArn'])
+
+                # we should not be allowed to delete
+                self.raisesClientError('AuthorizationError',
+                                       self.sns_conn.delete_endpoint,
+                                       EndpointArn=cearn['EndpointArn'])
+
+            def test_deny_create_topic(self):
+                self.raisesClientError('AuthorizationError',
+                                       self.sns_conn.create_topic,
+                                       Name="TestingTopic")
+
         suite = TestLoader().loadTestsFromTestCase(TestCases)
         runner = TextTestRunner(verbosity=2)
         runner.run(suite)
@@ -768,7 +819,7 @@ def main():
                         default=None)
     parser.add_argument('--aws-account-id', help='AWS Account ID. A number.', default=None)
     parser.add_argument('--prefix', help='AWS project prefix.', default=None, dest='aws_prefix')
-    parser.add_argument('--region', help='Set the region for the connection. Default: us-east-1', default='us-east-1', type=str)
+    parser.add_argument('--region', help='Set the region for the connection. Default: us-east-1', default='us-west-2', type=str)
     parser.add_argument('--config', '-c',
                        help='Configuration that contains an AWS section',
                        default=None)
