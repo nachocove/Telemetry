@@ -80,6 +80,8 @@ def _parse_crash_report(junk):
                                'Date/Time': 'timestamp',
                                'Launch Time': 'timestamp'})
     if 'device_id' in dict_ and 'timestamp' in dict_:
+        if dict_['timestamp'] == 'now':
+            dict_['timestamp'] = iso_z_format(datetime.utcnow())
         return dict_
     return None
 
@@ -87,6 +89,8 @@ def _parse_crash_report(junk):
 def _parse_error_report(junk):
     dict_ = _parse_junk(junk, {'timestamp': 'timestamp', 'client': 'client'})
     if 'timestamp' in dict_ and 'client' in dict_:
+        if dict_['timestamp'] == 'now':
+            dict_['timestamp'] = iso_z_format(datetime.utcnow())
         return dict_
     return None
 
@@ -94,6 +98,8 @@ def _parse_error_report(junk):
 def _parse_support_email(junk):
     dict_ = _parse_junk(junk, {'email': 'email', 'timestamp': 'timestamp'})
     if 'email' in dict_:
+        if dict_.get('timestamp', '') == 'now':
+            dict_['timestamp'] = iso_z_format(datetime.utcnow())
         return dict_
     return None
 
@@ -165,6 +171,10 @@ def process_email(request, project, form, loc, logger):
     conn = aws_connection(project)
     query = Query()
     query.add('event_type', SelectorEqual('SUPPORT'))
+    if 'timestamp' in loc:
+        utc_timestamp = UtcDateTime(loc['timestamp'])
+        query.add('uploaded_at', SelectorLessThanEqual(utc_timestamp))
+
     events = Query.events(query, conn)
     email_events = Support.get_sha256_email_address(events, loc['email'])[1]
     if len(email_events) != 0:
