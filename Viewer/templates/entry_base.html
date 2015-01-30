@@ -12,9 +12,10 @@
                         Rows<span
                                 class="caret"></span></a>
                     <ul class="dropdown-menu" role="menu">
-                        <li role="presentation"><a role="menuitem" tabindex="-1"
-                                                   onclick="$('#table_events tr').toggle();$('.row_select_dropdown').toggle();">Show
-                            All</a></li>
+                        <li role="presentation" id="show_all_menu"><a role="menuitem" tabindex="-1"
+                                                   onclick="$('#table_events tr').show();$('.row_select_dropdown').show();">Show All</a></li>
+                        <li role="presentation" id="hide_all_menu"><a role="menuitem" tabindex="-1"
+                                                   onclick="$('#table_events tr').hide();$('.row_select_dropdown').hide();">Hide All</a></li>
                         <li class="divider"></li>
 
                         {% for event_type in dropdown %}
