@@ -7,6 +7,7 @@ from datetime import timedelta, datetime, date
 import os
 from boto.ec2 import cloudwatch
 import sys
+import shutil
 
 try:
     from cloghandler import ConcurrentRotatingFileHandler as RFHandler
@@ -203,6 +204,9 @@ def main():
                               action='store_true',
                               default=False)
 
+    filter_group.add_argument('--logdir',
+                              help='Where to write the logfiles. Default is ./logs/<config-file-basename>',
+                              default=None, type=str)
 
     misc_group = parser.add_argument_group(title='Miscellaneous Option')
     misc_group.add_argument('-h', '--help', help='Print this help message', action='store_true', dest='help')
@@ -223,14 +227,6 @@ def main():
         streamhandler.setLevel(logging.DEBUG if options.debug else logging.INFO)
         streamhandler.setFormatter(logging.Formatter(logging_format))
         logger.addHandler(streamhandler)
-
-    log_file = os.path.abspath(os.path.basename(options.config+'.log'))
-    handler = RFHandler(log_file, maxBytes=10*1024*1024, backupCount=10)
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(logging.Formatter(logging_format))
-    logger.addHandler(handler)
-
-    logger.debug("Monitor started: %s, cwd=%s, euid=%d", " ".join(sys.argv[1:]), os.getcwd(), os.geteuid())
 
     if options.help:
         parser.print_help()
@@ -254,6 +250,31 @@ def main():
     HockeyAppConfig(config_file).read(options)
     monitor_profile = MonitorProfileConfig(config_file)
     monitor_profile.read(options)
+
+    options.logdir = options.logdir or options.profile_logdir
+    if not options.logdir:
+        options.logdir = './log'
+
+    config_base, ext = os.path.splitext(os.path.basename(options.config))
+    log_dir = os.path.join(options.logdir, config_base)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    log_file = os.path.abspath(os.path.join(log_dir, config_base + '.log'))
+
+    state_file = os.path.abspath(os.path.join(log_dir, config_base + '.state'))
+    old_state_file_loc = options.config + '.state'
+
+    handler = RFHandler(log_file, maxBytes=10*1024*1024, backupCount=10)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter(logging_format))
+    logger.addHandler(handler)
+
+    logger.debug("Monitor started: %s, cwd=%s, euid=%d", " ".join(sys.argv[1:]), os.getcwd(), os.geteuid())
+
+    if os.path.exists(old_state_file_loc):
+        logger.info("Moving old state file %s to %s", old_state_file_loc, state_file)
+        shutil.move(old_state_file_loc, state_file)
+
     if 'profile_name' in dir(options):
         logger.info('Running profile "%s"', options.profile_name)
 
@@ -273,7 +294,6 @@ def main():
     # If we want a time window but do not have one from command line, get it
     # from config and current time
     do_update_timestamp = False
-    state_file = options.config + '.state'
     if isinstance(options.start, str) and options.start == 'last':
         try:
             timestamp_state = TimestampConfig(Config(state_file))
