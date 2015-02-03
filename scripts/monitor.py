@@ -273,7 +273,7 @@ def main():
     handler.setFormatter(logging.Formatter(logging_format))
     logger.addHandler(handler)
 
-    logger.debug("Monitor started: %s, cwd=%s, euid=%d", " ".join(sys.argv[1:]), os.getcwd(), os.geteuid())
+    logger.info("Monitor started: %s, cwd=%s, euid=%d", " ".join(sys.argv[1:]), os.getcwd(), os.geteuid())
 
     if os.path.exists(old_state_file_loc):
         logger.info("Moving old state file %s to %s", old_state_file_loc, state_file)
