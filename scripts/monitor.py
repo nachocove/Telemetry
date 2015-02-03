@@ -251,6 +251,9 @@ def main():
     monitor_profile = MonitorProfileConfig(config_file)
     monitor_profile.read(options)
 
+    if not options.debug and config_file.getbool('profile', 'debug'):
+        options.debug = config_file.getbool('profile', 'debug')
+
     if not options.logdir and 'profile_logdir' in dir(options):
         options.logdir = options.profile_logdir
     if not options.logdir:
