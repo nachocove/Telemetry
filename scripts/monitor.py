@@ -266,7 +266,7 @@ def main():
     old_state_file_loc = options.config + '.state'
 
     handler = RFHandler(log_file, maxBytes=10*1024*1024, backupCount=10)
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(logging.DEBUG if options.debug else logging.INFO)
     handler.setFormatter(logging.Formatter(logging_format))
     logger.addHandler(handler)
 
