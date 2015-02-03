@@ -251,7 +251,8 @@ def main():
     monitor_profile = MonitorProfileConfig(config_file)
     monitor_profile.read(options)
 
-    options.logdir = options.logdir or options.profile_logdir
+    if not options.logdir and 'profile_logdir' in dir(options):
+        options.logdir = options.profile_logdir
     if not options.logdir:
         options.logdir = './log'
 
