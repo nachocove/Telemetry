@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" type="text/css" href="/static/list.css">
+{% endblock %}
+{% block content %}
+<div><h1>Project: {{ project }}</h1></div>
+{% if search_results %}
+    <span id="search_results">
+        <div id="info">
+            <table class="table">
+                {% for p in params %}
+                <tr><td class="cell">{{ p.key }}</td><td class="cell">{{ p.value }}</td></tr>
+                {% endfor %}
+            </table>
+        </div>
+        <br>
+        <div id="results">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>Client ID</th>
+                <th>Uploaded At</th>
+                <th>Message</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for result in search_results %}
+                <tr id="{{ result.id}}">
+                    <td class="cell">{{ result.client }}</td>
+                    <td class="cell"><br/><a href="{{result.url}}" title="Click for Telemetry" target="_blank">{{ result.uploaded_at }}</a></td>
+                    <td class="cell">{{ result.message }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    </span>
+{% endif %}
+{% endblock %}

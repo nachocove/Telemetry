@@ -3,9 +3,14 @@ from functools import wraps
 from gettext import gettext as _
 import hashlib
 import os
+from datetime import timedelta, datetime
+from urllib import urlencode
+import logging
+import cgi
+import json
 
 import dateutil.parser
-from datetime import timedelta, datetime
+import dateutil.parser
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
@@ -13,23 +18,22 @@ from django.http import HttpResponseBadRequest
 from django import forms
 from django.shortcuts import render, render_to_response
 from django.http import HttpResponseRedirect
-import logging
-import cgi
-import json
 from django.template import RequestContext
 from django.utils.decorators import available_attrs
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
+from boto.dynamodb2.exceptions import DynamoDBError
+
 from core.connection import projects, aws_connection, default_project
 from core.dates import iso_z_format, json_formatter
-
+from misc import events
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
-from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween
+from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween, SelectorContains
 from monitors.monitor_base import Monitor
 from misc.support import Support
 from misc.utc_datetime import UtcDateTime
+
 
 tmp_logger = logging.getLogger('telemetry')
 
@@ -342,7 +346,7 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
     after = center - spread
     before = center + spread
 
-    context = entry_page_base(project, client, after, before, logger)
+    context = entry_page_base(project, client, after, before, request.GET, logger)
 
     iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=span, center=center)
 
@@ -370,7 +374,7 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
 def entry_page_by_timestamps(request, project, client='', after='', before=''):
     logger = tmp_logger.getChild('entry_page')
     logger.info('client=%s, after=%s, before=%s', client, after, before)
-    context = entry_page_base(project, client, after, before, logger)
+    context = entry_page_base(project, client, after, before, request.GET, logger)
     iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=default_span, center=None)
     context['buttons'] = []
     zoom_in_span = max(1, default_span/2)
@@ -390,12 +394,16 @@ def entry_page_by_timestamps(request, project, client='', after='', before=''):
     return render_to_response('entry_page.html', context,
                               context_instance=RequestContext(request))
 
-def entry_page_base(project, client, after, before, logger):
+def entry_page_base(project, client, after, before, params, logger):
     conn = aws_connection(project)
     query = Query()
     query.limit = 100000
     query.add('client', SelectorEqual(client))
     query.add_range('timestamp', UtcDateTime(str(after)), UtcDateTime(str(before)))
+    if params:
+        if params.get('search', ''):
+            field,search = params['search'].split(':')
+            query.add(field, SelectorContains(search))
     ###### FIXME - logger.debug('query=%s', str(query.where()))
     obj_list = list()
     event_count = 0
@@ -404,7 +412,7 @@ def entry_page_base(project, client, after, before, logger):
         (obj_list, event_count) = Monitor.query_events(conn, query, False, logger)
         logger.info('%d objects found', len(obj_list))
     except DynamoDBError, e:
-        logger.error('fail to query events - %s', str(e))
+        logger.error('failed to query events - %s', str(e))
 
     # Save some global parameters for summary table
     params = dict()
@@ -467,3 +475,141 @@ def entry_page_base(project, client, after, before, logger):
                }
 
     return context
+
+def event_choices():
+    ec = {}
+    for ev in events.TYPES:
+        if ev in ('WBXML_REQUEST', 'WBXML_RESPONSE'):
+            continue  # omit these
+        elif ev in ('INFO', 'DEBUG'):
+            ec[ev] = ev.lower().capitalize() + " (DANGER: Lots of records!)"
+        else:
+            ec[ev] = ev.lower().capitalize()
+    return sorted([ (k, ec[k]) for k in ec ])
+
+class SearchForm(forms.Form):
+    EVENT_CHOICES = event_choices()
+    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
+    message = forms.CharField(help_text="Enter a substring to look for in the telemetry.log-message field")
+    after = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    before = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+
+    event_type = forms.MultipleChoiceField(choices=EVENT_CHOICES, widget=forms.CheckboxSelectMultiple(),
+                                           help_text="Select the event-type to search in. Each one is a separate query!")
+
+    def clean_after(self):
+        after = self.cleaned_data.get('after', '')
+        try:
+            if after:
+                return UtcDateTime(after)
+            else:
+                raise Exception("No after time given")
+        except Exception as e:
+            self.add_error('after', str(e))
+            raise ValidationError(_('Bad After: %(after)s'),
+                                  code='unknown',
+                                  params={'after': after})
+
+    def clean_before(self):
+        before = self.cleaned_data.get('before', '')
+        try:
+            if before:
+                return UtcDateTime(before)
+            else:
+                raise Exception("No before time given")
+        except Exception as e:
+            self.add_error('before', str(e))
+            raise ValidationError(_('Bad before: %(before)s'),
+                                  code='unknown',
+                                  params={'before': before})
+
+
+def search(request):
+    logger = logging.getLogger('telemetry').getChild('search')
+    # Any message set in 'message' will be displayed as a red error message.
+    # Used for reporting error in any POST.
+    message = ''
+    if request.method != 'POST':
+        form = SearchForm()
+        form.fields['project'].initial = request.session.get('project', default_project)
+        form.fields['event_type'].initial = ('ERROR', 'WARN')
+        return render_to_response('search.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+    form = SearchForm(request.POST)
+    if not form.is_valid():
+        logger.warn('invalid form data')
+        return render_to_response('search.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+
+    search_args = {'after': str(form.cleaned_data['after']),
+                   'before': str(form.cleaned_data['before']),
+                   'project': form.cleaned_data['project']}
+
+    search_entry_url = reverse(search_results, kwargs=search_args)
+    params = {}
+    for k in form.cleaned_data:
+        if k in ('after', 'before', 'project'):
+            continue
+        params[k] = form.cleaned_data[k]
+    return HttpResponseRedirect("%s?%s" % (search_entry_url, urlencode(params, True)))
+
+
+def search_results(request, project, after, before):
+    logger = logging.getLogger('telemetry').getChild('search-entry')
+    logger.debug('Search after=%s, before=%s, parameters=%s', after, before, request.GET)
+    after = UtcDateTime(after)
+    before = UtcDateTime(before)
+    conn = aws_connection(project)
+    obj_list = []
+    event_count = 0
+    for event_type in request.GET.getlist('event_type', []):
+        if event_type not in events.TYPES:
+            msg = 'illegal event-type values %s' % request.GET.get('event_type')
+            logger.error(msg)
+            return render_to_response('search_results.html', {'message': msg},
+                                      context_instance=RequestContext(request))
+
+        query = Query()
+        query.limit = 100000
+        query.add('event_type', SelectorEqual(event_type))
+        query.add_range('uploaded_at', after, before)
+        for k in request.GET:
+            if k in ('event_type'):
+                continue
+            else:
+                query.add(k, SelectorContains(request.GET[k]))
+
+        try:
+            logger.debug("Query=%s", query)
+            (_obj_list, _event_count) = Monitor.query_events(conn, query, False, logger)
+            logger.info('%d objects found', len(_obj_list))
+            if _obj_list:
+                obj_list.extend(_obj_list)
+                event_count += _event_count
+        except DynamoDBError, e:
+            logger.error('failed to query events - %s', str(e))
+            return render_to_response('search_results.html', {'message': 'failed to query events - %s' % str(e)},
+                                      context_instance=RequestContext(request))
+
+    for event in obj_list:
+        event['url'] = reverse(entry_page, kwargs={'client': event['client'],
+                                                   'timestamp': event['timestamp'],
+                                                   'span': 1,
+                                                   'project': project})
+
+    params = [{'key': 'after', 'value': str(after)},
+              {'key': 'before', 'value': str(before)},
+              {'key': 'Events', 'value': event_count},
+              ]
+    for k in request.GET:
+        if k == 'event_type':
+            value = [str(x) for x in request.GET.getlist(k)]
+        else:
+            value = request.GET.get(k)
+        params.append({'key': k, 'value': value})
+    return render_to_response('search_results.html', {'params': params,
+                                                      'project': project,
+                                                      'search_results': obj_list},
+                              context_instance=RequestContext(request))
+
+
