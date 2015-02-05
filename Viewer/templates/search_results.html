@@ -27,7 +27,7 @@
             {% for result in search_results %}
                 <tr id="{{ result.id}}">
                     <td class="cell">{{ result.client }}</td>
-                    <td class="cell">{{ result.uploaded_at }}</td>
+                    <td class="cell"><br/><a href="{{result.url}}" title="Click for Telemetry" target="_blank">{{ result.uploaded_at }}</a></td>
                     <td class="cell">{{ result.message }}</td>
                 </tr>
             {% endfor %}

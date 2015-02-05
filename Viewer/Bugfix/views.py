@@ -504,16 +504,26 @@ def entry_page_base(project, client, after, before, params, logger):
 
     return context
 
+def event_choices():
+    ec = {}
+    for ev in events.TYPES:
+        if ev in ('WBXML_REQUEST', 'WBXML_RESPONSE'):
+            continue  # omit these
+        elif ev in ('INFO', 'DEBUG'):
+            ec[ev] = ev.lower().capitalize() + " (DANGER: Lots of records!)"
+        else:
+            ec[ev] = ev.lower().capitalize()
+    return sorted([ (k, ec[k]) for k in ec ])
 
 class SearchForm(forms.Form):
+    EVENT_CHOICES = event_choices()
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
-    message = forms.CharField()
-    after = forms.CharField()
-    before = forms.CharField()
+    message = forms.CharField(help_text="Enter a substring to look for in the telemetry.log-message field")
+    after = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    before = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
 
-    EVENT_CHOICES=[(x, x.lower().capitalize()) for x in events.TYPES if x not in ('WBXML_REQUEST', 'WBXML_RESPONSE')]
-
-    event_type = forms.MultipleChoiceField(choices=EVENT_CHOICES, widget=forms.CheckboxSelectMultiple())
+    event_type = forms.MultipleChoiceField(choices=EVENT_CHOICES, widget=forms.CheckboxSelectMultiple(),
+                                           help_text="Select the event-type to search in. Each one is a separate query!")
 
     def clean_after(self):
         after = self.cleaned_data.get('after', '')
@@ -608,6 +618,12 @@ def search_results(request, project, after, before):
             logger.error('failed to query events - %s', str(e))
             return render_to_response('search_results.html', {'message': 'failed to query events - %s' % str(e)},
                                       context_instance=RequestContext(request))
+
+    for event in obj_list:
+        event['url'] = reverse(entry_page, kwargs={'client': event['client'],
+                                                   'timestamp': event['timestamp'],
+                                                   'span': 1,
+                                                   'project': project})
 
     params = [{'key': 'after', 'value': str(after)},
               {'key': 'before', 'value': str(before)},
