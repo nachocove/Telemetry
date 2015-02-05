@@ -28,7 +28,7 @@ from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween
+from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween, SelectorContains
 from AWS.tables import TelemetryTable
 from monitors.monitor_base import Monitor
 from misc.support import Support
@@ -378,7 +378,7 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
     after = center - spread
     before = center + spread
 
-    context = entry_page_base(project, client, after, before, logger)
+    context = entry_page_base(project, client, after, before, request.GET, logger)
 
     iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=span, center=center)
 
@@ -406,7 +406,7 @@ def entry_page(request, project='', client='', timestamp='', span=str(default_sp
 def entry_page_by_timestamps(request, project, client='', after='', before=''):
     logger = logging.getLogger('telemetry').getChild('entry_page')
     logger.info('client=%s, after=%s, before=%s', client, after, before)
-    context = entry_page_base(project, client, after, before, logger)
+    context = entry_page_base(project, client, after, before, request.GET, logger)
     iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=default_span, center=None)
     context['buttons'] = []
     zoom_in_span = max(1, default_span/2)
@@ -426,12 +426,16 @@ def entry_page_by_timestamps(request, project, client='', after='', before=''):
     return render_to_response('entry_page.html', context,
                               context_instance=RequestContext(request))
 
-def entry_page_base(project, client, after, before, logger):
+def entry_page_base(project, client, after, before, params, logger):
     conn = _aws_connection(project)
     query = Query()
     query.limit = 100000
     query.add('client', SelectorEqual(client))
     query.add_range('timestamp', UtcDateTime(str(after)), UtcDateTime(str(before)))
+    if params:
+        if params.get('search', ''):
+            field,search = params['search'].split(':')
+            query.add(field, SelectorContains(search))
     ###### FIXME - logger.debug('query=%s', str(query.where()))
     obj_list = list()
     event_count = 0
