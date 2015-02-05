@@ -506,23 +506,28 @@ class SetupPool(Boto3CliFunc):
             bucket_path_prefix += '/'
 
         iam = session.client('iam')
-        roles_created = []
 
         statements = cls.munge_statements(aws_account_id, cls.dynamo_region,
                                           dynamo_tables_names, dynamo_table_permissions,
                                           bucket_name, bucket_path_prefix,
                                           s3_object_permissions, s3_bucket_permissions,
                                           sns_platform_arn, sns_permissions)
-
+        roles_created = {}
         if auth_policy_supported:
-            roles_created.append(cls.create_cognito_role(pool, iam, role_path, statements, auth=True))
+            roles_created['authenticated'] = cls.create_cognito_role(pool, iam, role_path, statements, auth=True)
 
         if unauth_policy_supported:
-            roles_created.append(cls.create_cognito_role(pool, iam, role_path, statements, auth=False))
+            roles_created['unauthenticated'] = cls.create_cognito_role(pool, iam, role_path, statements, auth=False)
 
         if not roles_created:
             logger.error("No roles created")
             return False
+
+        # TODO Need to add this once boto3 supports the call
+        #cognito = session.client('cognito-identity', region_name='us-east-1')
+        #response = cognito.set_identity_pool_roles(IdentityPoolId=pool['IdentityPoolId'],
+        #                                           Roles=dict([(k,roles_created[k]['RoleName']) for k in roles_created]))
+        #print response
         return roles_created
 
     @classmethod

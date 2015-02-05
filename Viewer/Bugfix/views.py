@@ -429,18 +429,13 @@ def entry_page_base(project, client, after, before, logger):
     except DynamoDBError, e:
         return HttpResponseBadRequest('fail to query device info - %s', str(e))
 
-    context = {'project': project,
-               'params': json.dumps(params, default=json_formatter),
-               }
-    params.setdefault('client', '')
+    params.setdefault('client', client)
     params.setdefault('device_id', '')
     params.setdefault('os_type', '')
     params.setdefault('os_version', '')
     params.setdefault('device_model', '')
     params.setdefault('build_version', '')
     params.setdefault('build_number', '')
-
-    assert(params['client'] == client)
 
     # Generate the events JSON
     event_list = [dict(x.items()) for x in obj_list]
@@ -465,6 +460,10 @@ def entry_page_base(project, client, after, before, logger):
         if 'message' in event:
             event['message'] = cgi.escape(event['message'])
 
-    context['events'] = json.dumps(event_list, default=json_formatter)
-    context['dropdown'] = show_hide_list
+    context = {'project': project,
+               'params': json.dumps(params, default=json_formatter),
+               'events': json.dumps(event_list, default=json_formatter),
+               'dropdown': show_hide_list,
+               }
+
     return context

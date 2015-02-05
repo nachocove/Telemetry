@@ -11,7 +11,8 @@ class MonitorProfileConfig(SectionConfig):
     KEYS = (
         'monitors',
         'name',
-        'recipient'
+        'recipient',
+        'logdir',
     )
 
     def __init__(self, config_file):
