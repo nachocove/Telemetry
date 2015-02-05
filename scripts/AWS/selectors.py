@@ -82,25 +82,25 @@ class SelectorExists(Selector):
 
 class SelectorContains(Selector):
     def __init__(self, value):
-        if not isinstance(value, str):
+        if not isinstance(value, (str, unicode)):
             raise TypeError('value must be str')
-        Selector.__init__(self, value)
+        Selector.__init__(self, str(value))
         self.op = 'contains'
 
 
 class SelectorNotContains(Selector):
     def __init__(self, value):
-        if not isinstance(value, str):
+        if not isinstance(value, (str, unicode)):
             raise TypeError('value must be str')
-        Selector.__init__(self, value)
+        Selector.__init__(self, str(value))
         self.op = 'not_contains'
 
 
 class SelectorStartsWith(Selector):
     def __init__(self, value):
-        if not isinstance(value, str):
+        if not isinstance(value, (str, unicode)):
             raise TypeError('value must be str')
-        Selector.__init__(self, value)
+        Selector.__init__(self, str(value))
         self.op = 'beginswith'
 
 
