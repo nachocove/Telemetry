@@ -2,4 +2,8 @@
 **/xcshareddata
 Parse/scripts/*.cfg
 **/*.pyc
-
+*.log
+*.lock
+*.state
+.idea/*
+.DS_Store
