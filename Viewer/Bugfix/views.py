@@ -610,7 +610,9 @@ def search_results(request, project, after, before):
         try:
             logger.debug("Query=%s", query)
             (_obj_list, _event_count) = Monitor.query_events(conn, query, False, logger)
-            logger.info('%d objects found', len(_obj_list))
+            # TODO the count here seems wrong. It returns 0, despite the list being non-zero. For now, ignore the count.
+            _event_count = len(_obj_list)
+            logger.info('%d objects found', _event_count)
             if _obj_list:
                 obj_list.extend(_obj_list)
                 event_count += _event_count
