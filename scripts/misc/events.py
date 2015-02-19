@@ -23,6 +23,7 @@ INTERNAL_FIELDS = ['createdAt',
 
 # These fields are arranged in the order they intend to be displayed
 IDENT_FIELDS = ['client',
+                'build_number',
                 'build_version',
                 'os_type',
                 'os_version',

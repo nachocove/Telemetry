@@ -54,6 +54,17 @@ class MonitorLog(Monitor):
 
         self.events, self.event_count = self.query_all(query)
 
+    client_cache = {}
+    def _get_device_info(self, client_id, start, end):
+        if client_id not in self.client_cache:
+            query = Query()
+            query.add('client', SelectorEqual(client_id))
+            query.add_range('timestamp', start, end)
+            clients = Query.users(query, self.conn)
+            # TODO Are these sorted by timestamp? Or do I need to sort them first?
+            self.client_cache[client_id] = clients[-1] if clients else None
+        return self.client_cache[client_id]
+
     def _classify(self):
         # Cluster log messages
         clusterer = Clusterer()
@@ -168,6 +179,14 @@ class MonitorLog(Monitor):
         raw_log_path = raw_log_prefix + '.txt'
         with open(raw_log_path, 'w') as raw_log:
             for event in self.events:
+                (start, end) = LogTrace.get_time_window(event['uploaded_at'], 2, 0)
+                client = self._get_device_info(event['client'], start, end)
+                if client:
+                    for k in client.keys():
+                        if k not in ('build_number', 'build_version'):
+                            continue
+                        if k not in event:
+                            event[k] = client[k]
                 print >>raw_log, ef.format(event).encode('utf-8')
         zipped_log_path = raw_log_prefix + '.zip'
         zipped_file = zipfile.ZipFile(zipped_log_path, 'w', zipfile.ZIP_DEFLATED)
