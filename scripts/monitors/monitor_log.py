@@ -56,14 +56,15 @@ class MonitorLog(Monitor):
 
     client_cache = {}
     def _get_device_info(self, client_id, start, end):
-        if client_id not in self.client_cache:
+        key = "%s-%s-%s" % (client_id, start, end)
+        if key not in self.client_cache:
             query = Query()
             query.add('client', SelectorEqual(client_id))
             query.add_range('timestamp', start, end)
             clients = Query.users(query, self.conn)
             # TODO Are these sorted by timestamp? Or do I need to sort them first?
-            self.client_cache[client_id] = clients[-1] if clients else None
-        return self.client_cache[client_id]
+            self.client_cache[key] = clients[-1] if clients else None
+        return self.client_cache[key]
 
     def _classify(self):
         # Cluster log messages
