@@ -511,6 +511,8 @@ def event_choices():
             continue  # omit these
         elif ev in ('INFO', 'DEBUG'):
             ec[ev] = ev.lower().capitalize() + " (DANGER: Lots of records!)"
+        elif ev in ('UI',):
+            continue
         else:
             ec[ev] = ev.lower().capitalize()
     return sorted([ (k, ec[k]) for k in ec ])
@@ -604,8 +606,16 @@ def search_results(request, project, after, before):
         for k in request.GET:
             if k in ('event_type'):
                 continue
-            else:
-                query.add(k, SelectorContains(request.GET[k]))
+
+            search = request.GET[k]
+            if event_type == 'SUPPORT' and k == 'message':
+                k = "support"
+            elif event_type == 'CAPTURE' and k == 'message':
+                k = "capture_name"
+            elif event_type == 'COUNTER' and k == 'message':
+                k = "counter_name"
+
+            query.add(k, SelectorContains(search))
 
         try:
             logger.debug("Query=%s", query)
@@ -614,6 +624,15 @@ def search_results(request, project, after, before):
             _event_count = len(_obj_list)
             logger.info('%d objects found', _event_count)
             if _obj_list:
+                for o in _obj_list:
+                    if 'message' not in o:
+                        if 'support' in o:
+                            o['message'] = o['support']
+                        elif 'capture_name' in o:
+                            o['message'] = o['capture_name']
+                        elif 'counter_name' in o:
+                            o['message'] = o['counter_name']
+
                 obj_list.extend(_obj_list)
                 event_count += _event_count
         except DynamoDBError, e:
