@@ -99,6 +99,8 @@ def _parse_junk(junk, mapping):
         key = splitty[0].strip()
         value = splitty[1].strip()
         if key in mapping:
+            if mapping[key] == 'timestamp' and value.strip() == 'now':
+                value = _iso_z_format(datetime.utcnow())
             retval[mapping[key]] = value.strip()
     logger = logging.getLogger('telemetry').getChild('_parse_junk')
     logger.debug('retval=%s', retval)
@@ -298,10 +300,11 @@ def home(request):
                                   context_instance=RequestContext(request))
 
     logger.debug('tele_paste=%s', form.cleaned_data['tele_paste'])
-    loc = _parse_error_report(form.cleaned_data['tele_paste'])
     project = form.cleaned_data['project']
     request.session['project'] = project
     paste_data = form.cleaned_data['tele_paste']
+
+    loc = _parse_error_report(paste_data)
     if loc is not None:
         return process_error_report(request, project, form, loc, logger)
 
