@@ -3,7 +3,7 @@ import zipfile
 from misc import event_formatter
 import os
 from AWS.query import Query
-from AWS.selectors import SelectorEqual
+from AWS.selectors import SelectorEqual, SelectorLessThan
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
 from misc.html_elements import *
@@ -53,6 +53,18 @@ class MonitorLog(Monitor):
         query.add_range('uploaded_at', self.start, self.end)
 
         self.events, self.event_count = self.query_all(query)
+
+    # The cache is keyed on the client_id+endtime. It contains exactly one (the closest to end) device-info entry
+    _client_cache = {}
+    def _get_device_info(self, client_id, end):
+        key = "%s-%s" % (client_id, end)
+        if key not in self._client_cache:
+            query = Query()
+            query.add('client', SelectorEqual(client_id))
+            query.add('timestamp', SelectorLessThan(end))
+            clients = sorted(Query.users(query, self.conn), key=lambda x: x['timestamp'])
+            self._client_cache[key] = clients[-1] if clients else None
+        return self._client_cache[key]
 
     def _classify(self):
         # Cluster log messages
@@ -168,6 +180,20 @@ class MonitorLog(Monitor):
         raw_log_path = raw_log_prefix + '.txt'
         with open(raw_log_path, 'w') as raw_log:
             for event in self.events:
+                # Find the latest device-info record that is before the current log-entry's timestamp
+                client = self._get_device_info(event['client'], event['timestamp'])
+                if not client:
+                    self.logger.error("No deviceInfo found for client %s", event['client'])
+
+                if 'build_number' not in client:
+                    self.logger.error("No build_number in deviceInfo found for client %s", event['client'])
+
+                for k in client.keys():
+                    if k not in ('build_number', 'build_version'):
+                        continue
+                    if k not in event:
+                        event[k] = client[k]
+
                 print >>raw_log, ef.format(event).encode('utf-8')
         zipped_log_path = raw_log_prefix + '.zip'
         zipped_file = zipfile.ZipFile(zipped_log_path, 'w', zipfile.ZIP_DEFLATED)
