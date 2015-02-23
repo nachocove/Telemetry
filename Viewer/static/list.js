@@ -378,6 +378,15 @@ function refresh() {
     refreshEvents();
 }
 
+function hide_event_row_count() {
+    $('#table_event_shown').hide()
+}
+function display_event_row_count() {
+    hide_event_row_count()
+    $('#table_event_count').text($('#table_events tr:visible').length)
+    $('#table_event_shown').show()
+}
+
 function updateDate() {
     isUtc = !isUtc;
 

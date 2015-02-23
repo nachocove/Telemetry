@@ -13,5 +13,6 @@ var events = {{ events|safe }};
 {% endblock %}
 {% block content %}
 <table id="table_summary" class="table table-bordered"></table><br/>
+<span id="table_event_shown" style="display:none">Showing <span id="table_event_count"></span> events</span>
 <table id="table_events" class="table table-bordered"></table>
 {% endblock %}

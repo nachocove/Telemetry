@@ -13,14 +13,14 @@
                                 class="caret"></span></a>
                     <ul class="dropdown-menu" role="menu">
                         <li role="presentation" id="show_all_menu"><a role="menuitem" tabindex="-1"
-                                                   onclick="$('#table_events tr').show();$('.row_select_dropdown').show();">Show All</a></li>
+                                                   onclick="$('#table_events tr').show();$('.row_select_dropdown').show();hide_event_row_count();">Show All</a></li>
                         <li role="presentation" id="hide_all_menu"><a role="menuitem" tabindex="-1"
-                                                   onclick="$('#table_events tr').hide();$('.row_select_dropdown').hide();">Hide All</a></li>
+                                                   onclick="$('#table_events tr').hide();$('.row_select_dropdown').hide();display_event_row_count();">Hide All</a></li>
                         <li class="divider"></li>
 
                         {% for event_type in dropdown %}
                         <li role="presentation"><a role="menuitem" tabindex="-1"
-                                                   onclick="$('tr.{{ event_type }}').toggle();$('#{{ event_type }}_checkmark').toggle();">
+                                                   onclick="$('tr.{{ event_type }}').toggle();$('#{{ event_type }}_checkmark').toggle();display_event_row_count();">
                             <span id="{{ event_type }}_checkmark" class="row_select_dropdown glyphicon glyphicon-ok"
                                   aria-hidden="true"></span> Show
                             {{ event_type.capitalize }}</a></li>
