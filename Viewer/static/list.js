@@ -88,7 +88,9 @@ function getRowWithCommonFields (id, event, num_rows) {
     time.attr('id', 'time_' + id);
     tr.append(time);
 
-    tr.append(getCell(event.event_type.replace('_', ' '), num_rows));
+    var event_type_cell = getCell(event.event_type.replace('_', ' '), num_rows);
+    event_type_cell.addClass("event_type_cell");
+    tr.append(event_type_cell);
 
     var id_cell = getCell(event.id, num_rows);
     id_cell.addClass("id_cell");
@@ -383,7 +385,7 @@ function hide_event_row_count() {
 }
 function display_event_row_count() {
     hide_event_row_count()
-    $('#table_event_count').text($('#table_events tr:visible').length)
+    $('#table_event_count').text($('#table_events > tbody > tr:visible > td.event_type_cell').length)
     $('#table_event_shown').show()
 }
 
