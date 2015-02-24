@@ -27,7 +27,7 @@ from misc.config import Config
 from monitors.monitor_base import Summary, Monitor
 from monitors.monitor_cost import MonitorCost
 from monitors.monitor_log import MonitorErrors, MonitorWarnings
-from monitors.monitor_count import MonitorUsers, MonitorEvents, MonitorEmails
+from monitors.monitor_count import MonitorUsers, MonitorEvents, MonitorEmails, MonitorUserDataUsage
 from monitors.monitor_captures import MonitorCaptures
 from monitors.monitor_counters import MonitorCounters
 from monitors.monitor_hockeyapp import MonitorHockeyApp
@@ -138,6 +138,7 @@ def main():
                'ui': MonitorUi,
                'support': MonitorSupport,
                'cost': MonitorCost,
+               'data-usage': MonitorUserDataUsage,
                }
 
 

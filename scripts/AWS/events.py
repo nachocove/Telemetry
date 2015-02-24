@@ -16,13 +16,13 @@ class Event(Item):
     # CONFLICT_FIELDS.
     CONFLICT_FIELDS = []
 
-    def __init__(self, connection, id_, client, timestamp, uploaded_at):
+    def __init__(self, connection, id_=None, client=None, timestamp=None, uploaded_at=None):
         self.table = type(self)._get_table(connection)
         Item.__init__(self, self.table)
         self['id'] = id_
         self['client'] = client
-        self['timestamp'] = Event.parse_datetime(timestamp)
-        self['uploaded_at'] = Event.parse_datetime(uploaded_at)
+        self['timestamp'] = Event.parse_datetime(timestamp) if timestamp is not None else None
+        self['uploaded_at'] = Event.parse_datetime(uploaded_at) if uploaded_at is not None else None
 
     # Some field requires a translation between human-readable format to the
     # format used in DynamoDb. Translation from humna-readable format to DynamoDB
@@ -35,7 +35,8 @@ class Event(Item):
             if len(table_cls.EVENT_TYPES) == 1:
                 return table_cls.EVENT_TYPES[0]
         if key in ['timestamp', 'uploaded_at']:
-            return UtcDateTime(Item.__getitem__(self, key))
+            value = Item.__getitem__(self, key)
+            return UtcDateTime(value) if value is not None else None
         else:
             return Item.__getitem__(self, key)
 
@@ -117,7 +118,7 @@ class Event(Item):
 class LogEvent(Event):
     TABLE_CLASS = LogTable
 
-    def __init__(self, connection, id_, client, timestamp, uploaded_at, event_type, thread_id, message):
+    def __init__(self, connection, id_=None, client=None, timestamp=None, uploaded_at=None, event_type=None, thread_id=None, message=None):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         if event_type not in LogTable.EVENT_TYPES:
             raise ValueError('Unknown log event type %s' % event_type)
@@ -242,8 +243,8 @@ class UiEvent(Event):
 class DeviceInfoEvent(Event):
     TABLE_CLASS = DeviceInfoTable
 
-    def __init__(self, connection, id_, client, timestamp, uploaded_at,
-                 device_model, os_type, os_version, build_version, build_number, device_id=None, fresh_install=None):
+    def __init__(self, connection, id_=None, client=None, timestamp=None, uploaded_at=None,
+                 device_model=None, os_type=None, os_version=None, build_version=None, build_number=None, device_id=None, fresh_install=None):
         Event.__init__(self, connection, id_, client, timestamp, uploaded_at)
         self['device_model'] = device_model
         self['os_type'] = os_type

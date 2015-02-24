@@ -127,6 +127,11 @@ class TelemetryTable(Table):
                                               TelemetryTable.EVENT_TYPE_UPLOADED_AT_INDEX,
                                           ])
         result.set_query_filter(query, cls)
+        result.attributes = None
+        if query.attributes is not None:
+            result.attributes = list(set(query.attributes).intersection(cls.FIELD_NAMES+cls.COMMON_FIELD_NAMES))
+            if not result.attributes:
+                result.attributes = ('id',)
         return result
 
     def is_active(self):
@@ -275,7 +280,7 @@ class LogTable(TelemetryTable):
 
     @classmethod
     def should_handle(cls, query):
-        result = TelemetryTable.should_handle(query)
+        result = super(LogTable, cls).should_handle(query)
         result.for_us = cls.is_for_us(query.selectors)
         result.may_add_secondary_hashkey(query.selectors, 'event_type', cls.EVENT_TYPE_TIMESTAMP_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.EVENT_TYPE_TIMESTAMP_INDEX])
@@ -307,7 +312,7 @@ class WbxmlTable(TelemetryTable):
 
     @classmethod
     def should_handle(cls, query):
-        result = TelemetryTable.should_handle(query)
+        result = super(WbxmlTable, cls).should_handle(query)
         result.for_us = cls.is_for_us(query.selectors)
         result.may_add_secondary_hashkey(query.selectors, 'event_type', cls.EVENT_TYPE_TIMESTAMP_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.EVENT_TYPE_TIMESTAMP_INDEX])
@@ -339,7 +344,7 @@ class CounterTable(TelemetryTable):
 
     @classmethod
     def should_handle(cls, query):
-        result = TelemetryTable.should_handle(query)
+        result = super(CounterTable, cls).should_handle(query)
         result.for_us = cls.is_for_us(query.selectors)
         result.may_add_secondary_hashkey(query.selectors, 'counter_name', cls.COUNTER_NAME_TIMESTAMP_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.COUNTER_NAME_TIMESTAMP_INDEX])
@@ -371,7 +376,7 @@ class CaptureTable(TelemetryTable):
 
     @classmethod
     def should_handle(cls, query):
-        result = TelemetryTable.should_handle(query)
+        result = super(CaptureTable, cls).should_handle(query)
         result.for_us = cls.is_for_us(query.selectors)
         result.may_add_secondary_hashkey(query.selectors, 'counter_name', cls.CAPTURE_NAME_TIMESTAMP_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'timestamp', [cls.CAPTURE_NAME_TIMESTAMP_INDEX])
