@@ -357,6 +357,26 @@ class TestLogTable(TestTables):
         events = Query.events(query, self.connection)
         self.compare_events_list(self.items[1:4], events)
 
+    @unittest.skip('fails locally')
+    def test_query_event_type_uploaded_at_count(self):
+        # Query by event_type and uploaded_at range
+        query = Query()
+        query.add('event_type', SelectorEqual('INFO'))
+        query.add_range('uploaded_at', UtcDateTime('2014-11-01T07:30:00Z'), UtcDateTime('2014-11-01T08:30:00Z'))
+        query.add('message', SelectorContains('info log'))
+
+        query.limit = None
+        query.count = 1
+        event_count = Query.events(query, self.connection)
+
+        query.limit = None
+        query.count = False
+
+        events = Query.events(query, self.connection)
+
+        self.compare_events_one(self.items[1], events)
+        self.assertEqual(len(events), event_count)
+
 class TestWBXMLTable(TestTables):
     event_cls = WbxmlEvent
     items = [

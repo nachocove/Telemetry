@@ -28,6 +28,7 @@ class Query(object):
         self.limit = None
         self.count = False
         self.table_query = dict()
+        self.attributes = None
 
     def __str__(self):
         queries = []
@@ -36,6 +37,8 @@ class Query(object):
         s = "%sQUERY: %s" % ("COUNT-" if self.count else "", " && ".join(queries))
         if self.limit:
             s += " LIMIT %s" % self.limit
+        if self.attributes:
+            s += " ATTRIBUTES %s" % self.attributes
         return s
 
     def add(self, field, selector):
@@ -87,6 +90,7 @@ class Query(object):
                                         reverse=False,
                                         consistent=False,  # FIXME - revisit this later
                                         query_filter=table_query.query_filter.data(),
+                                        attributes=table_query.attributes,
                                         **table_query.primary_keys.data())
         elif table_query.has_secondary_keys():
             if is_count:
@@ -101,6 +105,7 @@ class Query(object):
                                         consistent=False,  # FIXME - revisit this later
                                         index=table_query.index,
                                         query_filter=table_query.query_filter.data(),
+                                        attributes=table_query.attributes,
                                         **table_query.secondary_keys.data())
         else:
             # No keys in any of the indexes. Fall back to scan
@@ -108,13 +113,15 @@ class Query(object):
             if is_count:
                 # count += table.query_count(**table_query.query_filter.data())
                 # Somehow, query_count does not like it when there is no index. Use a scan instead
-                results = table.scan(**table_query.query_filter.data())
+                results = table.scan(attributes=table_query.attributes,
+                                     **table_query.query_filter.data())
                 count = 0
                 for res in results:
                     count += 1
                 results = count
             else:
                 results = table.scan(limit=limit,
+                                     attributes=table_query.attributes,
                                      **table_query.query_filter.data())
         t2 = time.time()
         logger.debug("_query: Done (%ss)", (t2-t1))
@@ -159,6 +166,8 @@ class Query(object):
     @staticmethod
     def users(query, connection, logger=None):
         assert isinstance(query, Query)
+        assert query.attributes is None or 'client' in query.attributes
+
         table = DeviceInfoTable(connection)
         table_query = DeviceInfoTable.should_handle(query)
         events = Query._query(table, table_query, False, query.limit, logger=logger)

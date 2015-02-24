@@ -9,9 +9,10 @@ class TelemetryTableQuery:
         self.secondary_keys = QueryFilter()
         self.primary_keys = QueryFilter()
         self.query_filter = QueryFilter()
+        self.attributes = None
 
     def __str__(self):
-        return "Primary: %s, Secondary: %s, Filter: %s" % (str(self.primary_keys.data()), str(self.secondary_keys.data()), str(self.query_filter))
+        return "Primary: %s, Secondary: %s, Filter: %s, Attributes: %s" % (str(self.primary_keys.data()), str(self.secondary_keys.data()), str(self.query_filter), self.attributes if self.attributes is not None else "All")
 
     def has_index(self):
         return self.index is not None
