@@ -184,15 +184,15 @@ class MonitorLog(Monitor):
                 client = self._get_device_info(event['client'], event['timestamp'])
                 if not client:
                     self.logger.error("No deviceInfo found for client %s", event['client'])
+                else:
+                    if 'build_number' not in client:
+                        self.logger.error("No build_number in deviceInfo found for client %s", event['client'])
 
-                if 'build_number' not in client:
-                    self.logger.error("No build_number in deviceInfo found for client %s", event['client'])
-
-                for k in client.keys():
-                    if k not in ('build_number', 'build_version'):
-                        continue
-                    if k not in event:
-                        event[k] = client[k]
+                    for k in client.keys():
+                        if k not in ('build_number', 'build_version'):
+                            continue
+                        if k not in event:
+                            event[k] = client[k]
 
                 print >>raw_log, ef.format(event).encode('utf-8')
         zipped_log_path = raw_log_prefix + '.zip'
