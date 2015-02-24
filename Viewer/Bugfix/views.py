@@ -611,12 +611,13 @@ def search_results(request, project, after, before):
                 continue
 
             search = request.GET[k]
-            if event_type == 'SUPPORT' and k == 'message':
-                k = "support"
-            elif event_type == 'CAPTURE' and k == 'message':
-                k = "capture_name"
-            elif event_type == 'COUNTER' and k == 'message':
-                k = "counter_name"
+            if k == 'message':
+                if event_type == 'SUPPORT':
+                    k = "support"
+                elif event_type == 'CAPTURE':
+                    k = "capture_name"
+                elif event_type == 'COUNTER':
+                    k = "counter_name"
 
             query.add(k, SelectorContains(search))
 
