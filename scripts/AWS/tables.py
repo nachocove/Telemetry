@@ -18,6 +18,7 @@ class TelemetryTable(Table):
     COMMON_FIELD_NAMES = ['id', 'client', 'timestamp', 'uploaded_at']
     CLIENT_TIMESTAMP_INDEX = 'index.client-timestamp'
     EVENT_TYPE_UPLOADED_AT_INDEX = 'index.event_type-uploaded_at'
+    EVENT_TYPE_TIMESTAMP_INDEX = 'index.event_type-timestamp'
     TABLE_THROUGHPUT = {'read': 5, 'write': 5}
 
     def __init__(self, connection, table_name):
@@ -260,7 +261,6 @@ class LogTable(TelemetryTable):
     TABLE_NAME = 'log'
     EVENT_TYPES = ['ERROR', 'WARN', 'INFO', 'DEBUG']
     FIELD_NAMES = ['event_type', 'message', 'thread_id']
-    EVENT_TYPE_TIMESTAMP_INDEX = 'index.event_type-timestamp'
 
     def __init__(self, connection):
         super(LogTable, self).__init__(connection=connection, table_name=self.TABLE_NAME)
@@ -292,7 +292,6 @@ class WbxmlTable(TelemetryTable):
     TABLE_NAME = 'wbxml'
     EVENT_TYPES = ['WBXML_REQUEST', 'WBXML_RESPONSE']
     FIELD_NAMES = ['event_type', 'wbxml']
-    EVENT_TYPE_TIMESTAMP_INDEX = 'index.event_type-timestamp'
 
     def __init__(self, connection):
         super(WbxmlTable, self).__init__(connection=connection, table_name=self.TABLE_NAME)
