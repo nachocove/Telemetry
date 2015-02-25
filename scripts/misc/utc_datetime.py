@@ -7,7 +7,7 @@ import pytz
 class UtcDateTime:
     def __init__(self, value=None):
         if isinstance(value, (str, unicode, UtcDateTime)):
-            if value == 'now':
+            if isinstance(value, (str, unicode)) and value == 'now':
                 self.datetime = datetime.datetime.utcnow()
             else:
                 self.datetime = dateutil.parser.parse(str(value))
