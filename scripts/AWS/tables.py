@@ -55,7 +55,7 @@ class TelemetryTable(Table):
         # customized by subclasses
         if global_secondary_indexes is None:
             global_secondary_indexes = list()
-        client_timestamp_index = GlobalAllIndex(TelemetryTable.CLIENT_TIMESTAMP_INDEX,
+        client_timestamp_index = GlobalAllIndex(cls.CLIENT_TIMESTAMP_INDEX,
                                                 parts=[
                                                     HashKey('client', data_type=STRING),
                                                     RangeKey('timestamp', data_type=NUMBER)
@@ -66,7 +66,7 @@ class TelemetryTable(Table):
                                                 })
         global_secondary_indexes.append(client_timestamp_index)
         if 'event_type' in cls.FIELD_NAMES:
-            event_type_uploaded_at_index = GlobalAllIndex(TelemetryTable.EVENT_TYPE_UPLOADED_AT_INDEX,
+            event_type_uploaded_at_index = GlobalAllIndex(cls.EVENT_TYPE_UPLOADED_AT_INDEX,
                                                           parts=[
                                                               HashKey('event_type', data_type=STRING),
                                                               RangeKey('uploaded_at', data_type=NUMBER)
@@ -91,7 +91,7 @@ class TelemetryTable(Table):
         # Wait for the table to become active. On local DynamoDB, create is pretty
         # instantaneous but on AWS DynamoDB, it takes a few seconds for the table
         # to be come active.
-        TelemetryTable._poll(table.is_active, 1, polling_fn)
+        cls._poll(table.is_active, 1, polling_fn)
 
         return table
 
@@ -116,15 +116,15 @@ class TelemetryTable(Table):
         result = TelemetryTableQuery()
         result.for_us = cls.is_for_us(query.selectors)
         result.may_add_primary_hashkey(query.selectors, 'id')
-        result.may_add_secondary_hashkey(query.selectors, 'client', TelemetryTable.CLIENT_TIMESTAMP_INDEX)
+        result.may_add_secondary_hashkey(query.selectors, 'client', cls.CLIENT_TIMESTAMP_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'timestamp',
                                           index_name=[
-                                              TelemetryTable.CLIENT_TIMESTAMP_INDEX,
+                                              cls.CLIENT_TIMESTAMP_INDEX,
                                           ])
-        result.may_add_secondary_hashkey(query.selectors, 'event_type', TelemetryTable.EVENT_TYPE_UPLOADED_AT_INDEX)
+        result.may_add_secondary_hashkey(query.selectors, 'event_type', cls.EVENT_TYPE_UPLOADED_AT_INDEX)
         result.may_add_secondary_rangekey(query.selectors, 'uploaded_at',
                                           index_name=[
-                                              TelemetryTable.EVENT_TYPE_UPLOADED_AT_INDEX,
+                                              cls.EVENT_TYPE_UPLOADED_AT_INDEX,
                                           ])
         result.set_query_filter(query, cls)
         result.attributes = None
@@ -206,20 +206,20 @@ class TelemetryTable(Table):
     def display(self, states_only):
         info = self.describe()[u'Table']
         formatter = DictFormatter()
-        TelemetryTable._format_index(states_only, info, u'Table', u'Table', formatter)
+        self._format_index(states_only, info, u'Table', u'Table', formatter)
 
         # Global Indexes
         if u'GlobalSecondaryIndexes' in info:
             formatter.increase_indent()
             for index in info[u'GlobalSecondaryIndexes']:
-                TelemetryTable._format_index(states_only, index, u'Index', u'GlobalSecondaryIndex', formatter)
+                self._format_index(states_only, index, u'Index', u'GlobalSecondaryIndex', formatter)
             formatter.decrease_indent()
 
         # Local Indexes
         if u'LocalSecondaryIndexes' in info:
             formatter.increase_indent()
             for index in info[u'LocalSecondaryIndexes']:
-                TelemetryTable._format_index(states_only, index, u'Index', u'LocalSecondaryIndex', formatter)
+                self._format_index(states_only, index, u'Index', u'LocalSecondaryIndex', formatter)
             formatter.decrease_indent()
 
         return formatter.output
@@ -249,7 +249,7 @@ class DeviceInfoTable(TelemetryTable):
                    'fresh_install']
 
     def __init__(self, connection):
-        TelemetryTable.__init__(self, connection=connection, table_name=DeviceInfoTable.TABLE_NAME)
+        super(DeviceInfoTable, self).__init__(connection=connection, table_name=self.TABLE_NAME)
 
     @classmethod
     def create_table(cls, connection, polling_fn=None):
@@ -263,11 +263,11 @@ class LogTable(TelemetryTable):
     EVENT_TYPE_TIMESTAMP_INDEX = 'index.event_type-timestamp'
 
     def __init__(self, connection):
-        TelemetryTable.__init__(self, connection=connection, table_name=LogTable.TABLE_NAME)
+        super(LogTable, self).__init__(connection=connection, table_name=self.TABLE_NAME)
 
     @classmethod
     def create_table(cls, connection, polling_fn=None):
-        event_type_timestamp_index = GlobalAllIndex(LogTable.EVENT_TYPE_TIMESTAMP_INDEX,
+        event_type_timestamp_index = GlobalAllIndex(cls.EVENT_TYPE_TIMESTAMP_INDEX,
                                                     parts=[
                                                         HashKey('event_type', data_type=STRING),
                                                         RangeKey('timestamp', data_type=NUMBER)
@@ -295,11 +295,11 @@ class WbxmlTable(TelemetryTable):
     EVENT_TYPE_TIMESTAMP_INDEX = 'index.event_type-timestamp'
 
     def __init__(self, connection):
-        TelemetryTable.__init__(self, connection=connection, table_name=WbxmlTable.TABLE_NAME)
+        super(WbxmlTable, self).__init__(connection=connection, table_name=self.TABLE_NAME)
 
     @classmethod
     def create_table(cls, connection, polling_fn=None):
-        event_type_timestamp_index = GlobalAllIndex(WbxmlTable.EVENT_TYPE_TIMESTAMP_INDEX,
+        event_type_timestamp_index = GlobalAllIndex(cls.EVENT_TYPE_TIMESTAMP_INDEX,
                                                     parts=[
                                                         HashKey('event_type', data_type=STRING),
                                                         RangeKey('timestamp', data_type=NUMBER)
@@ -327,11 +327,11 @@ class CounterTable(TelemetryTable):
     COUNTER_NAME_TIMESTAMP_INDEX = 'index.counter_name-timestamp'
 
     def __init__(self, connection):
-        TelemetryTable.__init__(self, connection=connection, table_name=CounterTable.TABLE_NAME)
+        super(CounterTable, self).__init__(connection=connection, table_name=self.TABLE_NAME)
 
     @classmethod
     def create_table(cls, connection, polling_fn=None):
-        counter_name_timestamp_index = GlobalAllIndex(CounterTable.COUNTER_NAME_TIMESTAMP_INDEX,
+        counter_name_timestamp_index = GlobalAllIndex(cls.COUNTER_NAME_TIMESTAMP_INDEX,
                                                       parts=[
                                                           HashKey('counter_name', data_type=STRING),
                                                           RangeKey('timestamp', data_type=NUMBER)
@@ -359,7 +359,7 @@ class CaptureTable(TelemetryTable):
     CAPTURE_NAME_TIMESTAMP_INDEX = 'index.capture_name-timestamp'
 
     def __init__(self, connection):
-        TelemetryTable.__init__(self, connection=connection, table_name=CaptureTable.TABLE_NAME)
+        super(CaptureTable, self).__init__(connection=connection, table_name=self.TABLE_NAME)
 
     @classmethod
     def create_table(cls, connection, polling_fn=None):
@@ -390,7 +390,7 @@ class SupportTable(TelemetryTable):
     FIELD_NAMES = ['event_type', 'support']
 
     def __init__(self, connection):
-        TelemetryTable.__init__(self, connection=connection, table_name=SupportTable.TABLE_NAME)
+        super(SupportTable, self).__init__(connection=connection, table_name=self.TABLE_NAME)
 
     @classmethod
     def create_table(cls, connection, polling_fn=None):
@@ -403,7 +403,7 @@ class UiTable(TelemetryTable):
     FIELD_NAMES = ['event_type', 'ui_type', 'ui_object', 'ui_string', 'ui_integer']
 
     def __init__(self, connection):
-        TelemetryTable.__init__(self, connection=connection, table_name=UiTable.TABLE_NAME)
+        super(UiTable, self).__init__(connection=connection, table_name=self.TABLE_NAME)
 
     @classmethod
     def create_table(cls, connection, polling_fn=None):
