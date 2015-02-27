@@ -74,7 +74,7 @@ def _parse_junk(junk, mapping):
         value = splitty[1].strip()
         if key in mapping:
             if mapping[key] == 'timestamp' and value.strip() == 'now':
-                value = _iso_z_format(datetime.utcnow())
+                value = iso_z_format(datetime.utcnow())
             retval[mapping[key]] = value.strip()
     logger = tmp_logger.getChild('_parse_junk')
     logger.debug('retval=%s', retval)
