@@ -76,7 +76,8 @@ function getCell(html, rowSpan) {
     return $('<td></td>').html(html).addClass('cell').attr('rowSpan', rowSpan);
 }
 
-function getRowWithCommonFields (id, event, num_rows) {
+function getRowWithCommonFields (event, num_rows) {
+    var id = event.id;
     var tr = getRow(event);
     var iso = new Date(event.timestamp);
 
@@ -222,36 +223,28 @@ function refreshEvents() {
             case 'INFO':
             case 'WARN':
             case 'ERROR': {
-                row = getRowWithCommonFields(i, event, 2);
+                row = getRowWithCommonFields(event, 2);
                 addFieldToRow(row, 'thread_id', event.thread_id);
-                table.append(row)
+                table.append(row);
                 row = getRow(event);
                 addFieldToRow(row, 'message', event.message);
                 break;
             }
             case 'WBXML_REQUEST':
             case 'WBXML_RESPONSE': {
-                row = getRowWithCommonFields(i, event, 1);
+                row = getRowWithCommonFields(event, 1);
                 row.append(getCell('wbxml'));
-                valueCell = getCell(beautifyBase64(event.wbxml_base64));
-                valueCell.attr('id', i);
+                var b64_data = '<span class="wbxmlDataSpan">' + beautifyBase64(event.wbxml_base64).html() + '</span>';
+                var xml_data = '<span class="wbxmlDataSpan" style="display:none"><pre>' + event.wbxml + '</pre></span>';
+                valueCell = getCell(b64_data+xml_data);
                 valueCell.attr('title', previewString(event.wbxml));
                 valueCell.click(function() {
-                    var event = events[this.id];
-                    if (this.html() == beautifyBase64(event.wbxml_base64)) {
-                        this.html($('<pre></pre>').addClass('wbxml').html(event.wbxml));
-                    } else {
-                        this.html(beautifyBase64(event.wbxml_base64));
-                    }
-                    if (!isElementInViewport(this)) {
-                        // if after collapsing the WBXML the element is no longer visible,
-                        // we should scroll it back in view.
-                        this.scrollIntoView(true);
-                        // TODO - need a better way to scroll. Right now, it always
-                        // scroll to the left. It should track the amount of horizontal
-                        // shift and undo that.
-                        window.scrollBy(-10000, 0);
-                    }
+                    $(this).find('.wbxmlDataSpan').toggle();
+                    var offset = $(this).offset();
+                    $('html, body').animate({
+                        scrollTop: offset.top-120,
+                        scrollLeft: 0
+                    });
                 });
                 row.append(valueCell);
                 break;
@@ -265,7 +258,7 @@ function refreshEvents() {
                     num_rows += 1;
                 }
 
-                row = getRowWithCommonFields(i, event, num_rows);
+                row = getRowWithCommonFields(event, num_rows);
                 addFieldToRow(row, 'ui_type', event.ui_type);
                 table.append(row);
 
@@ -284,7 +277,7 @@ function refreshEvents() {
                 break;
             }
             case 'COUNTER': {
-                row = getRowWithCommonFields(i, event, 4);
+                row = getRowWithCommonFields(event, 4);
                 addFieldToRow(row, 'counter_name', event.counter_name)
                 table.append(row);
 
@@ -301,7 +294,7 @@ function refreshEvents() {
                 break;
             }
             case 'CAPTURE': {
-                row = getRowWithCommonFields(i, event, 8);
+                row = getRowWithCommonFields(event, 8);
                 addFieldToRow(row, 'capture_name', event.capture_name);
                 table.append(row);
 
@@ -351,7 +344,7 @@ function refreshEvents() {
                     var isFirst = true;
                     for (var j = 0; j < keys.length; j++) {
                         if (isFirst) {
-                            row = getRowWithCommonFields(i, event, keys.length);
+                            row = getRowWithCommonFields(event, keys.length);
                             isFirst = false;
                         } else {
                             table.append(row);
@@ -361,13 +354,13 @@ function refreshEvents() {
                     }
                 }
                 catch (ex) {
-                    row = getRowWithCommonFields(i, event, 1);
+                    row = getRowWithCommonFields(event, 1);
                     addFieldToRow(row, 'support', event.support);
                 }
                 break;
             }
             default: {
-                row = getRowWithCommonFields(i, event, 1);
+                row = getRowWithCommonFields(event, 1);
                 break;
             }
         }
