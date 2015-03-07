@@ -191,16 +191,16 @@ def process_error_report(request, project, form, loc, logger):
                                                             'span': loc['span'],
                                                             'project': project}))
 
-def process_email(request, project, form, loc, logger):
-    loc['span'] = str(default_span)
-    # From the email, we need to find the client ID
+def client_ids_from_email(email, after, before, project, include_url=True):
     conn = _aws_connection(project)
     query = Query()
     query.add('event_type', SelectorEqual('SUPPORT'))
+    if after and before:
+        query.add_range('uploaded_at', after, before)
     events = Query.events(query, conn)
-    email_events = Support.get_sha256_email_address(events, loc['email'])[1]
-    if len(email_events) != 0:
-        clients = {}
+    email_events = Support.get_sha256_email_address(events, email)[1]
+    clients = {}
+    if len(email_events) > 0:
         # loop over the sorted email events, oldest first. The result is a dict of client-id's
         # where the value is a dict containing the first time we've seen this client-id and
         # the last time we saw this client-id.
@@ -212,27 +212,37 @@ def process_email(request, project, form, loc, logger):
                                       'span': str(default_span),
                                       }
             clients[ev.client]['timestamp'] = ev.timestamp
-        # fill in the URL's for each client item.
-        for k in clients:
-            clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
-                                                            'timestamp': clients[k]['timestamp'],
-                                                            'span': clients[k]['span'],
-                                                            'project': project})
+        if include_url:
+            # fill in the URL's for each client item.
+            for k in clients:
+                clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
+                                                                'timestamp': clients[k]['timestamp'],
+                                                                'span': clients[k]['span'],
+                                                                'project': project})
+    return clients
+
+def process_email(request, project, form, loc, logger):
+    clients = client_ids_from_email(loc['email'], None, None, project)
+    if clients:
         # make it into a list
         clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
+    else:
+        clients = []
+
+    loc['span'] = str(default_span)
         # if we found only one, just redirect.
-        if len(clients) == 1:
-            client = clients[0]
-            logger.debug('client=%(client)s, span=%(span)s', client)
-            return HttpResponseRedirect(client['url'])
-        else:
-            return render_to_response('client_picker.html', {'clients': clients, 'project': project},
-                                      context_instance=RequestContext(request))
+    if len(clients) == 1:
+        client = clients[0]
+        logger.debug('client=%(client)s, span=%(span)s', client)
+        return HttpResponseRedirect(client['url'])
+    elif len(clients) > 1:
+        return render_to_response('client_picker.html', {'clients': clients, 'project': project},
+                                  context_instance=RequestContext(request))
     else:
         message = 'Cannot find client ID for email %s' % loc['email']
         logger.warn(message)
-    return render_to_response('home.html', {'form': form, 'message': message},
-                              context_instance=RequestContext(request))
+        return render_to_response('home.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
 
 def process_crash_report(request, project, form, loc, logger):
     loc['span'] = str(default_span)
@@ -526,6 +536,7 @@ class SearchForm(forms.Form):
     message = forms.CharField(help_text="Enter a substring to look for in the telemetry.log-message field")
     after = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
     before = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    email = forms.CharField(help_text="Email of user (maybe be obfuscated already)", required=False)
 
     event_type = forms.MultipleChoiceField(choices=EVENT_CHOICES, widget=forms.CheckboxSelectMultiple(),
                                            help_text="Select the event-type to search in. Each one is a separate query!")
@@ -581,7 +592,7 @@ def search(request):
     search_entry_url = reverse(search_results, kwargs=search_args)
     params = {}
     for k in form.cleaned_data:
-        if k in ('after', 'before', 'project'):
+        if k in search_args.keys():
             continue
         params[k] = form.cleaned_data[k]
     return HttpResponseRedirect("%s?%s" % (search_entry_url, urlencode(params, True)))
@@ -595,6 +606,12 @@ def search_results(request, project, after, before):
     conn = _aws_connection(project)
     obj_list = []
     event_count = 0
+    email = request.GET.get('email', '')
+    if email:
+        clients = client_ids_from_email(email, after, before, project, include_url=False)
+    else:
+        clients = {}
+
     for event_type in request.GET.getlist('event_type', []):
         if event_type not in events.TYPES:
             msg = 'illegal event-type values %s' % request.GET.get('event_type')
@@ -607,7 +624,7 @@ def search_results(request, project, after, before):
         query.add('event_type', SelectorEqual(event_type))
         query.add_range('uploaded_at', after, before)
         for k in request.GET:
-            if k in ('event_type'):
+            if k in ('event_type', 'email'):
                 continue
 
             search = request.GET[k]
@@ -624,6 +641,9 @@ def search_results(request, project, after, before):
         try:
             logger.debug("Query=%s", query)
             (_obj_list, _event_count) = Monitor.query_events(conn, query, False, logger)
+            if clients:
+                _obj_list = [x for x in _obj_list if 'client' in x and x['client'] in clients.keys()]
+
             # TODO the count here seems wrong. It returns 0, despite the list being non-zero. For now, ignore the count.
             _event_count = len(_obj_list)
             logger.info('%d objects found', _event_count)
@@ -660,6 +680,9 @@ def search_results(request, project, after, before):
         else:
             value = request.GET.get(k)
         params.append({'key': k, 'value': value})
+    if clients:
+        params.append({'key': 'clients (from email)', 'value': ", ".join(clients.keys())})
+
     return render_to_response('search_results.html', {'params': params,
                                                       'project': project,
                                                       'search_results': obj_list},
