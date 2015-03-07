@@ -28,7 +28,7 @@ from boto.dynamodb2.exceptions import DynamoDBError
 from misc import events
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween, SelectorContains
+from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween, SelectorContains, SelectorGreaterThanEqual
 from AWS.tables import TelemetryTable
 from monitors.monitor_base import Monitor
 from misc.support import Support
@@ -533,10 +533,10 @@ def event_choices():
 class SearchForm(forms.Form):
     EVENT_CHOICES = event_choices()
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
-    message = forms.CharField(help_text="Enter a substring to look for in the telemetry.log-message field")
-    after = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
-    before = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
-    email = forms.CharField(help_text="Email of user (maybe be obfuscated already)", required=False)
+    message = forms.CharField(help_text="(optional) Enter a substring to look for in the telemetry.log-message field", required=False)
+    after = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    before = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    email = forms.CharField(help_text="(optional) Email of user (maybe be obfuscated already)", required=False)
 
     event_type = forms.MultipleChoiceField(choices=EVENT_CHOICES, widget=forms.CheckboxSelectMultiple(),
                                            help_text="Select the event-type to search in. Each one is a separate query!")
@@ -622,12 +622,19 @@ def search_results(request, project, after, before):
         query = Query()
         query.limit = 100000
         query.add('event_type', SelectorEqual(event_type))
-        query.add_range('uploaded_at', after, before)
+        if after and before:
+            query.add_range('uploaded_at', after, before)
+        elif after:
+            query.add('uploaded_at', SelectorGreaterThanEqual(after))
+        elif before:
+            query.add('uploaded_at', SelectorLessThanEqual(after))
         for k in request.GET:
             if k in ('event_type', 'email'):
                 continue
 
             search = request.GET[k]
+            if not search:
+                continue  # don't allow empty values
             if k == 'message':
                 if event_type == 'SUPPORT':
                     k = "support"
@@ -669,6 +676,7 @@ def search_results(request, project, after, before):
                                                    'timestamp': event['timestamp'],
                                                    'span': 1,
                                                    'project': project})
+        event['class'] = event['event_type'].lower()
 
     params = [{'key': 'after', 'value': str(after)},
               {'key': 'before', 'value': str(before)},

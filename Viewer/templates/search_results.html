@@ -20,14 +20,16 @@
             <tr>
                 <th>Client ID</th>
                 <th>Uploaded At</th>
+                <th>Event Type</th>
                 <th>Message</th>
             </tr>
             </thead>
             <tbody>
             {% for result in search_results %}
-                <tr id="{{ result.id}}">
+                <tr id="{{ result.id }}" class="{{ result.class }}">
                     <td class="cell">{{ result.client }}</td>
                     <td class="cell"><br/><a href="{{result.url}}" title="Click for Telemetry" target="_blank">{{ result.uploaded_at }}</a></td>
+                    <td class="cell">{{ result.event_type }}</td>
                     <td class="cell">{{ result.message }}</td>
                 </tr>
             {% endfor %}
