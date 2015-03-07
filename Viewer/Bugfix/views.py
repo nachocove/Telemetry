@@ -685,7 +685,7 @@ def search_results(request, project, after, before):
 
     return render_to_response('search_results.html', {'params': params,
                                                       'project': project,
-                                                      'search_results': obj_list},
+                                                      'search_results': sorted(obj_list, reverse=True, key=lambda x: x['uploaded_at'])},
                               context_instance=RequestContext(request))
 
 
