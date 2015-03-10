@@ -46,6 +46,15 @@ class FreshDesk(object):
         :param status: the status
         :return: the ticket ID
         """
+        if cc_emails is None:
+            cc_emails = ()
+        elif isinstance(cc_emails, (list, tuple)):
+            pass
+        elif isinstance(cc_emails, (str, unicode)):
+            cc_emails = [ x.strip() for x in cc_emails.split(",") ]
+        else:
+            raise Exception("Unknown cc_emails type: %s" % cc_emails)
+
         path = '/helpdesk/tickets.json'
         payload = {
             'helpdesk_ticket': {
@@ -55,7 +64,7 @@ class FreshDesk(object):
                 'priority': priority,
                 'status': status
             },
-            'cc_emails': cc_emails if cc_emails is not None else "",
+            'cc_emails': cc_emails,
         }
         response = self._send_request(path, payload)
         assert 'helpdesk_ticket' in response and 'display_id' in response['helpdesk_ticket']
