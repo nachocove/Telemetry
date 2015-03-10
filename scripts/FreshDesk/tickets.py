@@ -13,8 +13,7 @@ class FreshDesk(object):
 
     headers = {'Content-Type': 'application/json'}
 
-    STATUS_NEW = 1
-    STATUS_OPEN = 2
+    STATUS_OPEN = 1
 
     def __init__(self, api_key, use_https=True, hostname=None):
         self.hostname = hostname or self.FRESHDESK_DOMAIN
@@ -37,7 +36,7 @@ class FreshDesk(object):
     class FreshDeskException(Exception):
         pass
 
-    def create_ticket(self, subject, description, email, priority=1, status=STATUS_NEW, cc_emails=None):
+    def create_ticket(self, subject, description, email, priority=1, status=STATUS_OPEN, cc_emails=None):
         """
 
         :param subject: the ticket subject

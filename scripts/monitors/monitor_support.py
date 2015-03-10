@@ -57,7 +57,7 @@ class MonitorSupport(Monitor):
                                                                 request.message,
                                                                 request.contact_info,
                                                                 priority=self.freshdesk['priority'],
-                                                                status=FreshDesk.STATUS_NEW,
+                                                                status=FreshDesk.STATUS_OPEN,
                                                                 cc_emails=self.freshdesk['cc_emails'])
                 freshdesk_link = Link("FreshDesk", "http://support.nachocove.com/support/tickets/%d" % freshdesk_id)
 
