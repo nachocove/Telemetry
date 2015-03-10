@@ -43,7 +43,7 @@ class MonitorSupport(Monitor):
                                 TableHeader(Bold('Contact Info')),
                                 TableHeader(Bold('Message')),
                                 TableHeader(Bold('%s telemetry' % self.prefix.capitalize())),
-                                TableHeader(Bold('Freshdesk ID')),
+                                TableHeader(Bold('Freshdesk')),
                                 ]))
 
         for request in self.requests:
@@ -57,7 +57,7 @@ class MonitorSupport(Monitor):
                                                                 request.message,
                                                                 request.contact_info,
                                                                 priority=self.freshdesk['priority'],
-                                                                status=FreshDesk.STATUS_OPEN,
+                                                                status=FreshDesk.STATUS_NEW,
                                                                 cc_emails=self.freshdesk['cc_emails'])
                 freshdesk_link = Link("FreshDesk", "http://support.nachocove.com/support/tickets/%d" % freshdesk_id)
 

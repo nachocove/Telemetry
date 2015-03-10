@@ -13,7 +13,8 @@ class FreshDesk(object):
 
     headers = {'Content-Type': 'application/json'}
 
-    STATUS_OPEN = 1
+    STATUS_NEW = 1
+    STATUS_OPEN = 2
 
     def __init__(self, api_key, use_https=True, hostname=None):
         self.hostname = hostname or self.FRESHDESK_DOMAIN
@@ -36,7 +37,7 @@ class FreshDesk(object):
     class FreshDeskException(Exception):
         pass
 
-    def create_ticket(self, subject, description, email, priority=1, status=STATUS_OPEN, cc_emails=None):
+    def create_ticket(self, subject, description, email, priority=1, status=STATUS_NEW, cc_emails=None):
         """
 
         :param subject: the ticket subject
@@ -46,9 +47,6 @@ class FreshDesk(object):
         :param status: the status
         :return: the ticket ID
         """
-        if cc_emails is None:
-            cc_emails = ()
-        assert isinstance(cc_emails, (list, tuple))
         path = '/helpdesk/tickets.json'
         payload = {
             'helpdesk_ticket': {
@@ -58,7 +56,7 @@ class FreshDesk(object):
                 'priority': priority,
                 'status': status
             },
-            'cc_emails': ",".join(cc_emails)
+            'cc_emails': cc_emails if cc_emails is not None else "",
         }
         response = self._send_request(path, payload)
         assert 'helpdesk_ticket' in response and 'display_id' in response['helpdesk_ticket']
