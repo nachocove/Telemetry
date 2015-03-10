@@ -1,6 +1,15 @@
 import json
 import hashlib
 
+def obfuscate_email(email_address):
+    index = email_address.find('@')
+    if 0 > index:
+        raise ValueError('Invalid email address')
+    if index != email_address.rfind('@'):
+        raise ValueError('Invalid email address')
+    email, domain = email_address.split('@')
+
+    return "%s@%s" % (hashlib.sha256(email.lower()).hexdigest(), domain)
 
 class SupportEvent:
     def __init__(self, event):
@@ -78,14 +87,8 @@ class Support:
 
     @staticmethod
     def get_sha256_email_address(events, email_address):
-        index = email_address.find('@')
-        if 0 > index:
-            raise ValueError('Invalid email address')
-        if index != email_address.rfind('@'):
-            raise ValueError('Invalid email address')
+        obfuscated = obfuscate_email(email_address)
         email, domain = email_address.split('@')
-
-        obfuscated = "%s@%s" % (hashlib.sha256(email.lower()).hexdigest(), domain)
         email_events = Support.filter(events, [SupportSha256EmailAddressEvent])
         filtered_events = filter(lambda x: x.sha256_email_address == obfuscated, email_events)
         if len(filtered_events) == 0 and len(email) == 64:
