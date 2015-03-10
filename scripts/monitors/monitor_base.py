@@ -26,7 +26,7 @@ class Summary(Table):
         self.color_list.advance()
 
 
-class Monitor:
+class Monitor(object):
     """
     A monitor is a module that examines telemetry events of a particular
     nature and reports information (if any). For example, an error
