@@ -195,17 +195,22 @@ class MonitorLog(Monitor):
                             event[k] = client[k]
 
                 print >>raw_log, ef.format(event).encode('utf-8')
-        zipped_log_path = raw_log_prefix + '.zip'
-        zipped_file = zipfile.ZipFile(zipped_log_path, 'w', zipfile.ZIP_DEFLATED)
-        zipped_file.write(raw_log_path)
-        os.unlink(raw_log_path)
 
-        for trace in self.traces:
-            trace_path = trace.write_file()
-            zipped_file.write(trace_path)
-            os.unlink(trace_path)
-        zipped_file.close()
-        return zipped_log_path
+        if self.traces:
+            zipped_log_path = raw_log_prefix + '.zip'
+            zipped_file = zipfile.ZipFile(zipped_log_path, 'w', zipfile.ZIP_DEFLATED)
+            zipped_file.write(raw_log_path)
+            os.unlink(raw_log_path)
+            return_file_path = zipped_log_path
+            for trace in self.traces:
+                trace_path = trace.write_file()
+                zipped_file.write(trace_path)
+                os.unlink(trace_path)
+            zipped_file.close()
+        else:
+            return_file_path = raw_log_path
+
+        return return_file_path
 
 
 class MonitorErrors(MonitorLog):
@@ -215,7 +220,6 @@ class MonitorErrors(MonitorLog):
         kwargs.setdefault('msg', 'Error count')
         kwargs.setdefault('rate_msg', 'ERROR rate')
         MonitorLog.__init__(self, *args, **kwargs)
-        self.trace_enabled = True
 
 
 class MonitorWarnings(MonitorLog):
