@@ -1,8 +1,9 @@
 import json
 import time
+from decimal import Decimal
 from AWS.query import Query
 from AWS.tables import TABLE_CLASSES
-from AWS.selectors import SelectorEqual, SelectorStartsWith
+from AWS.selectors import SelectorEqual
 from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
@@ -181,15 +182,16 @@ class MonitorEmails(MonitorCount):
         kwargs.setdefault('rate_desc', 'New user rate')
         MonitorCount.__init__(self, *args, **kwargs)
         self.query.count = False
-        self.active_clients_this_period = set()
-        self.autod_emails_per_domain = dict()
+        self.active_clients_this_period = dict()
+        self.new_clients_this_period = dict()
+        self.new_emails_per_domain = dict()
         self.active_emails_per_domain = dict()
         self.debug_timing = False
         self.new_count = 0
         self.active_count = 0
 
     def _get_active_clients_this_period(self):
-        active_clients_this_period = set()
+        clients = dict()
         query = Query()
         query.add_range('timestamp', self.start, self.end)
         t1 = time.time()
@@ -197,28 +199,12 @@ class MonitorEmails(MonitorCount):
         t2 = time.time()
         if self.debug_timing: self.logger.debug("TIME active_clients_this_period %s: results %d %s", (t2-t1), len(results), query)
         for x in results:
-            active_clients_this_period.add(x['client'])
-        return active_clients_this_period
-
-    def _get_clients_that_did_autod(self):
-        clients_that_did_autod = set()
-        results = []
-        for client_id in self.active_clients_this_period:
-            query = Query()
-            query.add_range('timestamp', self.start, self.end)
-            query.add('client', SelectorEqual(client_id))
-            query.add('message', SelectorStartsWith('AUTOD'))
-            t1 = time.time()
-            r = Query.events(query, self.conn)
-            t2 = time.time()
-            if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
-            results.extend(r)
-
-        for event in results:
-            clients_that_did_autod.add(event['client'])
-        return clients_that_did_autod
+            if x['client'] not in clients or clients[x['client']]['timestamp'] < x['timestamp']:
+                clients[x['client']] = x
+        return clients
 
     def _get_support_events_for_clients(self, clients):
+        assert isinstance(clients, list)
         results = []
         for client_id in clients:
             query = Query()
@@ -229,7 +215,8 @@ class MonitorEmails(MonitorCount):
             r = Query.events(query, self.conn)
             t2 = time.time()
             if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
-            results.extend(r)
+            if r:
+                results.extend(r)
         return results
 
     def _summarize_emails_addresses(self, events):
@@ -259,16 +246,16 @@ class MonitorEmails(MonitorCount):
         # find all users that ran the client (i.e. inserted a device_info row) in the given timeframe
         # NOTE This is looking at timestamp (when the log was created) and NOT when it was uploaded
         self.active_clients_this_period = self._get_active_clients_this_period()
+        self.new_clients_this_period = {x: y for x,y in self.active_clients_this_period.iteritems() if y['fresh_install'] == Decimal(1)}
 
         # Using the client and timestamp range, see which of the active users ran auto-d at all
-        clients_that_did_autod = self._get_clients_that_did_autod()
-        results = self._get_support_events_for_clients(clients_that_did_autod)
-        udid_email_addresses = self._summarize_emails_addresses(results)
-        self.autod_emails_per_domain = self._summarize_emails_per_domain(udid_email_addresses)
-        self.new_count = len(udid_email_addresses)
-        self.logger.debug('Found %d new emails: %s', self.new_count, udid_email_addresses.keys())
+        results = self._get_support_events_for_clients(self.new_clients_this_period.keys())
+        new_email_addresses = self._summarize_emails_addresses(results)
+        self.new_emails_per_domain = self._summarize_emails_per_domain(new_email_addresses)
+        self.new_count = len(new_email_addresses)
+        self.logger.debug('Found %d new emails: %s', self.new_count, new_email_addresses.keys())
 
-        results = self._get_support_events_for_clients(self.active_clients_this_period)
+        results = self._get_support_events_for_clients(self.active_clients_this_period.keys())
         active_emails = self._summarize_emails_addresses(results)
         self.active_emails_per_domain = self._summarize_emails_per_domain(active_emails)
         self.active_count = len(active_emails)
@@ -290,7 +277,7 @@ class MonitorEmails(MonitorCount):
         for domain in sorted(email_dict.keys()):
             per_domain_table = Table()
             per_domain_table.add_row(TableRow([TableHeader(Bold('Email')),
-                                               TableHeader(Bold('Seen')),
+                                               TableHeader(Bold('Last Seen')),
                                                ]))
             for email in email_dict[domain]:
                 per_domain_table.add_row(TableRow([TableElement(Text(email)),
@@ -312,7 +299,7 @@ class MonitorEmails(MonitorCount):
             summary.add_entry("New user rate", rate)
 
         paragraph_elements = []
-        paragraph_elements.extend(self._report_emails(self.autod_emails_per_domain, self.title(), "New Emails"))
+        paragraph_elements.extend(self._report_emails(self.new_emails_per_domain, self.title(), "New Emails"))
         paragraph_elements.extend(self._report_emails(self.active_emails_per_domain, "Active Emails", "Active Emails"))
         paragraph = Paragraph(paragraph_elements)
         return paragraph
