@@ -182,15 +182,14 @@ class MonitorEmails(MonitorCount):
         MonitorCount.__init__(self, *args, **kwargs)
         self.query.count = False
         self.active_clients_this_period = set()
-        self.clients_that_did_autod = set()
-        self.email_addresses = set()
-        self.emails_per_domain = dict()
+        self.autod_emails_per_domain = dict()
+        self.active_emails_per_domain = dict()
         self.debug_timing = False
+        self.new_count = 0
+        self.active_count = 0
 
-    def run(self):
-        self.logger.info('Querying %s...', self.desc)
-        # find all users that ran the client (i.e. inserted a device_info row) in the given timeframe
-        # NOTE This is looking at timestamp (when the log was created) and NOT when it was uploaded
+    def _get_active_clients_this_period(self):
+        active_clients_this_period = set()
         query = Query()
         query.add_range('timestamp', self.start, self.end)
         t1 = time.time()
@@ -198,9 +197,11 @@ class MonitorEmails(MonitorCount):
         t2 = time.time()
         if self.debug_timing: self.logger.debug("TIME active_clients_this_period %s: results %d %s", (t2-t1), len(results), query)
         for x in results:
-            self.active_clients_this_period.add(x['client'])
+            active_clients_this_period.add(x['client'])
+        return active_clients_this_period
 
-        # Using the client and timestamp range, see which of the active users ran auto-d at all
+    def _get_clients_that_did_autod(self):
+        clients_that_did_autod = set()
         results = []
         for client_id in self.active_clients_this_period:
             query = Query()
@@ -214,9 +215,12 @@ class MonitorEmails(MonitorCount):
             results.extend(r)
 
         for event in results:
-            self.clients_that_did_autod.add(event['client'])
+            clients_that_did_autod.add(event['client'])
+        return clients_that_did_autod
+
+    def _get_support_events_for_clients(self, clients):
         results = []
-        for client_id in self.clients_that_did_autod:
+        for client_id in clients:
             query = Query()
             query.add('event_type', SelectorEqual('SUPPORT'))
             query.add('client', SelectorEqual(client_id))
@@ -226,43 +230,91 @@ class MonitorEmails(MonitorCount):
             t2 = time.time()
             if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
             results.extend(r)
+        return results
 
-        for event in results:
+    def _summarize_emails_addresses(self, events):
+        email_addresses = dict()
+        for event in events:
             try:
                 email = json.loads(event.get('support', '{}')).get('sha256_email_address', '')
                 if email:
-                    self.email_addresses.add(email)
+                    if email not in email_addresses or email_addresses[email]['timestamp'] < event['timestamp']:
+                        email_addresses[email] = event
             except ValueError:
                 # bad json
                 continue
-        self.count = len(self.email_addresses)
-        self.logger.debug('Found %d emails: %s', self.count, self.email_addresses)
-        for email in self.email_addresses:
+        return email_addresses
+
+    def _summarize_emails_per_domain(self, emails):
+        emails_per_domain = dict()
+        for email in emails.keys():
             userhash, domain = email.split('@')
-            if domain not in self.emails_per_domain:
-                self.emails_per_domain[domain] = []
-            self.emails_per_domain[domain].append(email)
+            if domain not in emails_per_domain:
+                emails_per_domain[domain] = dict()
+            emails_per_domain[domain][email] = emails[email]
+        return emails_per_domain
+
+    def run(self):
+        self.logger.info('Querying %s...', self.desc)
+        # find all users that ran the client (i.e. inserted a device_info row) in the given timeframe
+        # NOTE This is looking at timestamp (when the log was created) and NOT when it was uploaded
+        self.active_clients_this_period = self._get_active_clients_this_period()
+
+        # Using the client and timestamp range, see which of the active users ran auto-d at all
+        clients_that_did_autod = self._get_clients_that_did_autod()
+        results = self._get_support_events_for_clients(clients_that_did_autod)
+        udid_email_addresses = self._summarize_emails_addresses(results)
+        self.autod_emails_per_domain = self._summarize_emails_per_domain(udid_email_addresses)
+        self.new_count = len(udid_email_addresses)
+        self.logger.debug('Found %d new emails: %s', self.new_count, udid_email_addresses.keys())
+
+        results = self._get_support_events_for_clients(self.active_clients_this_period)
+        active_emails = self._summarize_emails_addresses(results)
+        self.active_emails_per_domain = self._summarize_emails_per_domain(active_emails)
+        self.active_count = len(active_emails)
+        self.logger.debug('Found %d active emails: %s', self.active_count, active_emails.keys())
+
+    def _report_emails(self, email_dict, title, subtitle):
+        paragraph_elements = []
+        paragraph_elements.append(Bold(title))
+        email_domain_table = Table()
+        email_domain_table.add_row(TableRow([TableHeader(Bold('Domain')),
+                                             TableHeader(Bold('# clients')),
+                                             ]))
+        for domain in sorted(email_dict.keys()):
+            email_domain_table.add_row(TableRow([TableElement(Text(domain)),
+                                                 TableElement(Text(pretty_number(len(email_dict[domain]))), align='right'),
+                                                 ]))
+        paragraph_elements.append(email_domain_table)
+
+        for domain in sorted(email_dict.keys()):
+            per_domain_table = Table()
+            per_domain_table.add_row(TableRow([TableHeader(Bold('Email')),
+                                               TableHeader(Bold('Seen')),
+                                               ]))
+            for email in email_dict[domain]:
+                per_domain_table.add_row(TableRow([TableElement(Text(email)),
+                                                   TableElement(Text(str(email_dict[domain][email]['timestamp']))),
+                                                   ]))
+            paragraph_elements.append(Bold("%s for domain %s" % (subtitle, domain)))
+            paragraph_elements.append(per_domain_table)
+        return paragraph_elements
 
     def report(self, summary, **kwargs):
-        rate = Monitor.compute_rate(self.count, self.start, self.end, 'hr')
-        count_str = pretty_number(self.count)
-        self.logger.info('%s: %s', self.desc, count_str)
-        self.logger.info('%s: %s', self.rate_desc, rate)
-        summary.add_entry(self.desc, count_str)
+        summary.add_entry(self.desc, pretty_number(self.new_count))
+        rate = Monitor.compute_rate(self.new_count, self.start, self.end, 'hr')
+        if rate is not None:
+            summary.add_entry("New user rate", rate)
 
-        if self.rate_desc and rate is not None:
-            summary.add_entry(self.rate_desc, rate)
-        table = Table()
-        table.add_row(TableRow([TableHeader(Bold('Domain')),
-                                TableHeader(Bold('# clients')),
-                                ]))
-        for domain in sorted(self.emails_per_domain.keys()):
-            table.add_row(TableRow([TableElement(Text(domain)),
-                                    TableElement(Text(pretty_number(len(self.emails_per_domain[domain]))), align='right'),
-                                    ]))
+        summary.add_entry(self.desc, pretty_number(self.active_count))
+        rate = Monitor.compute_rate(self.active_count, self.start, self.end, 'hr')
+        if rate is not None:
+            summary.add_entry("New user rate", rate)
 
-        title = self.title()
-        paragraph = Paragraph([Bold(title), table])
+        paragraph_elements = []
+        paragraph_elements.extend(self._report_emails(self.autod_emails_per_domain, self.title(), "New Emails"))
+        paragraph_elements.extend(self._report_emails(self.active_emails_per_domain, "Active Emails", "Active Emails"))
+        paragraph = Paragraph(paragraph_elements)
         return paragraph
 
     def attachment(self):
