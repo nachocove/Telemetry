@@ -65,13 +65,11 @@ class MonitorSupport(Monitor):
                 note_table.add_row(TableRow([TableHeader(Bold('Time (UTC)')),
                                              TableHeader(Bold('Client Id')),
                                              TableHeader(Bold('Contact Info')),
-                                             TableHeader(Bold('Message')),
                                              TableHeader(Bold('%s telemetry' % self.prefix.capitalize())),
                                              ]))
                 note_table.add_row(TableRow([TableElement(Text(match.group('date') + ' ' + match.group('time'))),
                                              TableElement(Text(request.client)),
                                              TableElement(Text(request.contact_info)),
-                                             TableElement(Text(request.message)),
                                              TableElement(Link("Telemetry", telemetry_link)),
                                              ]))
                 self.freshdesk_api.add_note(freshdesk_id, note_table.html(), private=True)
