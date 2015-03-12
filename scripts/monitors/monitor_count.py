@@ -293,10 +293,10 @@ class MonitorEmails(MonitorCount):
         if rate is not None:
             summary.add_entry("New user rate", rate)
 
-        summary.add_entry(self.desc, pretty_number(self.active_count))
+        summary.add_entry("Active emails", pretty_number(self.active_count))
         rate = Monitor.compute_rate(self.active_count, self.start, self.end, 'hr')
         if rate is not None:
-            summary.add_entry("New user rate", rate)
+            summary.add_entry("Active emails rate", rate)
 
         paragraph_elements = []
         paragraph_elements.extend(self._report_emails(self.new_emails_per_domain, self.title(), "New Emails"))
