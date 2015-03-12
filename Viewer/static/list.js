@@ -109,7 +109,7 @@ function getPre(html) {
 
 function addFieldToRow(row, field, value) {
     row.appendChild(getCell(field));
-    valueCell = getCell(value);
+    var valueCell = getCell(value);
     row.appendChild(valueCell);
     return valueCell;
 }
@@ -131,7 +131,8 @@ function previewString(s) {
     if (s.length <= N) {
         return s;
     }
-    return htmlUnescape(s.slice(0, N)) + '...';
+    var i = s.indexOf("\n")
+    return htmlUnescape(s.slice(0, Math.min(i, N))) + '...';
 }
 
 function isElementInViewport(e) {
@@ -269,7 +270,7 @@ function refreshEvents() {
             case 'WBXML_RESPONSE': {
                 row = getRowWithCommonFields(i, event, 1);
                 row.appendChild(getCell('wbxml'));
-                valueCell = getCell(beautifyBase64(event.wbxml_base64));
+                var valueCell = getCell(beautifyBase64(event.wbxml_base64));
                 valueCell.id = i;
                 valueCell.title = previewString(event.wbxml);
                 valueCell.onclick = function() {
