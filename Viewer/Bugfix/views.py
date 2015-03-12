@@ -502,7 +502,7 @@ def entry_page_base(project, client, after, before, params, logger):
         if event['event_type'] in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
             def decode_wbxml(wbxml_):
                 instance = ASCommandResponse(base64.b64decode(wbxml_))
-                return instance.xmlString
+                return '\n'.join(instance.xmlString.split('\n')[1:])
 
             b64 = event['wbxml'].encode()
             event['wbxml_base64'] = cgi.escape(b64)
