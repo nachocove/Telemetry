@@ -124,7 +124,7 @@ def _parse_error_report(junk):
 
 
 def _parse_support_email(junk):
-    dict_ = _parse_junk(junk, {'email': 'email', 'timestamp': 'timestamp'})
+    dict_ = _parse_junk(junk, {'email': 'email', 'timestamp': 'timestamp', 'span': 'span'})
     if 'email' in dict_:
         return dict_
     return None
@@ -198,7 +198,10 @@ def client_ids_from_email(email, after, before, project, include_url=True):
     if after and before:
         query.add_range('uploaded_at', after, before)
     events = Query.events(query, conn)
-    email_events = Support.get_sha256_email_address(events, email)[1]
+    if not events:
+        return {}
+
+    (_, email_events) = Support.get_email_address_clients(events, email)
     clients = {}
     if len(email_events) > 0:
         # loop over the sorted email events, oldest first. The result is a dict of client-id's
@@ -210,6 +213,7 @@ def client_ids_from_email(email, after, before, project, include_url=True):
                                       'timestamp': ev.timestamp,
                                       'client': ev.client,
                                       'span': str(default_span),
+                                      'email': ev.sha256_email_address,
                                       }
             clients[ev.client]['timestamp'] = ev.timestamp
         if include_url:
@@ -222,7 +226,13 @@ def client_ids_from_email(email, after, before, project, include_url=True):
     return clients
 
 def process_email(request, project, form, loc, logger):
-    clients = client_ids_from_email(loc['email'], None, None, project)
+    if loc.get('timestamp', None):
+        after, before = calc_spread_from_center(loc['timestamp'], span=loc.get('span', 16))
+    else:
+        after = None
+        before = None
+
+    clients = client_ids_from_email(loc['email'], after, before, project)
     if clients:
         # make it into a list
         clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
@@ -230,7 +240,7 @@ def process_email(request, project, form, loc, logger):
         clients = []
 
     loc['span'] = str(default_span)
-        # if we found only one, just redirect.
+    # if we found only one, just redirect.
     if len(clients) == 1:
         client = clients[0]
         logger.debug('client=%(client)s, span=%(span)s', client)
@@ -363,6 +373,12 @@ def ctrl_url(client, time, span, project):
                                        'timestamp': time,
                                        'span': span,
                                        'project': project})
+
+def calc_spread_from_center(center, span=default_span):
+    if not isinstance(center, datetime):
+        center = dateutil.parser.parse(center)
+    spread = timedelta(minutes=int(span))
+    return UtcDateTime(center-spread), UtcDateTime(center+spread)
 
 def calc_spread(after, before, span=default_span, center=None):
     if not isinstance(after, datetime):
