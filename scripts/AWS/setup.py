@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 from __future__ import absolute_import
-import os
 import sys
+sys.path.append('../')
+sys.path.append('./')
+
+import os
 from argparse import ArgumentParser
 from AWS.sns import ListApplicationARNs
-
-sys.path.append('../')
 from AWS import cognito, dynamoDB, config
 from misc.config import Config
 
