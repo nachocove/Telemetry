@@ -19,13 +19,16 @@ custom_datetime_formats = ('%Y-%m-%dT%H:%M:%SZ',)
 #datetime_input_formats = formats.get_format_lazy('DATETIME_INPUT_FORMATS') + custom_datetime_formats
 
 class NachoDateTimeField(forms.DateTimeField):
-    input_formats=custom_datetime_formats
-    widget = forms.TextInput(attrs={'class':'nachodatetimepicker',
+    input_formats = custom_datetime_formats
+    widget = forms.TextInput(attrs={'class': 'nachodatetimepicker',
                                     })
 
 class ReportsForm(forms.Form):
+    reports = {'emails_per_timeframe': {'description': 'Email Addresses Per domain'},
+               }
+
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
-    report = forms.ChoiceField(choices=[('emails_per_domain', 'Email Addresses Per domain'),])
+    report = forms.ChoiceField(choices=[(x, reports[x]['description']) for x in reports])
     start = NachoDateTimeField()
     end = NachoDateTimeField()
 
@@ -50,10 +53,12 @@ def home(request):
         return render_to_response('reports_home.html', {'form': form},
                                   context_instance=RequestContext(request))
 
-    if form.cleaned_data['report'] == 'emails_per_domain':
-        return HttpResponseRedirect(reverse(emails_per_timeframe, kwargs={'end': iso_z_format(form.cleaned_data['end']),
-                                                                          'start': iso_z_format(form.cleaned_data['start']),
-                                                                          'project': form.cleaned_data['project']}))
+
+    if form.cleaned_data['report'] == 'emails_per_timeframe':
+        return HttpResponseRedirect(reverse(emails_per_timeframe,
+                                            kwargs={'end': iso_z_format(form.cleaned_data['end']),
+                                                    'start': iso_z_format(form.cleaned_data['start']),
+                                                    'project': form.cleaned_data['project']}))
     else:
         return render_to_response('reports_home.html', {'form': form},
                                   context_instance=RequestContext(request))
@@ -80,4 +85,5 @@ def emails_per_timeframe(request, project, start, end):
                                                     'number_of_domains': len(per_domain.keys()),
                                                     },
                                       context_instance=RequestContext(request))
+
 
