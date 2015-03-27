@@ -1,9 +1,9 @@
 import json
 import logging
 import time
+from decimal import Decimal
 from events import LogEvent, WbxmlEvent, CounterEvent, CaptureEvent, SupportEvent, UiEvent, DeviceInfoEvent
-from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan, SelectorBetween, SelectorEqual, \
-    SelectorStartsWith
+from selectors import Selector, SelectorGreaterThanEqual, SelectorLessThan, SelectorBetween, SelectorEqual
 from tables import DeviceInfoTable
 
 
@@ -185,31 +185,20 @@ class Query(object):
         query.add_range('timestamp', start, end)
         results = Query.users(query, connection, logger=logger)
 
-        active_clients_this_period = set()
-        clients_that_did_autod = set()
-        email_addresses = set()
-        for x in results:
-            active_clients_this_period.add(x['client'])
+        #active_clients_this_period = {x['client'] for x in results}
 
         # Using the client and timestamp range, see which of the active users ran auto-d at all
-        results = []
-        for client_id in active_clients_this_period:
-            query = Query()
-            query.add_range('timestamp', start, end)
-            query.add('client', SelectorEqual(client_id))
-            query.add('message', SelectorStartsWith('AUTOD'))
-            results.extend(Query.events(query, connection, logger=logger))
+        new_clients_this_period = {x['client'] for x in results if x['fresh_install'] == Decimal(1)}
 
-        for event in results:
-            clients_that_did_autod.add(event['client'])
         results = []
-        for client_id in clients_that_did_autod:
+        for client_id in new_clients_this_period:
             query = Query()
             query.add('event_type', SelectorEqual('SUPPORT'))
             query.add('client', SelectorEqual(client_id))
             query.add_range('timestamp', start, end)
             results.extend(Query.events(query, connection, logger=logger))
 
+        email_addresses = set()
         for event in results:
             try:
                 email = json.loads(event.get('support', '{}')).get('sha256_email_address', '')
