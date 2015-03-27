@@ -1,5 +1,6 @@
 from AWS.query import Query
 from AWS.selectors import SelectorEqual
+from FreshDesk.tickets import FreshDesk
 from monitor_base import Monitor
 from misc.support import *
 from misc.number_formatter import pretty_number
@@ -7,10 +8,12 @@ from misc.html_elements import *
 
 
 class MonitorSupport(Monitor):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, freshdesk=None, *args, **kwargs):
         kwargs.setdefault('desc', 'support requests')
         Monitor.__init__(self, *args, **kwargs)
         self.telemetry_viewer_url_prefix = 'http://localhost:8000/'
+        self.freshdesk = freshdesk
+        self.freshdesk_api = FreshDesk(freshdesk['api_key']) if freshdesk and 'api_key' in freshdesk else None
 
     def _query(self):
         query = Query()
@@ -39,18 +42,47 @@ class MonitorSupport(Monitor):
                                 TableHeader(Bold('Client Id')),
                                 TableHeader(Bold('Contact Info')),
                                 TableHeader(Bold('Message')),
-                                TableHeader(Bold('%s telemetry' % self.prefix.capitalize()))]))
+                                TableHeader(Bold('%s telemetry' % self.prefix.capitalize())),
+                                TableHeader(Bold('Freshdesk')),
+                                ]))
+
         for request in self.requests:
             self.logger.info('\n' + request.display())
             match = re.match('(?P<date>.+)T(?P<time>.+)Z', request.timestamp)
             assert match
             telemetry_link = '%sbugfix/%s/logs/%s/%s/2/' % (self.telemetry_viewer_url_prefix, self.prefix,
                                                             request.client, request.timestamp)
+            if self.freshdesk_api:
+                freshdesk_id = self.freshdesk_api.create_ticket("%s NachoMail Support Request" % self.prefix.capitalize(),
+                                                                request.message,
+                                                                request.contact_info,
+                                                                priority=self.freshdesk['priority'],
+                                                                status=FreshDesk.STATUS_OPEN,
+                                                                cc_emails=self.freshdesk['cc_emails'])
+                freshdesk_link = Link("FreshDesk", "http://support.nachocove.com/support/tickets/%d" % freshdesk_id)
+
+                note_table = Table()
+                note_table.add_row(TableRow([TableHeader(Bold('Time (UTC)')),
+                                             TableHeader(Bold('Client Id')),
+                                             TableHeader(Bold('Contact Info')),
+                                             TableHeader(Bold('%s telemetry' % self.prefix.capitalize())),
+                                             ]))
+                note_table.add_row(TableRow([TableElement(Text(match.group('date') + ' ' + match.group('time'))),
+                                             TableElement(Text(request.client)),
+                                             TableElement(Text(request.contact_info)),
+                                             TableElement(Link("Telemetry", telemetry_link)),
+                                             ]))
+                self.freshdesk_api.add_note(freshdesk_id, note_table.html(), private=True)
+            else:
+                freshdesk_link = Text("N/A")
+
             table.add_row(TableRow([TableElement(Text(match.group('date') + ' ' + match.group('time'))),
                                     TableElement(Text(request.client)),
                                     TableElement(Text(request.contact_info)),
                                     TableElement(Text(request.message)),
-                                    TableElement(Link("Telemetry", telemetry_link))]))
+                                    TableElement(Link("Telemetry", telemetry_link)),
+                                    TableElement(freshdesk_link),
+                                    ]))
 
 
         title = self.title()

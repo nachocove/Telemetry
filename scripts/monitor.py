@@ -8,6 +8,7 @@ import os
 from boto.ec2 import cloudwatch
 import sys
 import shutil
+from FreshDesk.config import FreshdeskConfig
 
 try:
     from cloghandler import ConcurrentRotatingFileHandler as RFHandler
@@ -249,6 +250,8 @@ def main():
     config_file = Config(options.config)
     AwsConfig(config_file).read(options)
     HockeyAppConfig(config_file).read(options)
+    FreshdeskConfig(config_file).read(options)
+
     monitor_profile = MonitorProfileConfig(config_file)
     monitor_profile.read(options)
 
@@ -340,9 +343,9 @@ def main():
         if options.email_to:
             recipients = options.email_to
         elif monitor_profile.recipient:
-            recipients=monitor_profile.recipient.split(',')
+            recipients = monitor_profile.recipient.split(',')
         elif emailConfig.recipient:
-            recipients=emailConfig.recipient.split(',')
+            recipients = emailConfig.recipient.split(',')
         if not recipients:
             logger.error('No email recipient list! No emails will be sent')
             email = Email()
@@ -377,6 +380,15 @@ def main():
             ha_obj = HockeyApp.hockeyapp.HockeyApp(options.hockeyapp_api_token)
             ha_app_obj = ha_obj.app(options.hockeyapp_app_id)
             extra_params['ha_app_obj'] = ha_app_obj
+        if monitor_name == 'support':
+            try:
+                freshdesk_options = {}
+                for k in dir(options):
+                    if k.startswith('freshdesk_'):
+                        freshdesk_options[k.split('freshdesk_')[1]] = getattr(options, k)
+                extra_params['freshdesk'] = freshdesk_options
+            except AttributeError:
+                pass
         elif monitor_name == 'cost':
             extra_params['cloudwatch'] = cloudwatch.connect_to_region('us-west-2',
                                                                       aws_secret_access_key=options.aws_secret_access_key,

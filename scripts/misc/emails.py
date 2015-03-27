@@ -49,8 +49,8 @@ class Email:
         else:
             # HTML email with plain text fallback
             email_ = email.mime.multipart.MIMEMultipart('alternative')
-            plain_email = email.mime.text.MIMEText(self.content.plain_text(), 'plain')
-            html_email = email.mime.text.MIMEText(self.content.html(), 'html')
+            plain_email = email.mime.text.MIMEText(self.content.plain_text(), 'plain', _charset='utf-8')
+            html_email = email.mime.text.MIMEText(self.content.html(), 'html', _charset='utf-8')
             email_.attach(plain_email)
             email_.attach(html_email)
 

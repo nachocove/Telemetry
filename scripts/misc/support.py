@@ -1,6 +1,15 @@
 import json
 import hashlib
 
+def obfuscate_email(email_address):
+    index = email_address.find('@')
+    if 0 > index:
+        raise ValueError('Invalid email address')
+    if index != email_address.rfind('@'):
+        raise ValueError('Invalid email address')
+    email, domain = email_address.split('@')
+
+    return "%s@%s" % (hashlib.sha256(email.lower()).hexdigest(), domain)
 
 class SupportEvent:
     def __init__(self, event):
@@ -77,20 +86,20 @@ class Support:
         return Support.filter(events, [SupportRequestEvent])
 
     @staticmethod
-    def get_sha256_email_address(events, email_address):
-        index = email_address.find('@')
-        if 0 > index:
-            raise ValueError('Invalid email address')
-        if index != email_address.rfind('@'):
-            raise ValueError('Invalid email address')
+    def get_email_address_clients(events, email_address):
         email, domain = email_address.split('@')
-
-        obfuscated = "%s@%s" % (hashlib.sha256(email.lower()).hexdigest(), domain)
         email_events = Support.filter(events, [SupportSha256EmailAddressEvent])
-        filtered_events = filter(lambda x: x.sha256_email_address == obfuscated, email_events)
-        if len(filtered_events) == 0 and len(email) == 64:
-            obfuscated = email_address
-            # perhaps the email given is already an obfuscated one? Let's try it.
+        if email:
+            obfuscated = obfuscate_email(email_address)
             filtered_events = filter(lambda x: x.sha256_email_address == obfuscated, email_events)
+            if len(filtered_events) == 0 and len(email) == 64:
+                obfuscated = email_address
+                # perhaps the email given is already an obfuscated one? Let's try it.
+                filtered_events = filter(lambda x: x.sha256_email_address == obfuscated, email_events)
+        elif domain:
+            filtered_events = filter(lambda x: x.sha256_email_address.endswith('@'+domain), email_events)
+            obfuscated = None
+        else:
+            raise Exception("Bad email %s", email_address)
         return obfuscated, filtered_events
 

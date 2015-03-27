@@ -123,7 +123,8 @@ function previewString(s) {
     if (s.length <= N) {
         return s;
     }
-    return htmlUnescape(s.slice(0, N)) + '...';
+    var i = s.indexOf("\n")
+    return htmlUnescape(s.slice(0, Math.min(i, N))) + '...';
 }
 
 function isElementInViewport(e) {

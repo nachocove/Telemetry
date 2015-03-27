@@ -58,7 +58,7 @@ class Config:
             self.config.write(f)
 
 
-class SectionConfig:
+class SectionConfig(object):
     SECTION = None
     KEYS = None
 

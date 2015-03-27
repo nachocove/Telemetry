@@ -262,7 +262,7 @@ def email(options):
     query.skip = 0
 
     obj_list = Parse.query.Query.objects('Events', query, conn)[0]
-    (obfuscated, email_events) = support.Support.get_sha256_email_address(obj_list, options.email)
+    (obfuscated, email_events) = support.Support.get_email_address_clients(obj_list, options.email)
     print 'Email address: %s' % options.email
     print 'Obfuscated email address: %s' % obfuscated
     for event in email_events:

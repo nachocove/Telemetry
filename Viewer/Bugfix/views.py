@@ -29,7 +29,8 @@ from core.dates import iso_z_format, json_formatter
 from misc import events
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween, SelectorContains
+from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween, SelectorContains, SelectorGreaterThanEqual
+from AWS.tables import TelemetryTable
 from monitors.monitor_base import Monitor
 from misc.support import Support
 from misc.utc_datetime import UtcDateTime
@@ -102,7 +103,7 @@ def _parse_error_report(junk):
 
 
 def _parse_support_email(junk):
-    dict_ = _parse_junk(junk, {'email': 'email', 'timestamp': 'timestamp'})
+    dict_ = _parse_junk(junk, {'email': 'email', 'timestamp': 'timestamp', 'span': 'span'})
     if 'email' in dict_:
         if dict_.get('timestamp', '') == 'now':
             dict_['timestamp'] = iso_z_format(datetime.utcnow())
@@ -171,20 +172,19 @@ def process_error_report(request, project, form, loc, logger):
                                                             'span': loc['span'],
                                                             'project': project}))
 
-def process_email(request, project, form, loc, logger):
-    loc['span'] = str(default_span)
-    # From the email, we need to find the client ID
+def client_ids_from_email(email, after, before, project, include_url=True):
     conn = aws_connection(project)
     query = Query()
     query.add('event_type', SelectorEqual('SUPPORT'))
-    if 'timestamp' in loc:
-        utc_timestamp = UtcDateTime(loc['timestamp'])
-        query.add('uploaded_at', SelectorLessThanEqual(utc_timestamp))
-
+    if after and before:
+        query.add_range('uploaded_at', after, before)
     events = Query.events(query, conn)
-    email_events = Support.get_sha256_email_address(events, loc['email'])[1]
-    if len(email_events) != 0:
-        clients = {}
+    if not events:
+        return {}
+
+    (_, email_events) = Support.get_email_address_clients(events, email)
+    clients = {}
+    if len(email_events) > 0:
         # loop over the sorted email events, oldest first. The result is a dict of client-id's
         # where the value is a dict containing the first time we've seen this client-id and
         # the last time we saw this client-id.
@@ -194,29 +194,46 @@ def process_email(request, project, form, loc, logger):
                                       'timestamp': ev.timestamp,
                                       'client': ev.client,
                                       'span': str(default_span),
+                                      'email': ev.sha256_email_address,
                                       }
             clients[ev.client]['timestamp'] = ev.timestamp
-        # fill in the URL's for each client item.
-        for k in clients:
-            clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
-                                                            'timestamp': clients[k]['timestamp'],
-                                                            'span': clients[k]['span'],
-                                                            'project': project})
+        if include_url:
+            # fill in the URL's for each client item.
+            for k in clients:
+                clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
+                                                                'timestamp': clients[k]['timestamp'],
+                                                                'span': clients[k]['span'],
+                                                                'project': project})
+    return clients
+
+def process_email(request, project, form, loc, logger):
+    if loc.get('timestamp', None):
+        after, before = calc_spread_from_center(loc['timestamp'], span=loc.get('span', 16))
+    else:
+        after = None
+        before = None
+
+    clients = client_ids_from_email(loc['email'], after, before, project)
+    if clients:
         # make it into a list
         clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
-        # if we found only one, just redirect.
-        if len(clients) == 1:
-            client = clients[0]
-            logger.debug('client=%(client)s, span=%(span)s', client)
-            return HttpResponseRedirect(client['url'])
-        else:
-            return render_to_response('client_picker.html', {'clients': clients, 'project': project},
-                                      context_instance=RequestContext(request))
+    else:
+        clients = []
+
+    loc['span'] = str(default_span)
+    # if we found only one, just redirect.
+    if len(clients) == 1:
+        client = clients[0]
+        logger.debug('client=%(client)s, span=%(span)s', client)
+        return HttpResponseRedirect(client['url'])
+    elif len(clients) > 1:
+        return render_to_response('client_picker.html', {'clients': clients, 'project': project},
+                                  context_instance=RequestContext(request))
     else:
         message = 'Cannot find client ID for email %s' % loc['email']
         logger.warn(message)
-    return render_to_response('home.html', {'form': form, 'message': message},
-                              context_instance=RequestContext(request))
+        return render_to_response('home.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
 
 def process_crash_report(request, project, form, loc, logger):
     loc['span'] = str(default_span)
@@ -319,6 +336,12 @@ def ctrl_url(client, time, span, project):
                                        'timestamp': time,
                                        'span': span,
                                        'project': project})
+
+def calc_spread_from_center(center, span=default_span):
+    if not isinstance(center, datetime):
+        center = dateutil.parser.parse(center)
+    spread = timedelta(minutes=int(span))
+    return UtcDateTime(center-spread), UtcDateTime(center+spread)
 
 def calc_spread(after, before, span=default_span, center=None):
     if not isinstance(after, datetime):
@@ -460,7 +483,7 @@ def entry_page_base(project, client, after, before, params, logger):
             show_hide_list.add('wbxml')
             def decode_wbxml(wbxml_):
                 instance = ASCommandResponse(base64.b64decode(wbxml_))
-                return instance.xmlString
+                return '\n'.join(instance.xmlString.split('\n')[1:])
 
             b64 = event['wbxml'].encode()
             event['wbxml_base64'] = cgi.escape(b64)
@@ -495,9 +518,10 @@ def event_choices():
 class SearchForm(forms.Form):
     EVENT_CHOICES = event_choices()
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
-    message = forms.CharField(help_text="Enter a substring to look for in the telemetry.log-message field")
-    after = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
-    before = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    message = forms.CharField(help_text="(optional) Enter a substring to look for in the telemetry.log-message field", required=False)
+    after = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    before = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    email = forms.CharField(help_text="(optional) Email of user (maybe be obfuscated already)", required=False)
 
     event_type = forms.MultipleChoiceField(choices=EVENT_CHOICES, widget=forms.CheckboxSelectMultiple(),
                                            help_text="Select the event-type to search in. Each one is a separate query!")
@@ -553,7 +577,7 @@ def search(request):
     search_entry_url = reverse(search_results, kwargs=search_args)
     params = {}
     for k in form.cleaned_data:
-        if k in ('after', 'before', 'project'):
+        if k in search_args.keys():
             continue
         params[k] = form.cleaned_data[k]
     return HttpResponseRedirect("%s?%s" % (search_entry_url, urlencode(params, True)))
@@ -567,6 +591,12 @@ def search_results(request, project, after, before):
     conn = aws_connection(project)
     obj_list = []
     event_count = 0
+    email = request.GET.get('email', '')
+    if email:
+        clients = client_ids_from_email(email, after, before, project, include_url=False)
+    else:
+        clients = {}
+
     for event_type in request.GET.getlist('event_type', []):
         if event_type not in events.TYPES:
             msg = 'illegal event-type values %s' % request.GET.get('event_type')
@@ -577,12 +607,19 @@ def search_results(request, project, after, before):
         query = Query()
         query.limit = 100000
         query.add('event_type', SelectorEqual(event_type))
-        query.add_range('uploaded_at', after, before)
+        if after and before:
+            query.add_range('uploaded_at', after, before)
+        elif after:
+            query.add('uploaded_at', SelectorGreaterThanEqual(after))
+        elif before:
+            query.add('uploaded_at', SelectorLessThanEqual(after))
         for k in request.GET:
-            if k in ('event_type'):
+            if k in ('event_type', 'email'):
                 continue
 
             search = request.GET[k]
+            if not search:
+                continue  # don't allow empty values
             if k == 'message':
                 if event_type == 'SUPPORT':
                     k = "support"
@@ -596,6 +633,9 @@ def search_results(request, project, after, before):
         try:
             logger.debug("Query=%s", query)
             (_obj_list, _event_count) = Monitor.query_events(conn, query, False, logger)
+            if clients:
+                _obj_list = [x for x in _obj_list if 'client' in x and x['client'] in clients.keys()]
+
             # TODO the count here seems wrong. It returns 0, despite the list being non-zero. For now, ignore the count.
             _event_count = len(_obj_list)
             logger.info('%d objects found', _event_count)
@@ -621,6 +661,7 @@ def search_results(request, project, after, before):
                                                    'timestamp': event['timestamp'],
                                                    'span': 1,
                                                    'project': project})
+        event['class'] = event['event_type'].lower()
 
     params = [{'key': 'after', 'value': str(after)},
               {'key': 'before', 'value': str(before)},
@@ -632,9 +673,12 @@ def search_results(request, project, after, before):
         else:
             value = request.GET.get(k)
         params.append({'key': k, 'value': value})
+    if clients:
+        params.append({'key': 'clients (from email)', 'value': ", ".join(clients.keys())})
+
     return render_to_response('search_results.html', {'params': params,
                                                       'project': project,
-                                                      'search_results': obj_list},
+                                                      'search_results': sorted(obj_list, reverse=True, key=lambda x: x['uploaded_at'])},
                               context_instance=RequestContext(request))
 
 
