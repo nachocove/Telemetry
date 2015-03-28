@@ -101,6 +101,11 @@ function getRowWithCommonFields (id, event, num_rows) {
     id_cell.className += " id_cell"
     tr.appendChild(id_cell);
 
+    if (show_client == 1) {
+        console.log(event);
+        tr.appendChild(getCell(event.client, num_rows));
+    }
+
     tr.appendChild(getCell(event.module.replace('_', ' '), num_rows));
     return tr;
 }
@@ -180,7 +185,9 @@ function refreshSummary() {
     tr.appendChild(value);
     table.appendChild(tr);
 
-    addSummaryRow(table, 'Client', params.client);
+    if (params.hasOwnProperty('client')) {
+        addSummaryRow(table, 'Client', params.client);
+    }
     if (params.hasOwnProperty('device_id')) {
         addSummaryRow(table, 'Device ID', params.device_id);
     }
@@ -229,6 +236,13 @@ function createTitleBar() {
     eventType.className = 'cell';
     eventType.innerHTML = 'Event Type';
     tr.appendChild(eventType);
+
+    if (show_client == 1) {
+        var client = document.createElement('th');
+        client.className = 'cell';
+        client.innerHTML = 'Client';
+        tr.appendChild(client);
+    }
 
     var module = document.createElement('th');
     module.className = 'cell';
