@@ -8,6 +8,7 @@ import logging
 import cgi
 import json
 import ConfigParser
+import re
 from urllib import urlencode
 
 import dateutil.parser
@@ -23,7 +24,9 @@ from django.utils.decorators import available_attrs
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
 from boto.dynamodb2.layer1 import DynamoDBConnection
+from boto.s3.connection import S3Connection
 from boto.dynamodb2.exceptions import DynamoDBError
+import zlib
 
 from misc import events
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
@@ -88,6 +91,23 @@ def _aws_connection(project):
     TelemetryTable.PREFIX = project
     return _aws_connection_cache[project]
 
+_aws_s3_connection_cache = {}
+def _aws_s3_connection(project):
+    """
+    :return: boto.s3.connection.S3Connection
+    """
+    global _aws_s3_connection_cache
+    if not project in _aws_s3_connection_cache:
+        if not project in projects:
+            raise ValueError('Project %s is not present in projects.cfg' % project)
+        _aws_s3_connection_cache[project] = S3Connection(host='s3-us-west-2.amazonaws.com',
+                                                         port=443,
+                                                         aws_secret_access_key=projects_cfg.get(project, 'secret_access_key'),
+                                                         aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
+                                                         is_secure=True,
+                                                         debug=2 if BOTO_DEBUG else 0)
+    TelemetryTable.PREFIX = project
+    return _aws_s3_connection_cache[project]
 
 def _parse_junk(junk, mapping):
     retval = dict()
@@ -457,6 +477,42 @@ def entry_page_by_timestamps(request, project, client='', after='', before=''):
     return render_to_response('entry_page.html', context,
                               context_instance=RequestContext(request))
 
+def get_pinger_telemetry(project, client, after, before):
+    conn = _aws_s3_connection(project)
+    bucket_name = projects_cfg.get(project, 'telemetry_bucket')
+    bucket = conn.get_bucket(bucket_name)
+    # make sure to have the slash at the end, but not at the start
+    prefix = os.path.join(projects_cfg.get(project, 'telemetry_prefix'), '').lstrip('/')
+    file_regex = re.compile(r'%s%s--(?P<start>[0-9\-:TZ\.]+)--(?P<end>[0-9\-:TZ\.]+)\.json(?P<ext>.*)' % (prefix, 'log'))
+    events = []
+    for key in bucket.list(prefix):
+        m = file_regex.match(key.key)
+        if m is not None:
+            start = UtcDateTime(m.group('start'))
+            end = UtcDateTime(m.group('end'))
+            if (start.datetime >= after.datetime and start.datetime < before.datetime) or \
+                    (end.datetime >= after.datetime and end.datetime < before.datetime):
+                if m.group('ext') == '.gz':
+                    #http://stackoverflow.com/questions/1543652/python-gzip-is-there-a-way-to-decompress-from-a-string/18319515#18319515
+                    json_str = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
+                elif m.group('ext') == '':
+                    json_str = key.get_contents_as_string()
+                else:
+                    raise Exception("unknown extension %s" % m.group('ext'))
+                for ev in json.loads(json_str):
+                    if client and client != ev.get('client', ''):
+                        continue
+
+                    timestamp = UtcDateTime(ev['timestamp'])
+                    if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
+                        continue
+                    ev['thread_id'] = ""
+                    ev['timestamp'] = timestamp
+                    ev['uploaded_at'] = UtcDateTime(ev['uploaded_at'])
+                    events.append(ev)
+    return events
+
+
 def entry_page_base(project, client, after, before, params, logger):
     conn = _aws_connection(project)
     query = Query()
@@ -468,14 +524,24 @@ def entry_page_base(project, client, after, before, params, logger):
             field,search = params['search'].split(':')
             query.add(field, SelectorContains(search))
     ###### FIXME - logger.debug('query=%s', str(query.where()))
-    obj_list = list()
     event_count = 0
     logger.info('project = %s', project)
+    event_list = []
     try:
         (obj_list, event_count) = Monitor.query_events(conn, query, False, logger)
         logger.info('%d objects found', len(obj_list))
+        for obj in obj_list:
+            ev = dict(obj.items())
+            if not 'module' in ev:
+                ev['module'] = ""
+            event_list.append(ev)
     except DynamoDBError, e:
         logger.error('failed to query events - %s', str(e))
+
+    pinger_objs = get_pinger_telemetry(project, client, UtcDateTime(str(after)), UtcDateTime(str(before)))
+    if pinger_objs:
+        event_list.extend(pinger_objs)
+        event_count += len(pinger_objs)
 
     # Save some global parameters for summary table
     params = dict()
@@ -508,12 +574,12 @@ def entry_page_base(project, client, after, before, params, logger):
     params.setdefault('build_version', '')
     params.setdefault('build_number', '')
 
+    event_list = sorted(event_list, key=lambda x: x['timestamp'])
     # Generate the events JSON
-    event_list = [dict(x.items()) for x in obj_list]
     for event in event_list:
-        event['timestamp'] = str(event['timestamp'])
         for field in ['uploaded_at', 'client']:
-            del event[field]
+            if field in event:
+                del event[field]
 
         if event['event_type'] in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
             def decode_wbxml(wbxml_):
@@ -525,6 +591,8 @@ def entry_page_base(project, client, after, before, params, logger):
             event['wbxml'] = cgi.escape(decode_wbxml(b64))
         if 'message' in event:
             event['message'] = cgi.escape(event['message'])
+        if 'timestamp' in event:
+            event['timestamp'] = str(event['timestamp'])
 
     context = {'project': project,
                'params': json.dumps(params, default=json_formatter),

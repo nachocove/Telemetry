@@ -100,6 +100,8 @@ function getRowWithCommonFields (id, event, num_rows) {
     id_cell = getCell(event.id, num_rows)
     id_cell.className += " id_cell"
     tr.appendChild(id_cell);
+
+    tr.appendChild(getCell(event.module.replace('_', ' '), num_rows));
     return tr;
 }
 
@@ -160,7 +162,7 @@ function beautifyBase64(b64) {
 function refreshSummary() {
     var table = document.getElementById('table_summary');
 
-    var tr = document.createElement('tr');;
+    var tr = document.createElement('tr');
     var field = getCell(START_TIME_UTC);
     var value = getCell(dateTimeUtc(params.start));
     field.id = START_FIELD_ID;
@@ -228,6 +230,11 @@ function createTitleBar() {
     eventType.innerHTML = 'Event Type';
     tr.appendChild(eventType);
 
+    var module = document.createElement('th');
+    module.className = 'cell';
+    module.innerHTML = 'Module';
+    tr.appendChild(module);
+
     var field = document.createElement('th');
     field.className = 'cell id_cell';
     field.innerHTML = 'Telemetry ID';
@@ -259,11 +266,17 @@ function refreshEvents() {
             case 'INFO':
             case 'WARN':
             case 'ERROR': {
-                row = getRowWithCommonFields(i, event, 2);
-                addFieldToRow(row, 'thread_id', event.thread_id);
-                table.appendChild(row)
-                row = getRow(event);
-                addFieldToRow(row, 'message', event.message);
+                if (event.module != 'pinger-backend') {
+                    row = getRowWithCommonFields(i, event, 2);
+                    addFieldToRow(row, 'thread_id', event.thread_id);
+                    table.appendChild(row)
+                    row = getRow(event);
+                    addFieldToRow(row, 'message', event.message);
+                } else {
+                    row = getRowWithCommonFields(i, event, 1);
+                    addFieldToRow(row, 'message', event.message);
+                    table.appendChild(row)
+                }
                 break;
             }
             case 'WBXML_REQUEST':
