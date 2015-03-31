@@ -268,6 +268,9 @@ def main():
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     log_file = os.path.abspath(os.path.join(log_dir, config_base + '.log'))
+    attachment_dir = os.path.join(log_dir, "attachments")
+    if not os.path.exists(attachment_dir):
+        os.makedirs(attachment_dir)
 
     state_file = os.path.abspath(os.path.join(log_dir, config_base + '.state'))
     old_state_file_loc = options.config + '.state'
@@ -406,6 +409,7 @@ def main():
                               debug=2 if options.debug_boto else 0)
             monitor_cls = mapping[monitor_name]
             new_monitor = monitor_cls(conn=conn, start=options.start, end=options.end, prefix=options.aws_prefix,
+                                      attachment_dir=attachment_dir,
                                       **extra_params)
             new_monitor.run()
             return new_monitor
@@ -441,9 +445,9 @@ def main():
 
     # Save the HTML and plain text body to files
     end_time_suffix = datetime_tostr(options.end)
-    with open('monitor-email.%s.html' % end_time_suffix, 'w') as f:
+    with open(os.path.join(attachment_dir, 'monitor-email.%s.html' % end_time_suffix), 'w') as f:
         f.write(email.content.html())
-    with open('monitor-email.%s.txt' % end_time_suffix, 'w') as f:
+    with open(os.path.join(attachment_dir, 'monitor-email.%s.txt' % end_time_suffix), 'w') as f:
         f.write(email.content.plain_text())
 
     # Add title

@@ -37,7 +37,7 @@ class MonitorLogTraceThread(ThreadPoolThread):
 
 class MonitorLog(Monitor):
     def __init__(self, event_type=None, msg=None, rate_msg=None, *args, **kwargs):
-        Monitor.__init__(self, *args, **kwargs)
+        super(MonitorLog, self).__init__(*args, **kwargs)
         self.event_type = event_type
         self.events = list()  # events returned from the query
         self.report_ = dict()  # an analysis structure derived from raw events
@@ -177,7 +177,8 @@ class MonitorLog(Monitor):
             return None
         ef = event_formatter.RecordStyleEventFormatter(prefix=self.prefix)
         raw_log_prefix = '%s_%s' % (self.desc, self.end.file_suffix())
-        raw_log_path = raw_log_prefix + '.txt'
+
+        raw_log_path = os.path.join(self.attachment_dir, raw_log_prefix + '.txt')
         with open(raw_log_path, 'w') as raw_log:
             for event in self.events:
                 # Find the latest device-info record that is before the current log-entry's timestamp
@@ -196,7 +197,7 @@ class MonitorLog(Monitor):
 
                 print >>raw_log, ef.format(event).encode('utf-8')
 
-        zipped_log_path = raw_log_prefix + '.zip'
+        zipped_log_path = os.path.join(self.attachment_dir, raw_log_prefix + '.zip')
         zipped_file = zipfile.ZipFile(zipped_log_path, 'w', zipfile.ZIP_DEFLATED)
         zipped_file.write(raw_log_path)
         os.unlink(raw_log_path)
