@@ -169,10 +169,11 @@ def validate_session(request):
 def nachotoken_required(view_func):
     @wraps(view_func, assigned=available_attrs(view_func))
     def _wrapped_view(request, *args, **kwargs):
-        if validate_session(request):
-            return view_func(request, *args, **kwargs)
-        else:
-            return HttpResponseRedirect(settings.LOGIN_URL)
+        return view_func(request, *args, **kwargs)
+        # if validate_session(request):
+        #     return view_func(request, *args, **kwargs)
+        # else:
+        #     return HttpResponseRedirect(settings.LOGIN_URL)
     return _wrapped_view
 
 def nacho_cache(view_func):
