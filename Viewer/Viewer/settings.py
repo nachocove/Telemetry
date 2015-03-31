@@ -131,6 +131,3 @@ LOGGING = {
 }
 
 LOGIN_URL="/login/"
-
-# needs salt, but better than plain-text
-NACHO_PASSWORD_DIGEST = "037a63dfd71c7cfc0d8e76389f45854d2a5be75cec62c315800bf94add5a3c83"
