@@ -2,13 +2,13 @@
 
 
 from django.conf.urls import patterns, url
-from Viewer import timestamp_regex
+from Viewer import timestamp_regex, client_regex
 
 urlpatterns = patterns('',
     url(r'^$', 'Bugfix.views.home', name="bugfix-home"),
-    url(r'^logs/(?P<client>\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+)/(?P<timestamp>%s)/(?P<span>\d+)/$' % timestamp_regex, 'Bugfix.views.entry_page_legacy'),
-    url(r'^(?P<project>\w+)/logs/(?P<client>\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+)/(?P<timestamp>%s)/(?P<span>\d+)/$' % timestamp_regex, 'Bugfix.views.entry_page'),
-    url(r'^(?P<project>\w+)/logs/(?P<client>\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+)/(?P<after>%s)/(?P<before>%s)/$' % (timestamp_regex, timestamp_regex), 'Bugfix.views.entry_page_by_timestamps'),
-    url(r'^bugfix/search/$', 'Bugfix.views.search', name="search-form"),
-    url(r'^bugfix/(?P<project>\w+)/search/(?P<after>%s)/(?P<before>%s)/$' % (timestamp_regex, timestamp_regex), 'Bugfix.views.search_results'),
+    url(r'^logs/(?P<client>%s)/(?P<timestamp>%s)/(?P<span>\d+)/$' % (client_regex, timestamp_regex), 'Bugfix.views.entry_page_legacy'),
+    url(r'^(?P<project>\w+)/logs/(?P<client>%s)/(?P<timestamp>%s)/(?P<span>\d+)/$' % (client_regex, timestamp_regex), 'Bugfix.views.entry_page'),
+    url(r'^(?P<project>\w+)/logs/(?P<client>%s)/(?P<after>%s)/(?P<before>%s)/$' % (client_regex, timestamp_regex, timestamp_regex), 'Bugfix.views.entry_page_by_timestamps'),
+    url(r'^search/$', 'Bugfix.views.search', name="search-form"),
+    url(r'^(?P<project>\w+)/search/(?P<after>%s)/(?P<before>%s)/$' % (timestamp_regex, timestamp_regex), 'Bugfix.views.search_results'),
 )

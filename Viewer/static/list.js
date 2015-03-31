@@ -93,9 +93,16 @@ function getRowWithCommonFields (event, num_rows) {
     event_type_cell.addClass("event_type_cell");
     tr.append(event_type_cell);
 
-    var id_cell = getCell(event.id, num_rows);
-    id_cell.addClass("id_cell");
+    id_cell = getCell(event.id, num_rows)
+    id_cell.className += " id_cell"
     tr.append(id_cell);
+
+    if (show_client == 1) {
+        console.log(event);
+        tr.append(getCell(event.client, num_rows));
+    }
+
+    tr.append(getCell(event.module.replace('_', ' '), num_rows));
     return tr;
 }
 
@@ -175,7 +182,9 @@ function refreshSummary() {
 
     table.append(tr);
 
-    addSummaryRow(table, 'Client', params.client);
+    if (params.hasOwnProperty('client')) {
+        addSummaryRow(table, 'Client', params.client);
+    }
     if (params.hasOwnProperty('device_id')) {
         addSummaryRow(table, 'Device ID', params.device_id);
     }
@@ -205,6 +214,9 @@ function createTitleBar() {
     tr.append($('<th></th>').attr('id', 'date_cell').attr('title', SWITCH_TO_LOCAL).addClass('cell').click(updateDate).html(DATE_UTC));
     tr.append($('<th></th>').attr('id', 'time_cell').attr('title', SWITCH_TO_UTC).addClass('cell').click(updateDate).html(TIME_UTC));
     tr.append($('<th></th>').addClass('cell').html('Event Type'));
+    if (show_client == 1) {
+        tr.append($('<th></th>').addClass('cell').html('Client'));
+    }
     tr.append($('<th></th>').addClass('cell').addClass('id_cell').html('Telemetry ID'));
     tr.append($('<th></th>').addClass('cell').html('Field'));
     tr.append($('<th></th>').addClass('cell').html('Value').attr('colSpan', 2));
@@ -224,11 +236,17 @@ function refreshEvents() {
             case 'INFO':
             case 'WARN':
             case 'ERROR': {
-                row = getRowWithCommonFields(event, 2);
-                addFieldToRow(row, 'thread_id', event.thread_id);
-                table.append(row);
-                row = getRow(event);
-                addFieldToRow(row, 'message', event.message);
+                if (event.module != 'pinger-backend') {
+                    row = getRowWithCommonFields(event, 2);
+                    addFieldToRow(row, 'thread_id', event.thread_id);
+                    table.append(row)
+                    row = getRow(event);
+                    addFieldToRow(row, 'message', event.message);
+                } else {
+                    row = getRowWithCommonFields(event, 1);
+                    addFieldToRow(row, 'message', event.message);
+                    table.append(row)
+                }
                 break;
             }
             case 'WBXML_REQUEST':
