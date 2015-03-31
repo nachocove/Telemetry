@@ -271,7 +271,7 @@ def process_email(request, project, form, loc, logger):
         after = None
         before = None
 
-    clients = client_ids_from_email(loc['email'], after, before, project)
+    clients = client_ids_from_email(loc['email'], None, None, project)
     if clients:
         # make it into a list
         clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
