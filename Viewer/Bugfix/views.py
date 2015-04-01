@@ -126,36 +126,6 @@ def _parse_junk(junk, mapping):
     logger.debug('retval=%s', retval)
     return retval
 
-
-def _parse_crash_report(junk):
-    dict_ = _parse_junk(junk, {'Device ID': 'device_id',
-                               'Date/Time': 'timestamp',
-                               'Launch Time': 'timestamp'})
-    if 'device_id' in dict_ and 'timestamp' in dict_:
-        return dict_
-    return None
-
-def _parse_pinger(junk):
-    dict_ = _parse_junk(junk, {'pinger': 'pinger',
-                               'client': 'client',
-                               'timestamp': 'timestamp'})
-    if 'pinger' in dict_ and 'timestamp' in dict_:
-        return dict_
-    return None
-
-def _parse_error_report(junk):
-    dict_ = _parse_junk(junk, {'timestamp': 'timestamp', 'client': 'client'})
-    if 'timestamp' in dict_ and 'client' in dict_:
-        return dict_
-    return None
-
-
-def _parse_support_email(junk):
-    dict_ = _parse_junk(junk, {'email': 'email', 'timestamp': 'timestamp', 'span': 'span'})
-    if 'email' in dict_:
-        return dict_
-    return None
-
 def nacho_token():
     token = "NACHO:%s" % settings.SECRET_KEY
     return hashlib.sha256(token).hexdigest()
@@ -212,18 +182,35 @@ def logout(request):
         pass
     return HttpResponseRedirect(settings.LOGIN_URL)
 
+def _parse_error_report(junk):
+    dict_ = _parse_junk(junk, {'timestamp': 'timestamp',
+                               'client': 'client',
+                               'span': 'span',
+                               })
+    if 'timestamp' in dict_ and 'client' in dict_:
+        if dict_['timestamp'] == 'now':
+            dict_['timestamp'] = _iso_z_format(datetime.utcnow())
+        return dict_
+    return None
+
+
 def process_error_report(request, project, form, loc, logger):
-    loc['span'] = str(default_span)
     return HttpResponseRedirect(reverse(entry_page, kwargs={'client': loc['client'],
                                                             'timestamp': loc['timestamp'],
-                                                            'span': loc['span'],
+                                                            'span': loc.get('span', default_span),
                                                             'project': project}))
 
+def _parse_pinger(junk):
+    dict_ = _parse_junk(junk, {'pinger': 'pinger',
+                               'client': 'client',
+                               'timestamp': 'timestamp'})
+    if 'pinger' in dict_ and 'timestamp' in dict_:
+        return dict_
+    return None
+
 def process_pinger(request, project, form, loc, logger):
-    if not 'span' in loc:
-        loc['span'] = str(default_span)
     view_args = {'after': loc['timestamp'],
-                 'span': loc['span'],
+                 'span': loc.get('span', default_span),
                  'project': project,
                  }
     if loc.get('client', ''):
@@ -264,6 +251,16 @@ def client_ids_from_email(email, after, before, project, include_url=True):
                                                                 'project': project})
     return clients
 
+def _parse_support_email(junk):
+    dict_ = _parse_junk(junk, {'email': 'email',
+                               'timestamp': 'timestamp',
+                               'span': 'span',
+                               })
+    if 'email' in dict_:
+        if dict_.get('timestamp', '') == 'now':
+            dict_['timestamp'] = _iso_z_format(datetime.utcnow())
+        return dict_
+    return None
 def process_email(request, project, form, loc, logger):
     if loc.get('timestamp', None):
         after, before = calc_spread_from_center(loc['timestamp'], span=loc.get('span', 16))
@@ -278,7 +275,6 @@ def process_email(request, project, form, loc, logger):
     else:
         clients = []
 
-    loc['span'] = str(default_span)
     # if we found only one, just redirect.
     if len(clients) == 1:
         client = clients[0]
@@ -293,9 +289,19 @@ def process_email(request, project, form, loc, logger):
         return render_to_response('home.html', {'form': form, 'message': message},
                                   context_instance=RequestContext(request))
 
-def process_crash_report(request, project, form, loc, logger):
-    loc['span'] = str(default_span)
+def _parse_crash_report(junk):
+    dict_ = _parse_junk(junk, {'Device ID': 'device_id',
+                               'Date/Time': 'timestamp',
+                               'Launch Time': 'timestamp',
+                               'span': 'span',
+                               })
+    if 'device_id' in dict_ and 'timestamp' in dict_:
+        if dict_['timestamp'] == 'now':
+            dict_['timestamp'] = _iso_z_format(datetime.utcnow())
+        return dict_
+    return None
 
+def process_crash_report(request, project, form, loc, logger):
     # From the crash log device ID, we need to find the client ID
     conn = _aws_connection(project)
 
@@ -320,7 +326,7 @@ def process_crash_report(request, project, form, loc, logger):
             clients[device['client']] = {'first': device['timestamp'],
                                          'timestamp': device['timestamp'],
                                          'client': device['client'],
-                                         'span': str(default_span),
+                                         'span': str(loc.get('span', default_span)),
                                          }
         clients[device['client']]['timestamp'] = device['timestamp']
     # fill in the URL's for each client item.
@@ -578,9 +584,12 @@ def entry_page_base(project, client, after, before, params, logger, pinger_only=
         except DynamoDBError, e:
             return HttpResponseBadRequest('fail to query device info - %s', str(e))
 
-    pinger_objs = get_pinger_telemetry(project, client, UtcDateTime(str(after)), UtcDateTime(str(before)))
-    if pinger_objs:
-        event_list.extend(pinger_objs)
+    try:
+        pinger_objs = get_pinger_telemetry(project, client, UtcDateTime(str(after)), UtcDateTime(str(before)))
+        if pinger_objs:
+            event_list.extend(pinger_objs)
+    except Exception as e:
+        print e
 
     # Save some global parameters for summary table
     params = dict()
@@ -826,7 +835,7 @@ def pinger_telemetry(request, project, client='', after='', before='', span=str(
         before = center + spread
 
     context = entry_page_base(project, client, after, before, request.GET, logger, pinger_only=True)
-    iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=default_span, center=None)
+    iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=span, center=None)
     context['buttons'] = []
     zoom_in_span = max(1, span/2)
     context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
