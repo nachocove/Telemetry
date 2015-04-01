@@ -421,11 +421,9 @@ function updateDate() {
 
     // Update event table timestamp
     for (var i = 0; i < events.length; i++) {
-        var dateCell = $('#date_' + i);
-        var timeCell = $('#time_' + i);
-        date = new Date(events[i].timestamp);
-        dateCell.html(isUtc ? dateUtc(date) : dateLocal(date));
-        timeCell.html(isUtc ? timeUtc(date) : timeLocal(date));
+        var date = new Date(events[i].timestamp);
+        $('#date_' + events[i].id).html(isUtc ? dateUtc(date) : dateLocal(date))
+        $('#time_' + events[i].id).html(isUtc ? timeUtc(date) : timeLocal(date));
     }
 
     // Update summary table
