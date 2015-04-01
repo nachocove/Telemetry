@@ -93,15 +93,13 @@ function getRowWithCommonFields (event, num_rows) {
     event_type_cell.addClass("event_type_cell");
     tr.append(event_type_cell);
 
-    id_cell = getCell(event.id, num_rows)
-    id_cell.className += " id_cell"
+    var id_cell = getCell(event.id, num_rows)
+    id_cell.addClass("id_cell").hide();
     tr.append(id_cell);
 
     if (show_client == 1) {
-        console.log(event);
         tr.append(getCell(event.client, num_rows));
     }
-
     tr.append(getCell(event.module.replace('_', ' '), num_rows));
     return tr;
 }
@@ -217,7 +215,7 @@ function createTitleBar() {
     if (show_client == 1) {
         tr.append($('<th></th>').addClass('cell').html('Client'));
     }
-    tr.append($('<th></th>').addClass('cell').addClass('id_cell').html('Telemetry ID'));
+    tr.append($('<th></th>').addClass('cell').addClass('id_cell').html('Telemetry ID').hide());
     tr.append($('<th></th>').addClass('cell').html('Field'));
     tr.append($('<th></th>').addClass('cell').html('Value').attr('colSpan', 2));
     return tr;
