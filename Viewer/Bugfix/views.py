@@ -535,6 +535,11 @@ def get_pinger_telemetry(project, client, after, before):
                     timestamp = UtcDateTime(ev['timestamp'])
                     if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
                         continue
+                    if 'client' in ev:
+                        parts = ev['client'].split(':')
+                        if len(parts) > 2:
+                            ev['client'] = ":".join(parts[0:2])
+
                     ev['thread_id'] = ""
                     ev['timestamp'] = timestamp
                     ev['uploaded_at'] = UtcDateTime(ev['uploaded_at'])
