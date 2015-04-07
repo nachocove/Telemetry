@@ -6,6 +6,7 @@ easy_install keyring
 # Install the password into keychain
 read -p "Enter the email username: " username
 read -s -p "Enter the email password: " password
+echo
 python -c "
 import keyring
 keyring.set_password('NachoCove Telemetry', '$username', '$password')
