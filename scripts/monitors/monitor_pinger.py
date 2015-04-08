@@ -130,7 +130,8 @@ class MonitorPingerPushMessages(MonitorPinger):
                 min = delta
             if delta > max:
                 max = delta
-        return min, sum/len(events), max
+        avg = sum/len(events) if len(events) != 0 else 0
+        return min, avg, max
 
     def report(self, summary, **kwargs):
         summary.add_entry("Pushes sent", pretty_number(len(self.events)))
