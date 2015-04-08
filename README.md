@@ -60,3 +60,9 @@ cd M2Crypto-0.21.1
 python setup.py build build_ext --openssl=/usr/local/ssl
 sudo python setup.py install build_ext --openssl=/usr/local/ssl
 ```
+Keyring passwords
+=================
+
+```
+./config/install_keychain.sh
+```
