@@ -134,9 +134,9 @@ class MonitorPingerPushMessages(MonitorPinger):
 
     def report(self, summary, **kwargs):
         summary.add_entry("Pushes sent", pretty_number(len(self.events)))
-        summary.add_entry("Percent Push missed", pretty_number(percentage(len(self.events), len(self.unprocessed_push))))
+        summary.add_entry("Push received (min/avg/max)", "%.2f/%.2f/%.2f" % self.min_avg_max(self.push_received))
         summary.add_entry("Push missed", pretty_number(len(self.unprocessed_push)))
-        summary.add_entry("Push received (min/avg/max", "%.2f/%.2f/%.2f" % self.min_avg_max(self.push_received))
+        summary.add_entry("Percent Push missed", pretty_number(percentage(len(self.events), len(self.unprocessed_push))))
         paragraph_elements = []
         if self.unprocessed_push:
             paragraph_elements.append(Bold(self.title()))
