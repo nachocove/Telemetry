@@ -262,7 +262,6 @@ class OrderedList(Element):
 
 class ListItem(Element):
     def __init__(self, content):
-        Text.assert_text(content)
         Element.__init__(self, 'li', content)
         # The item value for ordered list.
         self.header = ''
@@ -404,7 +403,6 @@ class TableHeader(Element):
 
 class TableElement(Element):
     def __init__(self, content, **attrs):
-        Text.assert_text(content)
         Element.__init__(self, 'td', content)
         self.width = 0
         self.attrs = attrs

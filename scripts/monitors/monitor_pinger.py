@@ -1,9 +1,11 @@
 # Copyright 2014, NachoCove, Inc
 from datetime import timedelta
+import re
 from AWS.query import Query
 from AWS.s3_telemetry import get_s3_events
 from AWS.selectors import SelectorEqual, SelectorContains
-from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph, Link
+from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph, Link, ListItem, \
+    UnorderedList
 from misc.number_formatter import pretty_number
 from misc.utc_datetime import UtcDateTime
 from monitors.monitor_base import Monitor, get_client_telemetry_link, get_pinger_telemetry_link
@@ -64,10 +66,16 @@ class MonitorPingerPushMessages(MonitorPinger):
         self.unprocessed_push = []
         self.fetch_before_push = []
         self.push_received = []
+        self.push_missed_by_client = {}
 
     def run(self):
-        all_events = super(MonitorPingerPushMessages, self).run()
-        self.events = [ev for ev in all_events if "Sending push message" in ev['message']]
+        context_re = re.compile(r'context (?P<context>[a-z0-9]{8})')
+        self.events = [ev for ev in super(MonitorPingerPushMessages, self).run() if "Sending push message" in ev['message']]
+        for ev in self.events:
+            if 'context' not in ev:
+                m = context_re.search(ev['message'])
+                ev['context'] = m.group('context') if m else ''
+
         self.logger.debug("Found %d push events", len(self.events))
         time_frame = timedelta(minutes=30)
         for push in self.events:
@@ -88,8 +96,13 @@ class MonitorPingerPushMessages(MonitorPinger):
                     break
 
             if not push_received_event:
+                if push['client'] not in self.push_missed_by_client:
+                    self.push_missed_by_client[push['client']] = {}
+                if push['device'] not in self.push_missed_by_client[push['client']]:
+                    self.push_missed_by_client[push['client']][push['device']] = []
+                self.push_missed_by_client[push['client']][push['device']].append(push)
                 if not events:
-                    push['annotations'].append("No client events found. Perhaps no telemetry upload yet?")
+                    push['annotations'].append("No client events found. (Perhaps no telemetry upload yet and/or the client crashed?)")
                 else:
                     push['annotations'].append("No Push received in %s" % time_frame)
 
@@ -137,15 +150,46 @@ class MonitorPingerPushMessages(MonitorPinger):
         return min if min < 10000000 else 0, avg, max
 
     def report(self, summary, **kwargs):
+        paragraph_elements = []
         summary.add_entry("Pushes sent", pretty_number(len(self.events)))
         summary.add_entry("Push received (min/avg/max)", "%.2f/%.2f/%.2f" % self.min_avg_max(self.push_received))
         summary.add_entry("Push missed", pretty_number(len(self.unprocessed_push)))
         summary.add_entry("Percent Push missed", pretty_number(percentage(len(self.events), len(self.unprocessed_push))))
-        paragraph_elements = []
-        if self.unprocessed_push:
-            paragraph_elements.append(Bold(self.title()))
-            paragraph_elements.append(self.table_from_events(self.unprocessed_push))
+        summary.add_entry("Clients with problems", pretty_number(len(self.push_missed_by_client)))
 
+        # if self.unprocessed_push:
+        #     paragraph_elements.append(Bold(self.title()))
+        #     paragraph_elements.append(self.table_from_events(self.unprocessed_push))
+        #
+        if self.push_missed_by_client:
+            paragraph_elements.append(Bold(self.title()))
+            table = Table()
+            table.add_row(TableRow([TableHeader(Bold('Time Push Sent(UTC)')),
+                                    TableHeader(Bold('Client')),
+                                    TableHeader(Bold('Sessions')),
+                                    ]))
+            for client in self.push_missed_by_client:
+                telemetry_items = list()
+                for device in self.push_missed_by_client[client]:
+                    for ev in self.push_missed_by_client[client][device]:
+                        if ev['client']:
+                            link = get_client_telemetry_link(self.prefix, client, ev['timestamp'])
+                        else:
+                            link = get_pinger_telemetry_link(self.prefix, ev['timestamp'])
+
+                        telemetry_items.append(ListItem([Text(device),
+                                                         UnorderedList([ListItem(Text("Session %s" % ev['session'])),
+                                                                        ListItem(Text("%s:%s" % (ev['device'], ev['context']))),
+                                                                        ListItem(Text("\n".join(ev['annotations']))),
+                                                                        ListItem(Link('%s Telemetry - %s' % (self.prefix.capitalize(), ev['timestamp']), link)),
+                                                                        ])]))
+
+                row = TableRow([TableElement(Text(str(ev['timestamp']))),
+                                TableElement(Text(ev['client'])),
+                                TableElement(UnorderedList(telemetry_items)),
+                                ])
+                table.add_row(row)
+            paragraph_elements.append(table)
         if self.fetch_before_push:
             paragraph_elements.append(Bold("Pushes received after PerformFetch"))
             paragraph_elements.append(self.table_from_events(self.fetch_before_push))
