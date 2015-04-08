@@ -31,24 +31,27 @@ class MonitorPinger(Monitor):
 
     def report(self, summary, **kwargs):
         summary.add_entry(self.desc, pretty_number(len(self.events)))
-        table = Table()
-        table.add_row(TableRow([TableHeader(Bold('Time (UTC)')),
-                                TableHeader(Bold('Message')),
-                                TableHeader(Bold('%s telemetry' % self.prefix.capitalize())),
-                                ]))
-        for ev in self.events:
-            if ev['client']:
-                link = get_client_telemetry_link(self.prefix, ev['client'], ev['timestamp'])
-            else:
-                link = get_pinger_telemetry_link(self.prefix, ev['timestamp'])
-            row = TableRow([TableElement(Text(str(ev['timestamp']))),
-                            TableElement(Text(ev['message'])),
-                            TableElement(Link('Telemetry', link)),
-                            ])
-            table.add_row(row)
-        title = self.title()
-        paragraph = Paragraph([Bold(title), table])
-        return paragraph
+        if self.events:
+            table = Table()
+            table.add_row(TableRow([TableHeader(Bold('Time (UTC)')),
+                                    TableHeader(Bold('Message')),
+                                    TableHeader(Bold('%s telemetry' % self.prefix.capitalize())),
+                                    ]))
+            for ev in self.events:
+                if ev['client']:
+                    link = get_client_telemetry_link(self.prefix, ev['client'], ev['timestamp'])
+                else:
+                    link = get_pinger_telemetry_link(self.prefix, ev['timestamp'])
+                row = TableRow([TableElement(Text(str(ev['timestamp']))),
+                                TableElement(Text(ev['message'])),
+                                TableElement(Link('Telemetry', link)),
+                                ])
+                table.add_row(row)
+            title = self.title()
+            paragraph = Paragraph([Bold(title), table])
+            return paragraph
+        else:
+            return None
 
 
     def attachment(self):
