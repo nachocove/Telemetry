@@ -156,7 +156,7 @@ class MonitorPingerPushMessages(MonitorPinger):
         return None
 
 def percentage(whole, part):
-    return 100 * float(part)/float(whole) if whole != 0 else 100
+    return 100 * float(part)/float(whole) if whole != 0 else 0
 
 class MonitorPingerErrors(MonitorPinger):
     def __init__(self, *args, **kwargs):
