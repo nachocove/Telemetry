@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from boto.dynamodb2.exceptions import DynamoDBError
 import time
@@ -5,6 +6,7 @@ from AWS.query import Query
 from AWS.connection import Connection
 from misc.html_elements import *
 from misc.number_formatter import pretty_number
+from misc.utc_datetime import UtcDateTime
 
 
 class Summary(Table):
@@ -145,3 +147,14 @@ class Monitor(object):
         else:
             raise Exception('retries (%d) exhausted' % max_retries)
         return retval
+
+
+def get_client_telemetry_link(prefix, client, timestamp, span=2, host="http://localhost:8000/"):
+    if isinstance(timestamp, datetime):
+        timestamp = UtcDateTime(timestamp)
+    return '%sbugfix/%s/logs/%s/%s/%d/' % (host, prefix, client, str(timestamp), span)
+
+def get_pinger_telemetry_link(prefix, timestamp, span=2, host="http://localhost:8000/"):
+    if isinstance(timestamp, datetime):
+        timestamp = UtcDateTime(timestamp)
+    return '%spinger/%s/logs/%s/%d/' % (host, prefix, str(timestamp), span)

@@ -8,7 +8,6 @@ import logging
 import cgi
 import json
 import ConfigParser
-import re
 from urllib import urlencode
 
 import dateutil.parser
@@ -26,7 +25,7 @@ from django.views.decorators.vary import vary_on_cookie
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.s3.connection import S3Connection
 from boto.dynamodb2.exceptions import DynamoDBError
-import zlib
+from AWS.s3_telemetry import get_s3_events
 
 from misc import events
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
@@ -507,45 +506,22 @@ def entry_page_by_timestamps(request, project, client='', after='', before=''):
                               context_instance=RequestContext(request))
 
 def get_pinger_telemetry(project, client, after, before):
+    logger = logging.getLogger('telemetry').getChild('get_pinger_telemetry')
     conn = _aws_s3_connection(project)
     bucket_name = projects_cfg.get(project, 'telemetry_bucket')
-    bucket = conn.get_bucket(bucket_name)
-    # make sure to have the slash at the end, but not at the start
-    prefix = os.path.join(projects_cfg.get(project, 'telemetry_prefix'), '').lstrip('/')
-    file_regex = re.compile(r'%s%s--(?P<start>[0-9\-:TZ\.]+)--(?P<end>[0-9\-:TZ\.]+)\.json(?P<ext>.*)' % (prefix, 'log'))
+    all_events = get_s3_events(conn, bucket_name, projects_cfg.get(project, 'telemetry_prefix'), 'log', after, before, logger=logger)
     events = []
-    for key in bucket.list(prefix):
-        m = file_regex.match(key.key)
-        if m is not None:
-            start = UtcDateTime(m.group('start'))
-            end = UtcDateTime(m.group('end'))
-            if (start.datetime >= after.datetime and start.datetime < before.datetime) or \
-                    (end.datetime >= after.datetime and end.datetime < before.datetime):
-                if m.group('ext') == '.gz':
-                    #http://stackoverflow.com/questions/1543652/python-gzip-is-there-a-way-to-decompress-from-a-string/18319515#18319515
-                    json_str = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
-                elif m.group('ext') == '':
-                    json_str = key.get_contents_as_string()
-                else:
-                    raise Exception("unknown extension %s" % m.group('ext'))
-                for ev in json.loads(json_str):
-                    if client and client != ev.get('client', ''):
-                        continue
+    for ev in all_events:
+        if 'client' in ev:
+            if client and client != ev['client']:
+                continue
 
-                    timestamp = UtcDateTime(ev['timestamp'])
-                    if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
-                        continue
-                    if 'client' in ev:
-                        parts = ev['client'].split(':')
-                        if len(parts) > 2:
-                            ev['client'] = ":".join(parts[0:2])
+            parts = ev['client'].split(':')
+            if len(parts) > 2:
+                ev['client'] = ":".join(parts[0:2])
 
-                    ev['thread_id'] = ""
-                    ev['timestamp'] = timestamp
-                    ev['uploaded_at'] = UtcDateTime(ev['uploaded_at'])
-                    events.append(ev)
+        events.append(ev)
     return events
-
 
 def entry_page_base(project, client, after, before, params, logger, pinger_only=False):
     event_list = []

@@ -8,6 +8,7 @@ import os
 from boto.ec2 import cloudwatch
 import sys
 import shutil
+from boto.s3.connection import S3Connection
 from FreshDesk.config import FreshdeskConfig
 
 try:
@@ -34,6 +35,8 @@ from monitors.monitor_counters import MonitorCounters
 from monitors.monitor_hockeyapp import MonitorHockeyApp
 from monitors.monitor_ui import MonitorUi
 from monitors.monitor_support import MonitorSupport
+from monitors.monitor_pinger import MonitorPingerPushMessages, MonitorPingerErrors, MonitorPingerWarnings, \
+    MonitorClientPingerIssues
 from monitors.config import EmailConfig, MonitorProfileConfig, TimestampConfig
 
 
@@ -140,6 +143,10 @@ def main():
                'support': MonitorSupport,
                'cost': MonitorCost,
                'data-usage': MonitorUserDataUsage,
+               'pinger-push': MonitorPingerPushMessages,
+               'pinger-errors': MonitorPingerErrors,
+               'pinger-warnings': MonitorPingerWarnings,
+               'pinger-client': MonitorClientPingerIssues,
                }
 
 
@@ -375,28 +382,40 @@ def main():
     # Run each monitor
     monitors = list()
     for monitor_name in options.monitors:
+        kwargs = {'start': options.start,
+                  'end': options.end,
+                  'prefix': options.aws_prefix,
+                  'attachment_dir': attachment_dir}
+
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
             continue
-        extra_params = dict()
-        if monitor_name == 'crashes':
+        elif monitor_name == 'crashes':
             ha_obj = HockeyApp.hockeyapp.HockeyApp(options.hockeyapp_api_token)
             ha_app_obj = ha_obj.app(options.hockeyapp_app_id)
-            extra_params['ha_app_obj'] = ha_app_obj
-        if monitor_name == 'support':
+            kwargs['ha_app_obj'] = ha_app_obj
+        elif monitor_name == 'support':
             try:
                 freshdesk_options = {}
                 for k in dir(options):
                     if k.startswith('freshdesk_'):
                         freshdesk_options[k.split('freshdesk_')[1]] = getattr(options, k)
-                extra_params['freshdesk'] = freshdesk_options
+                kwargs['freshdesk'] = freshdesk_options
             except AttributeError:
                 pass
         elif monitor_name == 'cost':
-            extra_params['cloudwatch'] = cloudwatch.connect_to_region('us-west-2',
+            kwargs['cloudwatch'] = cloudwatch.connect_to_region('us-west-2',
                                                                       aws_secret_access_key=options.aws_secret_access_key,
                                                                       aws_access_key_id=options.aws_access_key_id,
                                                                       is_secure=True)
+        elif monitor_name.startswith('pinger'):
+            kwargs['s3conn'] = S3Connection(host='s3-us-west-2.amazonaws.com',
+                                                   port=443,
+                                                   aws_secret_access_key=options.aws_secret_access_key,
+                                                   aws_access_key_id=options.aws_access_key_id,
+                                                   is_secure=True)
+            kwargs['bucket_name'] = options.aws_telemetry_bucket
+            kwargs['path_prefix'] = options.aws_telemetry_prefix
 
         # Run the monitor with retries to robustly handle service failures
         def run_monitor():
@@ -408,9 +427,7 @@ def main():
                               is_secure=True,
                               debug=2 if options.debug_boto else 0)
             monitor_cls = mapping[monitor_name]
-            new_monitor = monitor_cls(conn=conn, start=options.start, end=options.end, prefix=options.aws_prefix,
-                                      attachment_dir=attachment_dir,
-                                      **extra_params)
+            new_monitor = monitor_cls(conn=conn, **kwargs)
             new_monitor.run()
             return new_monitor
         monitor = Monitor.run_with_retries(run_monitor, 'monitor %s' % monitor_name, 5)

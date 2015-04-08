@@ -9,8 +9,11 @@ class AwsConfig(SectionConfig):
         'identity_pool_id',
         'prefix',
         'secret_access_key',
-        's3_bucket',
-        'sns_platform_app_arn'
+        'client_data_bucket',
+        'client_data_prefix',
+        'sns_platform_app_arn',
+        'telemetry_bucket',
+        'telemetry_prefix',
     )
 
     def __init__(self, config_file):
