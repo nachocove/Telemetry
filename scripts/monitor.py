@@ -320,8 +320,8 @@ def main():
         elif emailConfig.recipient:
             recipients = emailConfig.recipient.split(',')
         if not recipients:
-            logger.error('No email recipient list! No emails will be sent')
-            email = Email()
+            logger.error('No email recipient list! No emails can be sent')
+            return False
         else:
             email = emailConfig.configure_server_and_email(recipients=recipients)
             if email is None:
