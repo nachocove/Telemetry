@@ -142,7 +142,7 @@ class DeletePools(Boto3CliFunc):
         super(DeletePools, self).run(args, **kwargs)
         if not args.name_prefix and not args.pool_id:
             logger.error("Need a name prefix or a pool-id.")
-        self.delete_pools(self.session, args.pool_id, name_prefix=args.name_prefix, s3_bucket=args.aws_s3_bucket)
+        self.delete_pools(self.session, args.pool_id, name_prefix=args.name_prefix, s3_bucket=args.aws_client_data_bucket)
         self.delete_roles(self.session, args.name_prefix, SetupPool.role_name_path)
         return True
 
@@ -364,7 +364,7 @@ class SetupPool(Boto3CliFunc):
         unauth_policy_supported = False if args.no_unauth else True
         auth_policy_supported = False if args.no_auth else True
         return self.setup_cognito(self.session, args.name, unauth_policy_supported, auth_policy_supported,
-                                  args.developer_provider_name, args.aws_s3_bucket, args.s3_bucket_prefix,
+                                  args.developer_provider_name, args.aws_client_data_bucket, args.s3_bucket_prefix,
                                   args.aws_account_id, args.aws_prefix, args.aws_sns_platform_app_arn)
 
     def setup_cognito(self, session, name, unauth_policy_supported, auth_policy_supported, developer_provider_name,
@@ -606,7 +606,7 @@ class TestAccess(Boto3CliFunc):
             @classmethod
             def setUpClass(cls):
                 s3 = self.session.resource('s3', region_name='us-east-1')
-                cls.nacho_bucket = s3.Bucket(args.aws_s3_bucket)
+                cls.nacho_bucket = s3.Bucket(args.aws_client_data_bucket)
                 cls.test_bucket = s3.Bucket('SomeTestBucket' + uuid.uuid4().hex)
                 cls.test_bucket.create()
                 cls.root_session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
@@ -706,29 +706,29 @@ class TestAccess(Boto3CliFunc):
             def test_bucket_listing_denied(self):
                 self.assertTrue(args.s3_bucket_prefix)  # if this isn't set, we might rethink some tests
                 self.raisesClientError('AccessDenied', self.s3_conn.list_buckets)
-                self.raisesClientError('AccessDenied', self.s3_conn.list_objects, Bucket=args.aws_s3_bucket, MaxKeys=60)
+                self.raisesClientError('AccessDenied', self.s3_conn.list_objects, Bucket=args.aws_client_data_bucket, MaxKeys=60)
                 self.raisesClientError('AccessDenied', self.s3_conn.list_objects, Bucket=self.test_bucket.name, MaxKeys=60)
-                self.raisesClientError('AccessDenied', self.s3_conn.list_objects, Bucket=args.aws_s3_bucket, MaxKeys=60, Prefix=args.s3_bucket_prefix)
+                self.raisesClientError('AccessDenied', self.s3_conn.list_objects, Bucket=args.aws_client_data_bucket, MaxKeys=60, Prefix=args.s3_bucket_prefix)
 
             def test_put_object_denied(self):
                 bad_prefix = "/".join([args.s3_bucket_prefix, self.my_id])+"1233456"
-                self.raisesClientError('AccessDenied', self.s3_conn.put_object, Bucket=args.aws_s3_bucket, Key=bad_prefix)
+                self.raisesClientError('AccessDenied', self.s3_conn.put_object, Bucket=args.aws_client_data_bucket, Key=bad_prefix)
 
             def test_get_create_file(self):
-                response = self.s3_conn.put_object(Bucket=args.aws_s3_bucket, Key=self.prefix)
+                response = self.s3_conn.put_object(Bucket=args.aws_client_data_bucket, Key=self.prefix)
                 self.assertTrue(self.check_response(response))
 
                 file = self.prefix + "somerandomfile.txt"
                 file_body = "foo12345\n"
-                response = self.s3_conn.put_object(Bucket=args.aws_s3_bucket, Key=file, Body=file_body)
+                response = self.s3_conn.put_object(Bucket=args.aws_client_data_bucket, Key=file, Body=file_body)
                 self.assertTrue(self.check_response(response))
 
-                response = self.s3_conn.get_object(Bucket=args.aws_s3_bucket, Key=file)
+                response = self.s3_conn.get_object(Bucket=args.aws_client_data_bucket, Key=file)
                 self.assertTrue(self.check_response(response, expected_keys=('Body',)))
                 self.assertEqual(response['Body'].read(), file_body)
 
             def test_list_files(self):
-                response = self.s3_conn.list_objects(Bucket=args.aws_s3_bucket, MaxKeys=60, Prefix=self.prefix)
+                response = self.s3_conn.list_objects(Bucket=args.aws_client_data_bucket, MaxKeys=60, Prefix=self.prefix)
                 self.assertTrue(self.check_response(response))
 
             def test_dynamo_table_create_denied(self):

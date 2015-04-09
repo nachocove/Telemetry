@@ -5,13 +5,13 @@ from monitor_base import Monitor
 from misc.support import *
 from misc.number_formatter import pretty_number
 from misc.html_elements import *
+from monitors.monitor_base import get_client_telemetry_link
 
 
 class MonitorSupport(Monitor):
     def __init__(self, freshdesk=None, *args, **kwargs):
         kwargs.setdefault('desc', 'support requests')
         Monitor.__init__(self, *args, **kwargs)
-        self.telemetry_viewer_url_prefix = 'http://localhost:8000/'
         self.freshdesk = freshdesk
         self.freshdesk_api = FreshDesk(freshdesk['api_key']) if freshdesk and 'api_key' in freshdesk else None
 
@@ -50,8 +50,7 @@ class MonitorSupport(Monitor):
             self.logger.info('\n' + request.display())
             match = re.match('(?P<date>.+)T(?P<time>.+)Z', request.timestamp)
             assert match
-            telemetry_link = '%sbugfix/%s/logs/%s/%s/2/' % (self.telemetry_viewer_url_prefix, self.prefix,
-                                                            request.client, request.timestamp)
+            telemetry_link = get_client_telemetry_link(self.prefix, request.client, request.timestamp)
             if self.freshdesk_api:
                 freshdesk_id = self.freshdesk_api.create_ticket("%s NachoMail Support Request" % self.prefix.capitalize(),
                                                                 request.message,

@@ -26,7 +26,13 @@ if [ -z "$TMPDIR" ] ; then
     TMPDIR=/tmp
 fi
 temp=$TMPDIR/$$.$RANDOM
-cronfile=/etc/cron.d/nacho-cove
+
+if [ -z "$2" ] ; then
+    cronfile=/etc/cron.d/nacho-cove
+else
+    cronfile=$2
+fi
+
 echo "Copying cron definitions from $scripts_path/cron/ to /etc/cron.d/"
 m4 -DCONFIG_DIR=$config_path -DEMAIL_CFG=$email_config -DSCRIPTS_DIR=$scripts_path $scripts_path/cron/nacho-cove.template > $temp || rm -f $temp
 sudo chown root $temp

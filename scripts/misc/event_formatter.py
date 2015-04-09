@@ -137,7 +137,6 @@ class EventFormatter:
         for et in events.TYPES:
             self.decorators[et] = EventDecorator(default_decorator)
         self.wbxml_tool_path = wbxml_tool_path
-        self.telemetry_viewer_url_prefix = 'http://localhost:8000/'
 
     def may_add(self, section, obj, field):
         if field in obj:
@@ -179,6 +178,7 @@ class EventFormatter:
         return output
 
     def format(self, obj):
+        from monitors.monitor_base import get_client_telemetry_link
         self.reset()
         self.set_decorators(obj)
 
@@ -200,8 +200,7 @@ class EventFormatter:
             else:
                 raise ValueError("Unknown timestamp class: %s" % obj['timestamp'].__class__)
 
-            link = '%sbugfix/%s/logs/%s/%s/1/' % (self.telemetry_viewer_url_prefix, self.prefix, obj['client'], timestamp)
-            self.link.format('telemetry', link)
+            self.link.format('telemetry', get_client_telemetry_link(self.prefix, obj['client'], timestamp))
 
         # Format the identification section
         for field in (events.IDENT_FIELDS + events.INTERNAL_FIELDS):
