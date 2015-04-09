@@ -60,13 +60,14 @@ class MonitorPinger(Monitor):
         return None
 
 class MonitorPingerPushMessages(MonitorPinger):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, look_ahead=None, *args, **kwargs):
         kwargs.setdefault('desc', 'Missed Push messages')
         MonitorPinger.__init__(self, *args, **kwargs)
         self.unprocessed_push = []
         self.fetch_before_push = []
         self.push_received = []
         self.push_missed_by_client = {}
+        self.look_ahead = look_ahead if look_ahead is not None else 180
 
     def run(self):
         context_re = re.compile(r'context (?P<context>[a-z0-9]{8})')
@@ -77,7 +78,7 @@ class MonitorPingerPushMessages(MonitorPinger):
                 ev['context'] = m.group('context') if m else ''
 
         self.logger.debug("Found %d push events", len(self.events))
-        time_frame = timedelta(minutes=30)
+        time_frame = timedelta(minutes=self.look_ahead)
         for push in self.events:
             push['annotations'] = []
             push_received_event = None
@@ -102,7 +103,7 @@ class MonitorPingerPushMessages(MonitorPinger):
                     self.push_missed_by_client[push['client']][push['device']] = []
                 self.push_missed_by_client[push['client']][push['device']].append(push)
                 if not events:
-                    push['annotations'].append("No client events found. (Perhaps no telemetry upload yet and/or the client crashed?)")
+                    push['annotations'].append("No client telemetry found.")
                 else:
                     push['annotations'].append("No Push received in %s" % time_frame)
 
@@ -153,7 +154,7 @@ class MonitorPingerPushMessages(MonitorPinger):
         paragraph_elements = []
         summary.add_entry("Pushes sent", pretty_number(len(self.events)))
         summary.add_entry("Push received (min/avg/max)", "%.2f/%.2f/%.2f" % self.min_avg_max(self.push_received))
-        summary.add_entry("Push missed", pretty_number(len(self.unprocessed_push)))
+        summary.add_entry("Push missed (%s lookahead)" % str(self.look_ahead), pretty_number(len(self.unprocessed_push)))
         summary.add_entry("Percent Push missed", pretty_number(percentage(len(self.events), len(self.unprocessed_push))))
         summary.add_entry("Clients with problems", pretty_number(len(self.push_missed_by_client)))
 
