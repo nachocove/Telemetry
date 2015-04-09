@@ -315,8 +315,8 @@ def main():
         recipients = None
         if options.email_to:
             recipients = options.email_to
-        elif getattr(options, 'recipient', None):
-            recipients = options.recipient.split(',')
+        elif monitor_profile.recipient:
+            recipients = monitor_profile.recipient.split(',')
         elif emailConfig.recipient:
             recipients = emailConfig.recipient.split(',')
         if not recipients:
