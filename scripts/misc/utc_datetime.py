@@ -1,18 +1,48 @@
+import string
+import datetime
+import re
+
 import dateutil.parser
 import dateutil.tz
-import datetime
 import pytz
 
 
 class UtcDateTime:
+    hours = ('h', 'hr', 'hrs')
+    minutes = ('m', 'min', 'mins', 'minutes')
+    seconds = ('s', 'sec', 'secs', 'seconds')
+    days = ('d', 'day', 'days')
+    match_str = "|".join(hours + minutes + seconds + days)
+
     def __init__(self, value=None):
+        dt = None
         if isinstance(value, (str, unicode, UtcDateTime)):
-            if isinstance(value, (str, unicode)) and value == 'now':
-                self.datetime = datetime.datetime.utcnow()
-            else:
-                self.datetime = dateutil.parser.parse(str(value))
+            if isinstance(value, (str, unicode)):
+                if value.startswith('now'):
+                    parts = value.split('-')
+                    dt = datetime.datetime.utcnow()
+                    if len(parts) == 1:
+                        pass
+                    elif len(parts) == 2 and parts[1][0] in string.digits:
+                        m = re.match(r'(?P<digit>[0-9]+)(?P<hmsd>[%s])' % self.match_str, parts[1])
+                        if m:
+                            if m.group('hmsd') in self.hours:
+                                sub = datetime.timedelta(hours=int(m.group('digit')))
+                            elif m.group('hmsd') in self.minutes:
+                                sub = datetime.timedelta(minutes=int(m.group('digit')))
+                            elif m.group('hmsd') in self.seconds:
+                                sub = datetime.timedelta(seconds=int(m.group('digit')))
+                            elif m.group('hmsd') in self.days:
+                                sub = datetime.timedelta(days=int(m.group('digit')))
+                            else:
+                                raise Exception("unknown timeframe %s" % m.group('hmsd'))
+                            dt -= sub
+                    else:
+                        raise ValueError('format %s is not valid' % value)
+                else:
+                    dt = dateutil.parser.parse(str(value))
         elif isinstance(value, datetime.datetime):
-            self.datetime = value.replace(tzinfo=pytz.utc)
+            dt = value
         elif isinstance(value, int):
             milliseconds = value / 10000
             (days, milliseconds) = divmod(milliseconds, 86400 * 1000)
@@ -21,22 +51,27 @@ class UtcDateTime:
             (minutes, milliseconds) = divmod(milliseconds, 60 * 1000)
             (seconds, milliseconds) = divmod(milliseconds, 1000)
 
-            self.datetime = datetime.datetime(year=date.year,
+            dt = datetime.datetime(year=date.year,
                                               month=date.month,
                                               day=date.day,
                                               hour=hours,
                                               minute=minutes,
                                               second=seconds,
                                               microsecond=milliseconds * 1000,
-                                              tzinfo=pytz.utc)
+                                              )
         else:
             raise ValueError("Unsupported input type %s" % value.__class__)
+        try:
+            self.datetime = dt.replace(tzinfo=pytz.utc).astimezone(pytz.utc)
+        except TypeError as e:
+            print e
+            raise e
 
     def __repr__(self):
         s = self.datetime.strftime('%Y-%m-%dT%H:%M:%S')
         if self.datetime.microsecond == 0:
             return s + 'Z'
-        return s + '.%03dZ' % int(self.datetime.microsecond/1000.)
+        return s + '.%03dZ' % int(self.datetime.microsecond / 1000.)
 
     def __cmp__(self, other):
         return cmp(self - other, 0.0)

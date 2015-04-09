@@ -68,8 +68,8 @@ class DateTimeAction(argparse.Action):
             raise ValueError('unexpected option %s with datetime ' % option_string)
         if (option_string == '--after') and ('last' == value):
             setattr(namespace, self.dest, 'last')
-        elif (option_string == '--before') and ('now' == value):
-            setattr(namespace, self.dest, 'now')
+        elif (option_string == '--before') and (value.startswith('now')):
+            setattr(namespace, self.dest, value)
         else:
             try:
                 setattr(namespace, self.dest, UtcDateTime(value))
@@ -352,12 +352,11 @@ def main():
 
             options.do_update_timestamp = True
 
-    if isinstance(options.end, str) and options.end == 'now':
-        now = UtcDateTime.now()
-        options.end = now
+    now = UtcDateTime(datetime.utcnow().replace(second=0, microsecond=0))
+    if isinstance(options.end, (str, unicode)) and options.end.startswith('now'):
+        options.end = UtcDateTime(options.end)
+        now = options.end
         options.do_update_timestamp = True
-    else:
-        now = UtcDateTime(datetime.utcnow().replace(second=0, microsecond=0))
 
     if (not options.start or not options.end) and options.period:
         if not options.start:
@@ -443,6 +442,8 @@ def run_reports(options, email, logger):
                                                    is_secure=True)
             kwargs['bucket_name'] = options.aws_telemetry_bucket
             kwargs['path_prefix'] = options.aws_telemetry_prefix
+            if monitor_name == 'pinger-push':
+                kwargs['look_ahead'] = 120
 
         # Run the monitor with retries to robustly handle service failures
         def run_monitor():
