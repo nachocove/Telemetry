@@ -48,7 +48,6 @@ class EmailConfig(SectionConfig):
         return SectionConfig.__getattr__(self, key)
 
     def configure_server_and_email(self, debug=False, recipients=None):
-        email = Email(debug)
         server = self.smtp_server
         port = self.port
         username = self.username
@@ -78,16 +77,16 @@ class EmailConfig(SectionConfig):
         if self.tls is not None:
             tls = self.tls
 
-        email.from_address = self.fromaddr if self.fromaddr else username
-        email.to_addresses = recipients if recipients is not None else self.recipient.split(',')
-
         smtp_server = EmailServer(server=server,
                                   port=port,
                                   username=username,
                                   password=password,
                                   tls=tls,
                                   start_tls=start_tls)
-        return smtp_server, email
+        email = Email(email_server=smtp_server, debug=debug)
+        email.from_address = self.fromaddr if self.fromaddr else username
+        email.to_addresses = recipients if recipients is not None else self.recipient.split(',')
+        return email
 
 
 class TimestampConfig(SectionConfig):

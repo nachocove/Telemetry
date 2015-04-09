@@ -5,6 +5,7 @@ import ConfigParser
 import logging
 from datetime import timedelta, datetime, date
 import os
+import copy
 from boto.ec2 import cloudwatch
 import sys
 import shutil
@@ -130,26 +131,25 @@ def period_to_seconds(period):
         raise ValueError('Unknown value %s for period' % period)
     return ret
 
+mapping = {'errors': MonitorErrors,
+           'warnings': MonitorWarnings,
+           'users': MonitorUsers,
+           'emails': MonitorEmails,
+           'events': MonitorEvents,
+           'captures': MonitorCaptures,
+           'counters': MonitorCounters,
+           'crashes': MonitorHockeyApp,
+           'ui': MonitorUi,
+           'support': MonitorSupport,
+           'cost': MonitorCost,
+           'data-usage': MonitorUserDataUsage,
+           'pinger-push': MonitorPingerPushMessages,
+           'pinger-errors': MonitorPingerErrors,
+           'pinger-warnings': MonitorPingerWarnings,
+           'pinger-client': MonitorClientPingerIssues,
+           }
+
 def main():
-    mapping = {'errors': MonitorErrors,
-               'warnings': MonitorWarnings,
-               'users': MonitorUsers,
-               'emails': MonitorEmails,
-               'events': MonitorEvents,
-               'captures': MonitorCaptures,
-               'counters': MonitorCounters,
-               'crashes': MonitorHockeyApp,
-               'ui': MonitorUi,
-               'support': MonitorSupport,
-               'cost': MonitorCost,
-               'data-usage': MonitorUserDataUsage,
-               'pinger-push': MonitorPingerPushMessages,
-               'pinger-errors': MonitorPingerErrors,
-               'pinger-warnings': MonitorPingerWarnings,
-               'pinger-client': MonitorClientPingerIssues,
-               }
-
-
     parser = argparse.ArgumentParser(add_help=False)
     config_group = parser.add_argument_group(title='Configuration Options',
                                              description='These options specify the Parse credential and various '
@@ -230,7 +230,7 @@ def main():
     logging_format = '%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s'
     logger = logging.getLogger('monitor')
 
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     if options.debug or options.verbose:
         streamhandler = logging.StreamHandler(sys.stdout)
         streamhandler.setLevel(logging.DEBUG if options.debug else logging.INFO)
@@ -243,7 +243,7 @@ def main():
     if options.weekly and options.daily:
         logger.error("Daily and weekly? Really? Pick one.")
         parser.print_help()
-        exit(0)
+        exit(1)
     if options.weekly:
         logger.info('--weekly is DEPRECATED. Please use --period weekly')
         options.period = 'weekly'
@@ -275,11 +275,11 @@ def main():
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     log_file = os.path.abspath(os.path.join(log_dir, config_base + '.log'))
-    attachment_dir = os.path.join(log_dir, "attachments")
-    if not os.path.exists(attachment_dir):
-        os.makedirs(attachment_dir)
+    options.attachment_dir = os.path.join(log_dir, "attachments")
+    if not os.path.exists(options.attachment_dir):
+        os.makedirs(options.attachment_dir)
 
-    state_file = os.path.abspath(os.path.join(log_dir, config_base + '.state'))
+    options.state_file = os.path.abspath(os.path.join(log_dir, config_base + '.state'))
     old_state_file_loc = options.config + '.state'
 
     handler = RFHandler(log_file, maxBytes=10*1024*1024, backupCount=10)
@@ -287,14 +287,12 @@ def main():
     handler.setFormatter(logging.Formatter(logging_format))
     logger.addHandler(handler)
 
-    logger.info("Monitor started: %s, cwd=%s, euid=%d", " ".join(sys.argv[1:]), os.getcwd(), os.geteuid())
+    if options.debug:
+        logger.setLevel(logging.DEBUG)
 
     if os.path.exists(old_state_file_loc):
-        logger.info("Moving old state file %s to %s", old_state_file_loc, state_file)
-        shutil.move(old_state_file_loc, state_file)
-
-    if 'profile_name' in dir(options):
-        logger.info('Running profile "%s"', options.profile_name)
+        logger.info("Moving old state file %s to %s", old_state_file_loc, options.state_file)
+        shutil.move(old_state_file_loc, options.state_file)
 
     # Must have 1+ monitor from command-line or config
     if len(options.monitors) == 0:
@@ -309,41 +307,6 @@ def main():
         exit(1)
     TelemetryTable.PREFIX = options.aws_prefix
 
-    # If we want a time window but do not have one from command line, get it
-    # from config and current time
-    do_update_timestamp = False
-    if isinstance(options.start, str) and options.start == 'last':
-        try:
-            timestamp_state = TimestampConfig(Config(state_file))
-            options.start = timestamp_state.last
-        except (Config.FileNotFoundException, ValueError) as e:
-            logger.warn("Could not read last timestamp from file %s. Error=%s:%s.", state_file, e.__class__.__name__, e)
-            if not options.period:
-                raise ValueError("No period set. Can't guess 'last'. Please create state file manually.")
-            try:
-                options.start = guess_last(options.period)
-            except ValueError as e:
-                raise ValueError("Can't guess 'last': %s. Please create state file manually.", e)
-
-            do_update_timestamp = True
-
-    if isinstance(options.end, str) and options.end == 'now':
-        options.end = UtcDateTime.now()
-        do_update_timestamp = True
-    if (not options.start or not options.end) and options.period:
-        if not options.start:
-            options.start = guess_last(options.period)
-        if not options.end:
-            options.end = UtcDateTime(options.start)
-            options.end.datetime += timedelta(seconds=period_to_seconds(options.period))
-        do_update_timestamp = True
-
-    if options.debug:
-        logger.setLevel(logging.DEBUG)
-
-    # If send email, we want to make sure that the email credential is there
-    summary_table = Summary()
-    summary_table.colors = [None, '#f0f0f0']
     if options.email:
         emailConfig = EmailConfig(Config(options.email_config) if options.email_config else config_file)
         if emailConfig.recipient:
@@ -352,24 +315,88 @@ def main():
         recipients = None
         if options.email_to:
             recipients = options.email_to
-        elif monitor_profile.recipient:
-            recipients = monitor_profile.recipient.split(',')
+        elif options.recipient:
+            recipients = options.recipient.split(',')
         elif emailConfig.recipient:
             recipients = emailConfig.recipient.split(',')
         if not recipients:
             logger.error('No email recipient list! No emails will be sent')
             email = Email()
-            smtp_server = None
         else:
-            (smtp_server, email) = emailConfig.configure_server_and_email(recipients=recipients)
-            if smtp_server is None:
+            email = emailConfig.configure_server_and_email(recipients=recipients)
+            if email is None:
                 logger.error('no email configuration')
                 exit(1)
     else:
         email = Email()
-        smtp_server = None
 
-    email.content = Html()
+    play_catch_up = False
+    if options.period:
+        play_catch_up = True
+
+    # If we want a time window but do not have one from command line, get it
+    # from config and current time
+    options.do_update_timestamp = False
+    if isinstance(options.start, str) and options.start == 'last':
+        try:
+            timestamp_state = TimestampConfig(Config(options.state_file))
+            options.start = timestamp_state.last
+        except (Config.FileNotFoundException, ValueError) as e:
+            logger.warn("Could not read last timestamp from file %s. Error=%s:%s.", options.state_file, e.__class__.__name__, e)
+            if not options.period:
+                raise ValueError("No period set. Can't guess 'last'. Please create state file manually.")
+            try:
+                options.start = guess_last(options.period)
+            except ValueError as e:
+                raise ValueError("Can't guess 'last': %s. Please create state file manually.", e)
+
+            options.do_update_timestamp = True
+
+    if isinstance(options.end, str) and options.end == 'now':
+        now = UtcDateTime.now()
+        options.end = now
+        options.do_update_timestamp = True
+    else:
+        now = UtcDateTime(datetime.utcnow().replace(second=0, microsecond=0))
+
+    if (not options.start or not options.end) and options.period:
+        if not options.start:
+            options.start = guess_last(options.period)
+        if not options.end:
+            options.end = UtcDateTime(options.start.datetime + timedelta(seconds=period_to_seconds(options.period)))
+        options.do_update_timestamp = True
+
+    while True:
+        if options.end > now:
+            options.end = now
+        ret = run_reports(copy.deepcopy(options), email, logger)
+        if ret == False:
+            break
+
+        if play_catch_up and now > options.end:
+            play_catch_up = True
+            options.start = options.end
+            options.end = UtcDateTime(options.start.datetime + timedelta(seconds=period_to_seconds(options.period)))
+        else:
+            play_catch_up = False
+
+        if not play_catch_up:
+            break
+
+
+def run_reports(options, email, logger):
+    assert isinstance(email, Email)
+
+    logger.info("Monitor started: %s, cwd=%s, euid=%d", " ".join(sys.argv[1:]), os.getcwd(), os.geteuid())
+
+    if 'profile_name' in dir(options):
+        logger.info('Running profile "%s"', options.profile_name)
+
+    # If send email, we want to make sure that the email credential is there
+    summary_table = Summary()
+    summary_table.colors = [None, '#f0f0f0']
+
+    email.reset()
     email.content.add(Paragraph([Bold('Summary'), summary_table]))
 
     # Start processing
@@ -385,7 +412,7 @@ def main():
         kwargs = {'start': options.start,
                   'end': options.end,
                   'prefix': options.aws_prefix,
-                  'attachment_dir': attachment_dir}
+                  'attachment_dir': options.attachment_dir}
 
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
@@ -449,9 +476,9 @@ def main():
 
     # Save the HTML and plain text body to files
     end_time_suffix = datetime_tostr(options.end)
-    with open(os.path.join(attachment_dir, 'monitor-email.%s.html' % end_time_suffix), 'w') as f:
+    with open(os.path.join(options.attachment_dir, 'monitor-email.%s.html' % end_time_suffix), 'w') as f:
         f.write(email.content.html())
-    with open(os.path.join(attachment_dir, 'monitor-email.%s.txt' % end_time_suffix), 'w') as f:
+    with open(os.path.join(options.attachment_dir, 'monitor-email.%s.txt' % end_time_suffix), 'w') as f:
         f.write(email.content.plain_text())
 
     # Add title
@@ -463,22 +490,24 @@ def main():
         while num_retries < 5:
             try:
                 logger.info('Sending email to %s...', ', '.join(email.to_addresses))
-                email.send(smtp_server)
+                email.send()
                 break
             except Exception, e:
                 logger.error('fail to send email: %s', e)
                 num_retries += 1
         else:
             logger.error('fail to send email after %d retries' % num_retries)
+            return False
     elif options.debug:
         print email.content.plain_text()
 
     # Update timestamp in config if necessary after we have successfully
     # send the notification email
-    if do_update_timestamp:
-        timestamp_state = TimestampConfig(Config(state_file, create=True))
+    if options.do_update_timestamp:
+        timestamp_state = TimestampConfig(Config(options.state_file, create=True))
         timestamp_state.last = options.end
         timestamp_state.save()
+    return True
 
 if __name__ == '__main__':
     main()
