@@ -1,0 +1,11 @@
+{% extends "report_results_base.html" %}
+{% block search-results %}
+<div id="monitor-results">
+    <h2>{{ title }}</h2>
+    {{ summary|safe }}
+    {{ search_results|safe }}
+</div>
+{% endblock %}
+{% block javascript %}
+$('#monitor-results table').addClass("table")
+{% endblock %}

@@ -1,9 +1,5 @@
-{% extends "base.html" %}
-{% block head %}
-<link rel="stylesheet" type="text/css" href="/static/list.css">
-{% endblock %}
-{% block content %}
-<div><h1>Project: {{ project }}</h1></div>
+{% extends "report_results_base.html" %}
+{% block search_results %}
 {% if search_results %}
     <span id="search_results">
         <div id="info">

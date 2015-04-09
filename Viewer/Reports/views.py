@@ -1,4 +1,5 @@
 # Copyright 2014, NachoCove, Inc
+from datetime import datetime
 import logging
 from django.core.urlresolvers import reverse
 from django import forms
@@ -8,9 +9,12 @@ from django.template import RequestContext
 from django.views.decorators.csrf import csrf_exempt
 
 from AWS.query import Query
-from core.connection import aws_connection, projects, default_project
+from core.connection import aws_connection, projects, default_project, aws_s3_connection, projects_cfg
 from core.dates import iso_z_format
 from misc.utc_datetime import UtcDateTime
+from monitors.monitor_base import Summary
+from monitors.monitor_pinger import MonitorPingerPushMessages, MonitorPingerErrors, MonitorPingerWarnings, \
+    MonitorClientPingerIssues
 
 tmp_logger = logging.getLogger('telemetry')
 
@@ -23,12 +27,24 @@ class NachoDateTimeField(forms.DateTimeField):
     widget = forms.TextInput(attrs={'class': 'nachodatetimepicker',
                                     })
 
+    def to_python(self, value):
+        if isinstance(value, (str, unicode)) and value == 'now':
+            return datetime.now()
+        return super(NachoDateTimeField, self).to_python(value)
+
+    def validate(self, value):
+        return UtcDateTime(value)
+
 class ReportsForm(forms.Form):
     reports = {'emails_per_timeframe': {'description': 'Email Addresses Per domain'},
+               'pinger-push': {'description': 'Pinger Push Misses'},
+               'pinger-errors': {'description': 'Pinger Errors'},
+               'pinger-warnings': {'description': 'Pinger Warnings'},
+               'pinger-client': {'description': 'Pinger Client Issues'},
                }
 
-    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
-    report = forms.ChoiceField(choices=[(x, reports[x]['description']) for x in reports])
+    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects], )
+    report = forms.ChoiceField(choices=[(x, reports[x]['description']) for x in sorted(reports)], initial=sorted(reports.keys())[0])
     start = NachoDateTimeField()
     end = NachoDateTimeField()
 
@@ -59,10 +75,49 @@ def home(request):
                                             kwargs={'end': iso_z_format(form.cleaned_data['end']),
                                                     'start': iso_z_format(form.cleaned_data['start']),
                                                     'project': form.cleaned_data['project']}))
+    elif form.cleaned_data['report'].startswith('pinger'):
+        return HttpResponseRedirect(reverse(monitor_reports,
+                                            kwargs={'report': form.cleaned_data['report'],
+                                                    'end': iso_z_format(form.cleaned_data['end']),
+                                                    'start': iso_z_format(form.cleaned_data['start']),
+                                                    'project': form.cleaned_data['project']}))
     else:
         return render_to_response('reports_home.html', {'form': form},
                                   context_instance=RequestContext(request))
 
+
+def monitor_reports(request, report, project, start, end):
+    monitors = {'pinger-push': MonitorPingerPushMessages,
+                'pinger-errors': MonitorPingerErrors,
+                'pinger-warnings': MonitorPingerWarnings,
+                'pinger-client': MonitorClientPingerIssues,
+    }
+    s3conn = aws_s3_connection(project)
+    conn = aws_connection(project)
+    summary_table = Summary()
+
+    if report not in monitors:
+        raise Exception('unknown report')
+
+    kwargs = {'start': UtcDateTime(start),
+              'end': UtcDateTime(end),
+              'prefix': project,
+              'attachment_dir': None,
+              's3conn': s3conn,
+              'bucket_name': projects_cfg.get(project, 'telemetry_bucket'),
+              'path_prefix': projects_cfg.get(project, 'telemetry_prefix'),
+    }
+    monitor = monitors[report](conn=conn, **kwargs)
+    monitor.run()
+    results = monitor.report(summary_table)
+    return render_to_response('monitor_reports.html', {'title': monitor.title(),
+                                                       'summary': summary_table.html(),
+                                                       'search_results': results.html() if results else "",
+                                                       'project': project,
+                                                       'start': start,
+                                                       'end': end,
+                                                       },
+                              context_instance=RequestContext(request))
 
 def emails_per_domain(email_addresses):
     emails_per_domain_dict = dict()
