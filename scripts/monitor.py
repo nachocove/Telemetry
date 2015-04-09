@@ -315,7 +315,7 @@ def main():
         recipients = None
         if options.email_to:
             recipients = options.email_to
-        elif options.recipient:
+        elif getattr(options, 'recipient', None):
             recipients = options.recipient.split(',')
         elif emailConfig.recipient:
             recipients = emailConfig.recipient.split(',')
