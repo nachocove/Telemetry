@@ -61,11 +61,8 @@ class UtcDateTime:
                                               )
         else:
             raise ValueError("Unsupported input type %s" % value.__class__)
-        try:
+        if dt:
             self.datetime = dt.replace(tzinfo=pytz.utc).astimezone(pytz.utc)
-        except TypeError as e:
-            print e
-            raise e
 
     def __repr__(self):
         s = self.datetime.strftime('%Y-%m-%dT%H:%M:%S')
