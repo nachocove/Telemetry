@@ -443,7 +443,7 @@ def run_reports(options, email, logger):
             kwargs['bucket_name'] = options.aws_telemetry_bucket
             kwargs['path_prefix'] = options.aws_telemetry_prefix
             if monitor_name == 'pinger-push':
-                kwargs['look_ahead'] = 120
+                kwargs['look_ahead'] = 180
 
         # Run the monitor with retries to robustly handle service failures
         def run_monitor():
