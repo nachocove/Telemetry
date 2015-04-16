@@ -4,16 +4,16 @@
 {% endblock %}
 {% block content %}
 <div><h1>Project: {{ project }}</h1></div>
+<div id="info">
+     <table class="table">
+          {% for p in params %}
+          <tr><td class="cell">{{ p.key }}</td><td class="cell">{{ p.value }}</td></tr>
+          {% endfor %}
+     </table>
+</div>
+<br>
 {% if search_results %}
     <span id="search_results">
-        <div id="info">
-            <table class="table">
-                {% for p in params %}
-                <tr><td class="cell">{{ p.key }}</td><td class="cell">{{ p.value }}</td></tr>
-                {% endfor %}
-            </table>
-        </div>
-        <br>
         <div id="results">
         <table class="table">
             <thead>
@@ -37,5 +37,7 @@
         </table>
     </div>
     </span>
+{% else %}
+<div><h3>Found no records</h3></div>
 {% endif %}
 {% endblock %}
