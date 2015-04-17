@@ -76,6 +76,8 @@ class MonitorPingerPushMessages(MonitorPinger):
             if 'context' not in ev:
                 m = context_re.search(ev['message'])
                 ev['context'] = m.group('context') if m else ''
+            ev.setdefault("session", "")
+            ev.setdefault("device", "")
 
         self.logger.debug("Found %d push events", len(self.events))
         time_frame = timedelta(minutes=self.look_ahead)
@@ -92,7 +94,7 @@ class MonitorPingerPushMessages(MonitorPinger):
                 if 'PerformFetch called' in ev['message']:
                     if not push_received_event:
                         perform_fetch = perform_fetch or ev
-                elif 'Got remote notification' in ev['message'] and "session" in push and "session = %s" % push['session'] in ev['message']:
+                elif 'Got remote notification' in ev['message'] and "session = %s" % push['session'] in ev['message']:
                     push_received_event = ev
                     break
 
