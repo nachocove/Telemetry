@@ -338,6 +338,7 @@ def main():
     # from config and current time
     options.do_update_timestamp = False
     if isinstance(options.start, str) and options.start == 'last':
+        options.do_update_timestamp = True
         try:
             timestamp_state = TimestampConfig(Config(options.state_file))
             options.start = timestamp_state.last
@@ -350,13 +351,11 @@ def main():
             except ValueError as e:
                 raise ValueError("Can't guess 'last': %s. Please create state file manually.", e)
 
-            options.do_update_timestamp = True
 
     now = UtcDateTime(datetime.utcnow().replace(second=0, microsecond=0))
     if isinstance(options.end, (str, unicode)) and options.end.startswith('now'):
         options.end = UtcDateTime(options.end)
         now = options.end
-        options.do_update_timestamp = True
 
     if (not options.start or not options.end) and options.period:
         if not options.start:
