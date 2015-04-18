@@ -94,9 +94,10 @@ class MonitorPingerPushMessages(MonitorPinger):
                 if 'PerformFetch called' in ev['message']:
                     if not push_received_event:
                         perform_fetch = perform_fetch or ev
-                elif 'Got remote notification' in ev['message'] and "session = %s" % push['session'] in ev['message']:
-                    push_received_event = ev
-                    break
+                elif 'Got remote notification' in ev['message']and \
+                        ("ses = %s" % push['session'] in ev['message'] or "session = %s" % push['session'] in ev['message']):
+                        push_received_event = ev
+                        break
 
             if not push_received_event:
                 if push['client'] not in self.push_missed_by_client:
