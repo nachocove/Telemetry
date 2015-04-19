@@ -65,6 +65,7 @@ class MonitorPingerPushMessages(MonitorPinger):
         MonitorPinger.__init__(self, *args, **kwargs)
         self.unprocessed_push = []
         self.fetch_before_push = []
+        self.no_telemetry_found = []
         self.push_received = []
         self.push_missed_by_client = {}
         self.look_ahead = look_ahead if look_ahead is not None else 180
@@ -89,6 +90,11 @@ class MonitorPingerPushMessages(MonitorPinger):
             query.add('client', SelectorEqual(push['client']))
             query.add_range('timestamp', push['timestamp'], UtcDateTime(push['timestamp'].datetime + time_frame))
             events, count = self.query_all(query)
+            if not events:
+                push['annotations'].append("No client telemetry found.")
+                self.no_telemetry_found.append(push)
+                continue
+
             perform_fetch = None
             for ev in events:
                 if 'PerformFetch called' in ev['message']:
@@ -105,11 +111,7 @@ class MonitorPingerPushMessages(MonitorPinger):
                 if push['device'] not in self.push_missed_by_client[push['client']]:
                     self.push_missed_by_client[push['client']][push['device']] = []
                 self.push_missed_by_client[push['client']][push['device']].append(push)
-                if not events:
-                    push['annotations'].append("No client telemetry found.")
-                else:
-                    push['annotations'].append("No Push received in %s" % time_frame)
-
+                push['annotations'].append("No Push received in %s" % time_frame)
                 self.unprocessed_push.append(push)
             else:
                 self.push_received.append((push, push_received_event))
@@ -156,10 +158,13 @@ class MonitorPingerPushMessages(MonitorPinger):
     def report(self, summary, **kwargs):
         paragraph_elements = []
         summary.add_entry("Pushes sent", pretty_number(len(self.events)))
-        summary.add_entry("Push received (min/avg/max)", "%.2f/%.2f/%.2f" % self.min_avg_max(self.push_received))
-        summary.add_entry("Push missed (%s lookahead)" % str(self.look_ahead), pretty_number(len(self.unprocessed_push)))
-        summary.add_entry("Percent Push missed", pretty_number(percentage(len(self.events), len(self.unprocessed_push))))
-        summary.add_entry("Clients with problems", pretty_number(len(self.push_missed_by_client)))
+        summary.add_entry("Pushes not analyzed (no client telemetry found)", pretty_number(len(self.no_telemetry_found)))
+        if len(self.events) - len(self.no_telemetry_found) > 0:
+            summary.add_entry("Look-Ahead", pretty_number(self.look_ahead))
+            summary.add_entry("Push received (min/avg/max)", "%.2f/%.2f/%.2f" % self.min_avg_max(self.push_received))
+            summary.add_entry("# Push missed", pretty_number(len(self.unprocessed_push)))
+            summary.add_entry("% Push missed", pretty_number(percentage(len(self.events), len(self.unprocessed_push))))
+            summary.add_entry("Devices with problems", pretty_number(len(self.push_missed_by_client)))
 
         # if self.unprocessed_push:
         #     paragraph_elements.append(Bold(self.title()))
@@ -197,6 +202,9 @@ class MonitorPingerPushMessages(MonitorPinger):
         if self.fetch_before_push:
             paragraph_elements.append(Bold("Pushes received after PerformFetch"))
             paragraph_elements.append(self.table_from_events(self.fetch_before_push))
+        if self.no_telemetry_found:
+            paragraph_elements.append(Bold("Pushes sent, but not telemetry found (yet)"))
+            paragraph_elements.append(self.table_from_events(self.no_telemetry_found))
 
         return Paragraph(paragraph_elements)
 
