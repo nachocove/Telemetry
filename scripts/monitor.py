@@ -330,10 +330,6 @@ def main():
     else:
         email = Email()
 
-    play_catch_up = False
-    if options.period:
-        play_catch_up = True
-
     # If we want a time window but do not have one from command line, get it
     # from config and current time
     options.do_update_timestamp = False
@@ -352,10 +348,8 @@ def main():
                 raise ValueError("Can't guess 'last': %s. Please create state file manually.", e)
 
 
-    now = UtcDateTime(datetime.utcnow().replace(second=0, microsecond=0))
     if isinstance(options.end, (str, unicode)) and options.end.startswith('now'):
         options.end = UtcDateTime(options.end)
-        now = options.end
 
     if (not options.start or not options.end) and options.period:
         if not options.start:
@@ -364,22 +358,24 @@ def main():
             options.end = UtcDateTime(options.start.datetime + timedelta(seconds=period_to_seconds(options.period)))
         options.do_update_timestamp = True
 
-    while True:
-        if options.end > now:
-            options.end = now
+    period_end = None
+    orig_options_end = options.end
+    if options.period:
+        period_end = UtcDateTime(options.start.datetime + timedelta(seconds=period_to_seconds(options.period)))
+
+    while options.start < orig_options_end:
+        if period_end:
+            options.end = period_end
+            period_end = UtcDateTime(options.end.datetime + timedelta(seconds=period_to_seconds(options.period)))
+
+        if options.end > orig_options_end:
+            options.end = orig_options_end
+
         ret = run_reports(copy.deepcopy(options), email, logger)
         if ret == False:
             break
 
-        if play_catch_up and now > options.end:
-            play_catch_up = True
-            options.start = options.end
-            options.end = UtcDateTime(options.start.datetime + timedelta(seconds=period_to_seconds(options.period)))
-        else:
-            play_catch_up = False
-
-        if not play_catch_up:
-            break
+        options.start = options.end
 
 
 def run_reports(options, email, logger):
