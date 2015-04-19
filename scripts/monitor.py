@@ -69,7 +69,7 @@ class DateTimeAction(argparse.Action):
         if (option_string == '--after') and ('last' == value):
             setattr(namespace, self.dest, 'last')
         elif (option_string == '--before') and (value.startswith('now')):
-            setattr(namespace, self.dest, value)
+            setattr(namespace, self.dest, UtcDateTime(value))
         else:
             try:
                 setattr(namespace, self.dest, UtcDateTime(value))
@@ -120,6 +120,8 @@ def period_to_seconds(period):
             ret = 7*24*60*60
         elif period == 'daily':
             ret = 60*60*24
+        elif period == 'hourly':
+            ret = 60*60
         else:
             try:
                 ret = int(period)
@@ -346,20 +348,17 @@ def main():
                 options.start = guess_last(options.period)
             except ValueError as e:
                 raise ValueError("Can't guess 'last': %s. Please create state file manually.", e)
-
-
-    if isinstance(options.end, (str, unicode)) and options.end.startswith('now'):
-        options.end = UtcDateTime(options.end)
-
-    if (not options.start or not options.end) and options.period:
-        if not options.start:
-            options.start = guess_last(options.period)
-        if not options.end:
-            options.end = UtcDateTime(options.start.datetime + timedelta(seconds=period_to_seconds(options.period)))
+    elif not options.start and options.period:
+        options.start = guess_last(options.period)
         options.do_update_timestamp = True
 
+    if not options.start:
+        raise ValueError("No start time given or derived")
+
     period_end = None
-    orig_options_end = options.end
+    # TODO when calculating the end time, we might truncate to something close to the period, or the closest hour
+    # so we're not going to times like 2015-04-16T08:10:26.447Z...
+    orig_options_end = options.end if options.end else UtcDateTime(datetime.utcnow().replace(second=0, microsecond=0))
     if options.period:
         period_end = UtcDateTime(options.start.datetime + timedelta(seconds=period_to_seconds(options.period)))
 
@@ -368,7 +367,7 @@ def main():
             options.end = period_end
             period_end = UtcDateTime(options.end.datetime + timedelta(seconds=period_to_seconds(options.period)))
 
-        if options.end > orig_options_end:
+        if not options.end or options.end > orig_options_end:
             options.end = orig_options_end
 
         ret = run_reports(copy.deepcopy(options), email, logger)
