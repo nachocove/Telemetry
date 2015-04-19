@@ -19,7 +19,7 @@ class UtcDateTime:
         if isinstance(value, (str, unicode)):
             if value.startswith('now'):
                 parts = value.split('-')
-                dt = datetime.datetime.utcnow()
+                dt = datetime.datetime.utcnow().replace(microsecond=0)
                 if len(parts) == 1:
                     pass
                 elif len(parts) == 2 and parts[1][0] in string.digits:
