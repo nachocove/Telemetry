@@ -158,7 +158,10 @@ class MonitorPingerPushMessages(MonitorPinger):
     def report(self, summary, **kwargs):
         paragraph_elements = []
         summary.add_entry("Pushes sent", pretty_number(len(self.events)))
-        summary.add_entry("Pushes not analyzed (no client telemetry found)", pretty_number(len(self.no_telemetry_found)))
+        if len(self.push_received) > 0:
+            summary.add_entry("Pushes processed", pretty_number(len(self.push_received)))
+        if len(self.no_telemetry_found) > 0:
+            summary.add_entry("Pushes not analyzed (no client telemetry found)", pretty_number(len(self.no_telemetry_found)))
         if len(self.events) - len(self.no_telemetry_found) > 0:
             summary.add_entry("Look-Ahead", pretty_number(self.look_ahead))
             summary.add_entry("Push received (min/avg/max)", "%.2f/%.2f/%.2f" % self.min_avg_max(self.push_received))
