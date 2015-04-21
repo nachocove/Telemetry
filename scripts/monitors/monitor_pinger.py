@@ -206,7 +206,7 @@ class MonitorPingerPushMessages(MonitorPinger):
             paragraph_elements.append(Bold("Pushes received after PerformFetch"))
             paragraph_elements.append(self.table_from_events(self.fetch_before_push))
         if self.no_telemetry_found:
-            paragraph_elements.append(Bold("Pushes sent, but not telemetry found (yet)"))
+            paragraph_elements.append(Bold("Pushes sent, but no telemetry found (yet)"))
             paragraph_elements.append(self.table_from_events(self.no_telemetry_found))
 
         return Paragraph(paragraph_elements)
