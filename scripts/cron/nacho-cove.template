@@ -7,5 +7,5 @@ MAILTO=janv@nachocove.com
 */5 * * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/support_beta1.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --before now --period 300 --email
 */5 * * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/support_alpha.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --before now --period 300 --email
 0    5 * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/email_report_beta1.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period daily --email
-0    */4 * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/monitor_alpha_pinger.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period 14400 --email
-0    */4 * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/monitor_dev_pinger.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --period 14400 --email
+0    */6 * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/monitor_alpha_pinger.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --before now-3hrs --period 21600 --email
+0    */6 * * * ec2-user /usr/bin/python2.7 SCRIPTS_DIR/monitor.py --config CONFIG_DIR/monitor_dev_pinger.cfg --email-config CONFIG_DIR/EMAIL_CFG --after last --before now-3hrs --period 21600 --email
