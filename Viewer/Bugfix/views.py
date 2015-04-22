@@ -560,6 +560,7 @@ def entry_page_base(project, client, after, before, params, logger, pinger_only=
                 # widen the search :-(
                 user_query = Query()
                 user_query.add('client', SelectorEqual(client))
+                user_query.add('uploaded_at', SelectorLessThanEqual(UtcDateTime(before)))
                 client_list = Query.users(user_query, conn)
 
         except DynamoDBError, e:
