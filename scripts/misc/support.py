@@ -33,6 +33,8 @@ class SupportRequestEvent(SupportEvent):
         SupportEvent.__init__(self, event)
         self.contact_info = self.params['ContactInfo']
         self.message = self.params['Message']
+        self.build_version = self.params.get('BuildVersion', '')
+        self.build_number = self.params.get('BuildNumber', '')
 
     def display(self):
         msg = SupportEvent.display(self)
