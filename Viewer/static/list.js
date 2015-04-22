@@ -410,18 +410,23 @@ function refreshEvents() {
             }
             case 'SUPPORT': {
                 try {
-                    json = JSON.parse(event.support);
+                    var json = JSON.parse(event.support);
                     var keys = Object.keys(json);
-                    var isFirst = true;
-                    for (var j = 0; j < keys.length; j++) {
-                        if (isFirst) {
-                            row = getRowWithCommonFields(i, event, keys.length);
-                            isFirst = false;
-                        } else {
-                            table.appendChild(row);
-                            row = getRow(event);
+                    if (keys.length == 0) {
+                        row = getRowWithCommonFields(i, event, 1);
+                        addFieldToRow(row, 'support', event.support);
+                    } else {
+                        var isFirst = true;
+                        for (var j = 0; j < keys.length; j++) {
+                            if (isFirst) {
+                                row = getRowWithCommonFields(i, event, keys.length);
+                                isFirst = false;
+                            } else {
+                                table.appendChild(row);
+                                row = getRow(event);
+                            }
+                            addFieldToRow(row, keys[j], json[keys[j]]);
                         }
-                        addFieldToRow(row, keys[j], json[keys[j]]);
                     }
                 }
                 catch (ex) {
@@ -467,8 +472,12 @@ function updateDate() {
         var dateCell = document.getElementById('date_' + i);
         var timeCell = document.getElementById('time_' + i);
         date = new Date(events[i].timestamp);
-        dateCell.innerHTML = isUtc ? dateUtc(date) : dateLocal(date);
-        timeCell.innerHTML = isUtc ? timeUtc(date) : timeLocal(date);
+        if (dateCell) {
+            dateCell.innerHTML = isUtc ? dateUtc(date) : dateLocal(date);
+        }
+        if (timeCell) {
+            timeCell.innerHTML = isUtc ? timeUtc(date) : timeLocal(date);
+        }
     }
 
     // Update summary table
