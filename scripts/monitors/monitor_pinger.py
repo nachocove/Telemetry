@@ -1,5 +1,5 @@
 # Copyright 2014, NachoCove, Inc
-from datetime import timedelta
+from datetime import timedelta, datetime
 import re
 from AWS.query import Query
 from AWS.s3_telemetry import get_s3_events
@@ -100,10 +100,22 @@ class MonitorPingerPushMessages(MonitorPinger):
                 if 'PerformFetch called' in ev['message']:
                     if not push_received_event:
                         perform_fetch = perform_fetch or ev
-                elif 'Got remote notification' in ev['message']and \
-                        ("ses = %s" % push['session'] in ev['message'] or "session = %s" % push['session'] in ev['message']):
-                        push_received_event = ev
-                        break
+                elif 'Got remote notification' in ev['message']:
+                    m = re.search("ses[sion]? = (?P<session>[a-f0-9]+);(.*)time = (?P<time>[0-9]+);", ev['message'].replace('\n', ''))
+                    if m:
+                        t = UtcDateTime(datetime.utcfromtimestamp(int(m.group('time'))))
+                        self.logger.debug("Ping for session %s from time %s comparing to push session %s time %s", m.group('session'), t, push['session'], push['timestamp'])
+                        if m.group('session') == push['session']:
+                            push_received_event = ev
+                            break
+                        elif t > push['timestamp']:
+                            push_received_event = ev
+                            push['annotations'].append("Newer push superceded this one.")
+                            break
+                        else:
+                            self.logger.warn("Push seen that is not for this session, and not newer than this push! %s, %s", push, ev['message'])
+                    else:
+                        self.logger.warn("Could not process 'Got remote notification' message %s", ev['message'])
 
             if not push_received_event:
                 if push['client'] not in self.push_missed_by_client:
