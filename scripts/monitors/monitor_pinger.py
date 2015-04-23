@@ -104,7 +104,6 @@ class MonitorPingerPushMessages(MonitorPinger):
                     m = re.search("ses[sion]? = (?P<session>[a-f0-9]+);(.*)time = (?P<time>[0-9]+);", ev['message'].replace('\n', ''))
                     if m:
                         t = UtcDateTime(datetime.utcfromtimestamp(int(m.group('time'))))
-                        self.logger.debug("Ping for session %s from time %s comparing to push session %s time %s", m.group('session'), t, push['session'], push['timestamp'])
                         if m.group('session') == push['session']:
                             push_received_event = ev
                             break
