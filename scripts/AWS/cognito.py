@@ -188,7 +188,7 @@ class DeletePools(Boto3CliFunc):
         pool_list = []
         if pool_id:
             response = conn.describe_identity_pool(IdentityPoolId=pool_id)
-            pool = cls.check_response(response, 'IdentityPool')
+            pool = cls.check_response(response, expected_keys=('IdentityPool',))
             pool_list.append(pool)
         if name_prefix:
             response = conn.list_identity_pools(MaxResults=60)
