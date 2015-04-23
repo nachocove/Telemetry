@@ -67,6 +67,7 @@ class MonitorPingerPushMessages(MonitorPinger):
         self.fetch_before_push = []
         self.no_telemetry_found = []
         self.push_received = []
+        self.push_superceded = []
         self.push_missed_by_client = {}
         self.look_ahead = look_ahead if look_ahead is not None else 180
 
@@ -85,6 +86,7 @@ class MonitorPingerPushMessages(MonitorPinger):
         for push in self.events:
             push['annotations'] = []
             push_received_event = None
+            newer_push_received_event = None
             query = Query()
             query.add('event_type', SelectorEqual('INFO'))
             query.add('client', SelectorEqual(push['client']))
@@ -108,7 +110,7 @@ class MonitorPingerPushMessages(MonitorPinger):
                             push_received_event = ev
                             break
                         elif t > push['timestamp']:
-                            push_received_event = ev
+                            newer_push_received_event = ev
                             push['annotations'].append("Newer push superceded this one.")
                             break
                         else:
@@ -116,7 +118,7 @@ class MonitorPingerPushMessages(MonitorPinger):
                     else:
                         self.logger.warn("Could not process 'Got remote notification' message %s", ev['message'])
 
-            if not push_received_event:
+            if not push_received_event and not newer_push_received_event:
                 if push['client'] not in self.push_missed_by_client:
                     self.push_missed_by_client[push['client']] = {}
                 if push['device'] not in self.push_missed_by_client[push['client']]:
@@ -124,6 +126,8 @@ class MonitorPingerPushMessages(MonitorPinger):
                 self.push_missed_by_client[push['client']][push['device']].append(push)
                 push['annotations'].append("No Push received in %s" % time_frame)
                 self.unprocessed_push.append(push)
+            elif newer_push_received_event:
+                self.push_superceded.append(push)
             else:
                 self.push_received.append((push, push_received_event))
 
@@ -171,6 +175,8 @@ class MonitorPingerPushMessages(MonitorPinger):
         summary.add_entry("Pushes sent", pretty_number(len(self.events)))
         if len(self.push_received) > 0:
             summary.add_entry("Pushes processed", pretty_number(len(self.push_received)))
+        if len(self.push_superceded) > 0:
+            summary.add_entry("Pushes superceded", pretty_number(len(self.push_superceded)))
         if len(self.no_telemetry_found) > 0:
             summary.add_entry("Pushes not analyzed (no client telemetry found)", pretty_number(len(self.no_telemetry_found)))
         if len(self.events) - len(self.no_telemetry_found) > 0:
