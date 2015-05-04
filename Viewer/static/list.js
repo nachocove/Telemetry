@@ -285,7 +285,8 @@ function refreshEvents() {
                     addFieldToRow(row, 'thread_id', event.thread_id);
                     table.appendChild(row)
                     row = getRow(event);
-                    addFieldToRow(row, 'message', event.message);
+                    var message = event.message.replace(/\n/g, "<br/>");
+                    addFieldToRow(row, 'message', message);
                 } else {
                     row = getRowWithCommonFields(i, event, 1);
                     addFieldToRow(row, 'message', event.message);
