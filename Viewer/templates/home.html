@@ -11,27 +11,26 @@
     All entries must be tag:value.
     <br/>
     Email search examples:
-    <pre>
-    email:user@example.com
-    timestamp:2014-08-10T08:24:00.152Z
+    <pre>email:user@example.com
+timestamp:2014-08-10T08:24:00.152Z
 
-    email:@example.com
-    timestamp:now
-    span:32
+email:@example.com
+timestamp:now
+span:32
 
-    email:6a5fff1d2d576dfa3886537f1450d8659359d0c56cb04b35cc52197b61d58222@nac02.com
-    </pre>
+email:6a5fff1d2d576dfa3886537f1450d8659359d0c56cb04b35cc52197b61d58222@nac02.com</pre>
     If timestamp is omitted, latest entry is used.
     <br/>
     Example 2:
-    <pre>
-    client:us-east-1:02a35223-8bea-420d-abe5-5e61cdc8b7ce
-    timestamp:2014-12-02T14:15:00.000Z
-    </pre>
+    <pre>client:us-east-1:02a35223-8bea-420d-abe5-5e61cdc8b7ce
+timestamp:2014-12-02T14:15:00.000Z</pre>
     Example 3:
-    <pre>
-    Date/Time:       2014-08-11T18:26:13Z
-    Device ID: Ncho39D6C69AXBC8EX4C81XBEB0X
-    </pre>
+    <pre>Date/Time:       2014-08-11T18:26:13Z
+Device ID: Ncho39D6C69AXBC8EX4C81XBEB0X</pre>
+    <br/>
+    Pinger Telemetry:
+    <pre>pinger:
+client:us-east-1:02a35223-8bea-420d-abe5-5e61cdc8b7ce
+timestamp:2014-08-10T08:24:00.152Z</pre>
 </div>
 {% endblock %}
