@@ -633,8 +633,8 @@ class SearchForm(forms.Form):
     EVENT_CHOICES = event_choices()
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
     message = forms.CharField(help_text="(optional) Enter a substring to look for in the telemetry.log-message field", required=False)
-    after = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
-    before = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    after = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25Z)")
+    before = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25Z)")
     email = forms.CharField(help_text="(optional) Email of user (maybe be obfuscated already)", required=False)
 
     event_type = forms.MultipleChoiceField(choices=EVENT_CHOICES, widget=forms.CheckboxSelectMultiple(),
