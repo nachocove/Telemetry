@@ -7,6 +7,7 @@ from AWS.selectors import SelectorEqual, SelectorContains
 from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph, Link, ListItem, \
     UnorderedList
 from misc.number_formatter import pretty_number
+from misc.support import Support, SupportBackLogEvent
 from misc.utc_datetime import UtcDateTime
 from monitors.monitor_base import Monitor, get_client_telemetry_link, get_pinger_telemetry_link
 
@@ -26,7 +27,7 @@ class MonitorPinger(Monitor):
         if not key in pinger_telemetry:
             self.logger.info('Querying %s...', self.desc)
             all_events = get_s3_events(self.s3conn, self.bucket_name, self.path_prefix, "log", self.start, self.end, logger=self.logger)
-            pinger_telemetry[key] = sorted([ev for ev in all_events if self.start <= ev['timestamp'] < self.end], key=lambda x: ev['timestamp'])
+            pinger_telemetry[key] = sorted([ev for ev in all_events if self.start <= ev['timestamp'] < self.end], key=lambda x: x['timestamp'])
         else:
             self.logger.info('Pulling results from cache')
         return pinger_telemetry[key]
@@ -93,7 +94,15 @@ class MonitorPingerPushMessages(MonitorPinger):
             query.add_range('timestamp', push['timestamp'], UtcDateTime(push['timestamp'].datetime + time_frame))
             events, count = self.query_all(query)
             if not events:
-                push['annotations'].append("No client telemetry found.")
+                query = Query()
+                query.add('event_type', SelectorEqual('SUPPORT'))
+                query.add('client', SelectorEqual(push['client']))
+                query.add_range('uploaded_at', self.start, self.end)
+                backlogged_events = sorted(Support.filter(self.query_all(query)[0], [SupportBackLogEvent]), reverse=True, key=lambda x: x.timestamp)
+                if not backlogged_events:
+                    push['annotations'].append("No client telemetry found.")
+                else:
+                    push['annotations'].append("Client is backlogged: num_events %s oldest_event %s" % (backlogged_events[0].num_events, backlogged_events[0].oldest_event))
                 self.no_telemetry_found.append(push)
                 continue
 
