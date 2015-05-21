@@ -13,6 +13,7 @@ from core.connection import aws_connection, projects, default_project, aws_s3_co
 from core.dates import iso_z_format
 from misc.utc_datetime import UtcDateTime
 from monitors.monitor_base import Summary
+from monitors.monitor_count import MonitorEmails
 from monitors.monitor_pinger import MonitorPingerPushMessages, MonitorPingerErrors, MonitorPingerWarnings, \
     MonitorClientPingerIssues
 
@@ -36,7 +37,7 @@ class NachoDateTimeField(forms.DateTimeField):
         return UtcDateTime(value)
 
 class ReportsForm(forms.Form):
-    reports = {'emails_per_timeframe': {'description': 'Email Addresses Per domain'},
+    reports = {'emails-per-domain': {'description': 'Email Addresses Per domain'},
                'pinger-push': {'description': 'Pinger Push Misses'},
                'pinger-errors': {'description': 'Pinger Errors'},
                'pinger-warnings': {'description': 'Pinger Warnings'},
@@ -70,12 +71,7 @@ def home(request):
                                   context_instance=RequestContext(request))
 
 
-    if form.cleaned_data['report'] == 'emails_per_timeframe':
-        return HttpResponseRedirect(reverse(emails_per_timeframe,
-                                            kwargs={'end': iso_z_format(form.cleaned_data['end']),
-                                                    'start': iso_z_format(form.cleaned_data['start']),
-                                                    'project': form.cleaned_data['project']}))
-    elif form.cleaned_data['report'].startswith('pinger'):
+    if form.cleaned_data['report']:
         return HttpResponseRedirect(reverse(monitor_reports,
                                             kwargs={'report': form.cleaned_data['report'],
                                                     'end': iso_z_format(form.cleaned_data['end']),
@@ -91,8 +87,8 @@ def monitor_reports(request, report, project, start, end):
                 'pinger-errors': MonitorPingerErrors,
                 'pinger-warnings': MonitorPingerWarnings,
                 'pinger-client': MonitorClientPingerIssues,
+                'emails-per-domain': MonitorEmails,
     }
-    s3conn = aws_s3_connection(project)
     conn = aws_connection(project)
     summary_table = Summary()
 
@@ -103,10 +99,16 @@ def monitor_reports(request, report, project, start, end):
               'end': UtcDateTime(end),
               'prefix': project,
               'attachment_dir': None,
+              }
+
+    if report.startswith('pinger'):
+        s3conn = aws_s3_connection(project)
+        kwargs.update({
               's3conn': s3conn,
               'bucket_name': projects_cfg.get(project, 'telemetry_bucket'),
               'path_prefix': projects_cfg.get(project, 'telemetry_prefix'),
-    }
+        })
+
     monitor = monitors[report](conn=conn, **kwargs)
     monitor.run()
     results = monitor.report(summary_table)
@@ -118,27 +120,3 @@ def monitor_reports(request, report, project, start, end):
                                                        'end': end,
                                                        },
                               context_instance=RequestContext(request))
-
-def emails_per_domain(email_addresses):
-    emails_per_domain_dict = dict()
-    for email in email_addresses:
-        userhash, domain = email.split('@')
-        if domain not in emails_per_domain_dict:
-            emails_per_domain_dict[domain] = 0
-        emails_per_domain_dict[domain] += 1
-    return emails_per_domain_dict
-
-def emails_per_timeframe(request, project, start, end):
-    conn = aws_connection(project)
-    logger = tmp_logger.getChild('emails_per_timeframe')
-    email_addresses = Query.emails_per_domain(UtcDateTime(start), UtcDateTime(end), conn, logger=logger)
-    per_domain = emails_per_domain(email_addresses)
-    return render_to_response('email_report.html', {'emails': email_addresses,
-                                                    'emails_per_domain': [{'name': x, 'count': per_domain[x]} for x in per_domain],
-                                                    'start': start,
-                                                    'end': end,
-                                                    'number_of_domains': len(per_domain.keys()),
-                                                    },
-                                      context_instance=RequestContext(request))
-
-
