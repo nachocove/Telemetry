@@ -7,7 +7,7 @@ from AWS.selectors import SelectorEqual, SelectorContains
 from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph, Link, ListItem, \
     UnorderedList
 from misc.number_formatter import pretty_number
-from misc.support import Support, SupportBackLogEvent
+from misc.support import Support, SupportBackLogEvent, SupportSha256EmailAddressEvent
 from misc.utc_datetime import UtcDateTime
 from monitors.monitor_base import Monitor, get_client_telemetry_link, get_pinger_telemetry_link
 
@@ -86,23 +86,53 @@ class MonitorPingerPushMessages(MonitorPinger):
         time_frame = timedelta(minutes=self.look_ahead)
         for push in self.events:
             push['annotations'] = []
+            push_start = push['timestamp']
+            push_end = UtcDateTime(push['timestamp'].datetime + time_frame)
             push_received_event = None
             newer_push_received_event = None
             query = Query()
             query.add('event_type', SelectorEqual('INFO'))
             query.add('client', SelectorEqual(push['client']))
-            query.add_range('timestamp', push['timestamp'], UtcDateTime(push['timestamp'].datetime + time_frame))
+            # use timestamp here, instead of uploaded_at, since we're interested in the events
+            # that HAPPENED after the push, and not those uploaded around the push (those could be older).
+            query.add_range('timestamp', push_start, push_end)
             events, count = self.query_all(query)
             if not events:
                 query = Query()
                 query.add('event_type', SelectorEqual('SUPPORT'))
                 query.add('client', SelectorEqual(push['client']))
-                query.add_range('uploaded_at', self.start, self.end)
-                backlogged_events = sorted(Support.filter(self.query_all(query)[0], [SupportBackLogEvent]), reverse=True, key=lambda x: x.timestamp)
-                if not backlogged_events:
-                    push['annotations'].append("No client telemetry found.")
+                # again use timestamp here to get records that happened around the time of the push, not those
+                # merely uploaded then (which could be older)
+                query.add_range('timestamp', push_start, push_end)
+                support_events, _ = self.query_all(query)
+                if not support_events:
+                    # Look for ANY telemetry.
+                    query = Query()
+                    query.add('client', SelectorEqual(push['client']))
+                    query.add_range('uploaded_at', push_start, push_end)
+                    nx, _ = self.query_all(query)
+                    if not nx:
+                        query = Query()
+                        query.add('client', SelectorEqual(push['client']))
+                        query.add_range('timestamp', push_start, push_end)
+                        nx, _ = self.query_all(query)
+                        if not nx:
+                            push['annotations'].append("No client telemetry (of any kind) uploaded in timeframe %s - %s.", push_start, push_end)
+                        else:
+                            push['annotations'].append("Some activity, but no usable client telemetry found in timeframe (%s)", nx)
+
+                    else:
+                        push['annotations'].append("No client telemetry (INFO, SUPPORT) found.")
                 else:
-                    push['annotations'].append("Client is backlogged: num_events %s oldest_event %s" % (backlogged_events[0].num_events, backlogged_events[0].oldest_event))
+                    backlogged_events = sorted(Support.filter(support_events, [SupportBackLogEvent]), reverse=True, key=lambda x: x.timestamp)
+                    sha_256_events = sorted(Support.filter(support_events, [SupportSha256EmailAddressEvent]), reverse=True, key=lambda x: x.timestamp)
+                    if backlogged_events:
+                        push['annotations'].append("Client is backlogged: num_events %s oldest_event %s" % (backlogged_events[0].num_events, backlogged_events[0].oldest_event))
+                    elif sha_256_events:
+                        push['annotations'].append("Only Support heartbeats (latest %s)" % sha_256_events[0].timestamp)
+                    else:
+                        push['annotations'].append("Only Support request (%s)" % [ x for x in support_events])
+
                 self.no_telemetry_found.append(push)
                 continue
 
