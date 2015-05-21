@@ -92,10 +92,10 @@ class Monitor(object):
         events = list()
 
         # Get the count first
-        query.limit = None
-        query.count = 1
-        event_count = Query.events(query, conn)
         if count_only:
+            query.limit = None
+            query.count = 1
+            event_count = Query.events(query, conn)
             return events, event_count
 
         query.limit = None
@@ -103,7 +103,7 @@ class Monitor(object):
 
         events = Query.events(query, conn)
 
-        return events, event_count
+        return events, len(events)
 
     def query_all(self, query, count_only=False):
         return self.query_events(self.conn, query, count_only, self.logger)
