@@ -363,17 +363,17 @@ function refreshEvents() {
                         row = getRowWithCommonFields(event, 1);
                         addFieldToRow(row, 'support', event.support);
                     } else {
-			var isFirst = true;
-			for (var j = 0; j < keys.length; j++) {
-			    if (isFirst) {
-				row = getRowWithCommonFields(event, keys.length);
-				isFirst = false;
-			    } else {
-				table.append(row);
-				row = getRow(event);
-			    }
-			    addFieldToRow(row, keys[j], json[keys[j]]);
-			}
+                        var isFirst = true;
+			            for (var j = 0; j < keys.length; j++) {
+			                if (isFirst) {
+				                row = getRowWithCommonFields(event, keys.length);
+				                isFirst = false;
+			                } else {
+				                table.append(row);
+				                row = getRow(event);
+			                }
+			                addFieldToRow(row, keys[j], json[keys[j]]);
+			            }
                     }
                 }
                 catch (ex) {
@@ -426,8 +426,8 @@ function updateDate() {
     // Update event table timestamp
     for (var i = 0; i < events.length; i++) {
         var date = new Date(events[i].timestamp);
-        $('#date_' + i).html(isUtc ? dateUtc(date) : dateLocal(date))
-        $('#time_' + i).html(isUtc ? timeUtc(date) : timeLocal(date));
+        $('#date_' + events[i].id).html(isUtc ? dateUtc(date) : dateLocal(date))
+        $('#time_' + events[i].id).html(isUtc ? timeUtc(date) : timeLocal(date));
     }
 
     // Update summary table
