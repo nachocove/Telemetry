@@ -27,12 +27,16 @@ class SupportEvent:
         msg += 'client: %s\n' % self.client
         return msg
 
+    def __str__(self):
+        return self.display()
 
 class SupportRequestEvent(SupportEvent):
     def __init__(self, event):
         SupportEvent.__init__(self, event)
         self.contact_info = self.params['ContactInfo']
         self.message = self.params['Message']
+        self.build_version = self.params.get('BuildVersion', '')
+        self.build_number = self.params.get('BuildNumber', '')
 
     def display(self):
         msg = SupportEvent.display(self)
@@ -62,6 +66,25 @@ class SupportSha256EmailAddressEvent(SupportEvent):
     def parse(event):
         try:
             return SupportSha256EmailAddressEvent(event)
+        except KeyError:
+            return None
+
+
+class SupportBackLogEvent(SupportEvent):
+    def __init__(self, event):
+        SupportEvent.__init__(self, event)
+        self.num_events = self.params['num_events']
+        self.oldest_event = self.params['oldest_event']
+
+    def display(self):
+        msg = SupportEvent.display(self)
+        msg += 'num_events: %s\noldest_event: %s\n' % (self.num_events, self.oldest_event)
+        return msg
+
+    @staticmethod
+    def parse(event):
+        try:
+            return SupportBackLogEvent(event)
         except KeyError:
             return None
 

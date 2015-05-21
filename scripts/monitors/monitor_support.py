@@ -40,6 +40,7 @@ class MonitorSupport(Monitor):
         table = Table()
         table.add_row(TableRow([TableHeader(Bold('Time (UTC)')),
                                 TableHeader(Bold('Client Id')),
+                                TableHeader(Bold('Build Version')),
                                 TableHeader(Bold('Contact Info')),
                                 TableHeader(Bold('Message')),
                                 TableHeader(Bold('%s telemetry' % self.prefix.capitalize())),
@@ -63,11 +64,13 @@ class MonitorSupport(Monitor):
                 note_table = Table()
                 note_table.add_row(TableRow([TableHeader(Bold('Time (UTC)')),
                                              TableHeader(Bold('Client Id')),
+                                             TableHeader(Bold('Build Version')),
                                              TableHeader(Bold('Contact Info')),
                                              TableHeader(Bold('%s telemetry' % self.prefix.capitalize())),
                                              ]))
                 note_table.add_row(TableRow([TableElement(Text(match.group('date') + ' ' + match.group('time'))),
                                              TableElement(Text(request.client)),
+                                             TableElement(Text("%s %s" % (request.build_version, request.build_number))),
                                              TableElement(Text(request.contact_info)),
                                              TableElement(Link("Telemetry", telemetry_link)),
                                              ]))
@@ -77,12 +80,12 @@ class MonitorSupport(Monitor):
 
             table.add_row(TableRow([TableElement(Text(match.group('date') + ' ' + match.group('time'))),
                                     TableElement(Text(request.client)),
+                                    TableElement(Text("%s %s" % (request.build_version, request.build_number))),
                                     TableElement(Text(request.contact_info)),
                                     TableElement(Text(request.message)),
                                     TableElement(Link("Telemetry", telemetry_link)),
                                     TableElement(freshdesk_link),
                                     ]))
-
 
         title = self.title()
         paragraph = Paragraph([Bold(title), table])

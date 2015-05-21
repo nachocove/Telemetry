@@ -69,7 +69,7 @@ class DateTimeAction(argparse.Action):
         if (option_string == '--after') and ('last' == value):
             setattr(namespace, self.dest, 'last')
         elif (option_string == '--before') and (value.startswith('now')):
-            setattr(namespace, self.dest, value)
+            setattr(namespace, self.dest, UtcDateTime(value))
         else:
             try:
                 setattr(namespace, self.dest, UtcDateTime(value))
@@ -120,6 +120,8 @@ def period_to_seconds(period):
             ret = 7*24*60*60
         elif period == 'daily':
             ret = 60*60*24
+        elif period == 'hourly':
+            ret = 60*60
         else:
             try:
                 ret = int(period)
@@ -330,14 +332,11 @@ def main():
     else:
         email = Email()
 
-    play_catch_up = False
-    if options.period:
-        play_catch_up = True
-
     # If we want a time window but do not have one from command line, get it
     # from config and current time
     options.do_update_timestamp = False
     if isinstance(options.start, str) and options.start == 'last':
+        options.do_update_timestamp = True
         try:
             timestamp_state = TimestampConfig(Config(options.state_file))
             options.start = timestamp_state.last
@@ -349,38 +348,33 @@ def main():
                 options.start = guess_last(options.period)
             except ValueError as e:
                 raise ValueError("Can't guess 'last': %s. Please create state file manually.", e)
-
-            options.do_update_timestamp = True
-
-    now = UtcDateTime(datetime.utcnow().replace(second=0, microsecond=0))
-    if isinstance(options.end, (str, unicode)) and options.end.startswith('now'):
-        options.end = UtcDateTime(options.end)
-        now = options.end
+    elif not options.start and options.period:
+        options.start = guess_last(options.period)
         options.do_update_timestamp = True
 
-    if (not options.start or not options.end) and options.period:
-        if not options.start:
-            options.start = guess_last(options.period)
-        if not options.end:
-            options.end = UtcDateTime(options.start.datetime + timedelta(seconds=period_to_seconds(options.period)))
-        options.do_update_timestamp = True
+    if not options.start:
+        raise ValueError("No start time given or derived")
 
-    while True:
-        if options.end > now:
-            options.end = now
+    period_end = None
+    # TODO when calculating the end time, we might truncate to something close to the period, or the closest hour
+    # so we're not going to times like 2015-04-16T08:10:26.447Z...
+    orig_options_end = options.end if options.end else UtcDateTime(datetime.utcnow().replace(second=0, microsecond=0))
+    if options.period:
+        period_end = UtcDateTime(options.start.datetime + timedelta(seconds=period_to_seconds(options.period)))
+
+    while options.start < orig_options_end:
+        if period_end:
+            options.end = period_end
+            period_end = UtcDateTime(options.end.datetime + timedelta(seconds=period_to_seconds(options.period)))
+
+        if not options.end or options.end > orig_options_end:
+            options.end = orig_options_end
+
         ret = run_reports(copy.deepcopy(options), email, logger)
         if ret == False:
             break
 
-        if play_catch_up and now > options.end:
-            play_catch_up = True
-            options.start = options.end
-            options.end = UtcDateTime(options.start.datetime + timedelta(seconds=period_to_seconds(options.period)))
-        else:
-            play_catch_up = False
-
-        if not play_catch_up:
-            break
+        options.start = options.end
 
 
 def run_reports(options, email, logger):
@@ -443,7 +437,7 @@ def run_reports(options, email, logger):
             kwargs['bucket_name'] = options.aws_telemetry_bucket
             kwargs['path_prefix'] = options.aws_telemetry_prefix
             if monitor_name == 'pinger-push':
-                kwargs['look_ahead'] = 120
+                kwargs['look_ahead'] = 180
 
         # Run the monitor with retries to robustly handle service failures
         def run_monitor():

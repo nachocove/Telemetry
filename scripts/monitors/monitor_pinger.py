@@ -1,5 +1,5 @@
 # Copyright 2014, NachoCove, Inc
-from datetime import timedelta
+from datetime import timedelta, datetime
 import re
 from AWS.query import Query
 from AWS.s3_telemetry import get_s3_events
@@ -7,6 +7,7 @@ from AWS.selectors import SelectorEqual, SelectorContains
 from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph, Link, ListItem, \
     UnorderedList
 from misc.number_formatter import pretty_number
+from misc.support import Support, SupportBackLogEvent
 from misc.utc_datetime import UtcDateTime
 from monitors.monitor_base import Monitor, get_client_telemetry_link, get_pinger_telemetry_link
 
@@ -26,7 +27,7 @@ class MonitorPinger(Monitor):
         if not key in pinger_telemetry:
             self.logger.info('Querying %s...', self.desc)
             all_events = get_s3_events(self.s3conn, self.bucket_name, self.path_prefix, "log", self.start, self.end, logger=self.logger)
-            pinger_telemetry[key] = sorted([ev for ev in all_events if self.start <= ev['timestamp'] < self.end], key=lambda x: ev['timestamp'])
+            pinger_telemetry[key] = sorted([ev for ev in all_events if self.start <= ev['timestamp'] < self.end], key=lambda x: x['timestamp'])
         else:
             self.logger.info('Pulling results from cache')
         return pinger_telemetry[key]
@@ -65,7 +66,9 @@ class MonitorPingerPushMessages(MonitorPinger):
         MonitorPinger.__init__(self, *args, **kwargs)
         self.unprocessed_push = []
         self.fetch_before_push = []
+        self.no_telemetry_found = []
         self.push_received = []
+        self.push_superceded = []
         self.push_missed_by_client = {}
         self.look_ahead = look_ahead if look_ahead is not None else 180
 
@@ -76,38 +79,64 @@ class MonitorPingerPushMessages(MonitorPinger):
             if 'context' not in ev:
                 m = context_re.search(ev['message'])
                 ev['context'] = m.group('context') if m else ''
+            ev.setdefault("session", "")
+            ev.setdefault("device", "")
 
         self.logger.debug("Found %d push events", len(self.events))
         time_frame = timedelta(minutes=self.look_ahead)
         for push in self.events:
             push['annotations'] = []
             push_received_event = None
+            newer_push_received_event = None
             query = Query()
             query.add('event_type', SelectorEqual('INFO'))
             query.add('client', SelectorEqual(push['client']))
             query.add_range('timestamp', push['timestamp'], UtcDateTime(push['timestamp'].datetime + time_frame))
             events, count = self.query_all(query)
+            if not events:
+                query = Query()
+                query.add('event_type', SelectorEqual('SUPPORT'))
+                query.add('client', SelectorEqual(push['client']))
+                query.add_range('uploaded_at', self.start, self.end)
+                backlogged_events = sorted(Support.filter(self.query_all(query)[0], [SupportBackLogEvent]), reverse=True, key=lambda x: x.timestamp)
+                if not backlogged_events:
+                    push['annotations'].append("No client telemetry found.")
+                else:
+                    push['annotations'].append("Client is backlogged: num_events %s oldest_event %s" % (backlogged_events[0].num_events, backlogged_events[0].oldest_event))
+                self.no_telemetry_found.append(push)
+                continue
+
             perform_fetch = None
             for ev in events:
                 if 'PerformFetch called' in ev['message']:
                     if not push_received_event:
                         perform_fetch = perform_fetch or ev
-                elif 'Got remote notification' in ev['message'] and "session = %s" % push['session'] in ev['message']:
-                    push_received_event = ev
-                    break
+                elif 'Got remote notification' in ev['message']:
+                    m = re.search("ses[sion]? = (?P<session>[a-f0-9]+);(.*)time = (?P<time>[0-9]+);", ev['message'].replace('\n', ''))
+                    if m:
+                        t = UtcDateTime(datetime.utcfromtimestamp(int(m.group('time'))))
+                        if m.group('session') == push['session']:
+                            push_received_event = ev
+                            break
+                        elif t > push['timestamp']:
+                            newer_push_received_event = ev
+                            push['annotations'].append("Newer push superceded this one.")
+                            break
+                        else:
+                            self.logger.warn("Push seen that is not for this session, and not newer than this push! %s, %s", push, ev['message'])
+                    else:
+                        self.logger.warn("Could not process 'Got remote notification' message %s", ev['message'])
 
-            if not push_received_event:
+            if not push_received_event and not newer_push_received_event:
                 if push['client'] not in self.push_missed_by_client:
                     self.push_missed_by_client[push['client']] = {}
                 if push['device'] not in self.push_missed_by_client[push['client']]:
                     self.push_missed_by_client[push['client']][push['device']] = []
                 self.push_missed_by_client[push['client']][push['device']].append(push)
-                if not events:
-                    push['annotations'].append("No client telemetry found.")
-                else:
-                    push['annotations'].append("No Push received in %s" % time_frame)
-
+                push['annotations'].append("No Push received in %s" % time_frame)
                 self.unprocessed_push.append(push)
+            elif newer_push_received_event:
+                self.push_superceded.append(push)
             else:
                 self.push_received.append((push, push_received_event))
 
@@ -153,10 +182,18 @@ class MonitorPingerPushMessages(MonitorPinger):
     def report(self, summary, **kwargs):
         paragraph_elements = []
         summary.add_entry("Pushes sent", pretty_number(len(self.events)))
-        summary.add_entry("Push received (min/avg/max)", "%.2f/%.2f/%.2f" % self.min_avg_max(self.push_received))
-        summary.add_entry("Push missed (%s lookahead)" % str(self.look_ahead), pretty_number(len(self.unprocessed_push)))
-        summary.add_entry("Percent Push missed", pretty_number(percentage(len(self.events), len(self.unprocessed_push))))
-        summary.add_entry("Clients with problems", pretty_number(len(self.push_missed_by_client)))
+        if len(self.push_received) > 0:
+            summary.add_entry("Pushes processed", pretty_number(len(self.push_received)))
+        if len(self.push_superceded) > 0:
+            summary.add_entry("Pushes superceded", pretty_number(len(self.push_superceded)))
+        if len(self.no_telemetry_found) > 0:
+            summary.add_entry("Pushes not analyzed (no client telemetry found)", pretty_number(len(self.no_telemetry_found)))
+        if len(self.events) - len(self.no_telemetry_found) > 0:
+            summary.add_entry("Look-Ahead", pretty_number(self.look_ahead))
+            summary.add_entry("Push received (min/avg/max)", "%.2f/%.2f/%.2f" % self.min_avg_max(self.push_received))
+            summary.add_entry("# Push missed", pretty_number(len(self.unprocessed_push)))
+            summary.add_entry("% Push missed", pretty_number(percentage(len(self.events), len(self.unprocessed_push))))
+            summary.add_entry("Devices with problems", pretty_number(len(self.push_missed_by_client)))
 
         # if self.unprocessed_push:
         #     paragraph_elements.append(Bold(self.title()))
@@ -194,6 +231,9 @@ class MonitorPingerPushMessages(MonitorPinger):
         if self.fetch_before_push:
             paragraph_elements.append(Bold("Pushes received after PerformFetch"))
             paragraph_elements.append(self.table_from_events(self.fetch_before_push))
+        if self.no_telemetry_found:
+            paragraph_elements.append(Bold("Pushes sent, but no telemetry found (yet)"))
+            paragraph_elements.append(self.table_from_events(self.no_telemetry_found))
 
         return Paragraph(paragraph_elements)
 

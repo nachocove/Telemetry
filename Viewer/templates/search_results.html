@@ -1,16 +1,12 @@
 {% extends "report_results_base.html" %}
+{% block head %}
+<link rel="stylesheet" type="text/css" href="/static/list.css">
+{% endblock %}
 {% block search_results %}
 {% if search_results %}
     <span id="search_results">
-        <div id="info">
-            <table class="table">
-                {% for p in params %}
-                <tr><td class="cell">{{ p.key }}</td><td class="cell">{{ p.value }}</td></tr>
-                {% endfor %}
-            </table>
-        </div>
-        <br>
         <div id="results">
+            <span id="results_help"><h3>To get to telemetry for a search result, click on the link in the"Uploaded At" column. Telemetry will open in a new window.</h3></span>
         <table class="table">
             <thead>
             <tr>
@@ -33,5 +29,7 @@
         </table>
     </div>
     </span>
+{% else %}
+<div><h3>Found no records</h3></div>
 {% endif %}
 {% endblock %}

@@ -188,7 +188,7 @@ class DeletePools(Boto3CliFunc):
         pool_list = []
         if pool_id:
             response = conn.describe_identity_pool(IdentityPoolId=pool_id)
-            pool = cls.check_response(response, 'IdentityPool')
+            pool = cls.check_response(response, expected_keys=('IdentityPool',))
             pool_list.append(pool)
         if name_prefix:
             response = conn.list_identity_pools(MaxResults=60)
@@ -357,21 +357,24 @@ class SetupPool(Boto3CliFunc):
         sub.add_argument('--s3-bucket-prefix', help='The nachomail accessible per-id bucket',
                                         default=self.default_bucket_prefix)
         sub.add_argument('--aws_prefix', help='The aws project prefix', default='dev')
+        sub.add_argument('--amend', help='Fix the existing pool with new settings', action='store_true', default=False)
         sub.set_defaults(func=self.run)
 
     def run(self, args, **kwargs):
         super(SetupPool, self).run(args, **kwargs)
         unauth_policy_supported = False if args.no_unauth else True
+        amend_pool = getattr(args, 'amend', False)
         auth_policy_supported = False if args.no_auth else True
         return self.setup_cognito(self.session, args.name, unauth_policy_supported, auth_policy_supported,
                                   args.developer_provider_name, args.aws_client_data_bucket, args.s3_bucket_prefix,
-                                  args.aws_account_id, args.aws_prefix, args.aws_sns_platform_app_arn)
+                                  args.aws_account_id, args.aws_prefix, args.aws_sns_platform_app_arn, amend_pool=amend_pool)
 
     def setup_cognito(self, session, name, unauth_policy_supported, auth_policy_supported, developer_provider_name,
-                      aws_s3_bucket, s3_bucket_prefix, aws_account_id, aws_prefix, sns_application_arn):
+                      aws_s3_bucket, s3_bucket_prefix, aws_account_id, aws_prefix, sns_application_arn, amend_pool=False):
         pool = self.create_identity_pool(session, name,
                                          developer_provider_name=developer_provider_name,
-                                         unauth_policy_supported=unauth_policy_supported)
+                                         unauth_policy_supported=unauth_policy_supported,
+                                         amend_pool=amend_pool)
         if not pool:
             logger.error("Could not create pool.")
             return False
@@ -383,7 +386,8 @@ class SetupPool(Boto3CliFunc):
                                               s3_bucket_prefix,
                                               unauth_policy_supported=unauth_policy_supported,
                                               auth_policy_supported=auth_policy_supported,
-                                              sns_platform_arn=sns_application_arn)
+                                              sns_platform_arn=sns_application_arn,
+                                              amend_pool=amend_pool)
         return True
 
 
@@ -403,7 +407,7 @@ class SetupPool(Boto3CliFunc):
         bucket = s3.Bucket(bucket_name)
         if not found:
             raise Exception("Bucket %s does not exist. Please create it first." % bucket_name)
-        versioning = bucket.BucketVersioning()
+        versioning = bucket.Versioning()
         if not versioning.status == 'Enabled':
             response = versioning.enable()
             cls.check_response(response)
@@ -419,11 +423,12 @@ class SetupPool(Boto3CliFunc):
 
 
     @classmethod
-    def create_cognito_role(cls, pool, iam_client, role_path, statements, auth=False):
+    def create_cognito_role(cls, pool, iam_client, role_path, statements, auth=False, amend_pool=False):
         auth_role = {}
         auth_role['RoleName'] = cls.role_name_template % {'Auth_or_Unauth': 'Auth' if auth else 'UnAuth',
                                                            'Pool_Name': pool['IdentityPoolName']
         }
+        policy_name = auth_role['RoleName']+'Policy'
 
         # convert to json, do replacement, and then convert back to dict, since the create_role call wants a dict.
         policy_json = json.dumps({"Version":"2012-10-17","Statement":[cls.trust_dict]},
@@ -436,19 +441,23 @@ class SetupPool(Boto3CliFunc):
             auth_role['Path'] = role_path
         try:
             response = iam_client.create_role(**auth_role)
+            role = cls.check_response(response, expected_keys=('Role',))
+            role = role['Role']
+            logger.info("CREATE_ROLE: %(RoleName)s: id=%(RoleId)s Path=%(Path)s", role)
         except ClientError as e:
-            import traceback
-            logger.error(auth_role)
-            logger.error("%s\n%s", e, traceback.format_exc())
-            raise
-        role = cls.check_response(response, expected_keys=('Role',))
-        role = role['Role']
-        logger.info("CREATE_ROLE: %(RoleName)s: id=%(RoleId)s Path=%(Path)s", role)
+            if 'EntityAlreadyExists' in e.message and amend_pool:
+                response = iam_client.get_role_policy(RoleName=auth_role['RoleName'], PolicyName=policy_name)
+                role = cls.check_response(response, expected_keys=('RoleName',))
+                logger.info("Get_Role: %(RoleName)s", role)
+            else:
+                import traceback
+                logger.error(auth_role)
+                logger.error("%s\n%s", e, traceback.format_exc())
+                raise
 
         auth_role_policy = copy.deepcopy(cls.policy_dict_template)
         auth_role_policy['Statement'] = statements
 
-        policy_name = role['RoleName']+'Policy'
         logger.info("CREATE_ROLE_POLICY: %s: PolicyName=%s", role['RoleName'], policy_name)
         response = iam_client.put_role_policy(RoleName=role['RoleName'],
                                               PolicyName=policy_name,
@@ -457,25 +466,31 @@ class SetupPool(Boto3CliFunc):
         return role
 
     @classmethod
-    def create_identity_pool(cls, session, name, developer_provider_name=None, unauth_policy_supported=True):
+    def create_identity_pool(cls, session, name, developer_provider_name=None, unauth_policy_supported=True, amend_pool=False):
         conn = session.client('cognito-identity', region_name='us-east-1')
+
+        pool_args = {'IdentityPoolName': name,
+                     'AllowUnauthenticatedIdentities': unauth_policy_supported,
+                     'SupportedLoginProviders': {},
+        }
+        if developer_provider_name:
+            pool_args['DeveloperProviderName'] = developer_provider_name
 
         response = conn.list_identity_pools(MaxResults=60)
         pools = cls.check_response(response, expected_keys=('IdentityPools',))
         for p in pools['IdentityPools']:
             if p['IdentityPoolName'] == name:
-                logger.error("Identity Pool with name %s already exists. Pick a new name or delete the pool first.",
-                             name)
-                return False
+                if not amend_pool:
+                    logger.error("Identity Pool with name %s already exists. Pick a new name or delete the pool first.",
+                                 name)
+                    return False
+                else:
+                    response = conn.update_identity_pool(IdentityPoolId=p['IdentityPoolId'], **pool_args)
+                    pool = cls.check_response(response, expected_keys=('IdentityPoolId', 'IdentityPoolName'))
+                    return pool
 
-        create_kwargs = {'IdentityPoolName': name,
-                         'AllowUnauthenticatedIdentities': unauth_policy_supported,
-                         'SupportedLoginProviders': {},
-        }
-        if developer_provider_name:
-            create_kwargs['DeveloperProviderName'] = developer_provider_name
-        logger.info("CREATE_IDENTITY_POOL: %s", create_kwargs)
-        response = conn.create_identity_pool(**create_kwargs)
+        logger.info("CREATE_IDENTITY_POOL: %s", pool_args)
+        response = conn.create_identity_pool(**pool_args)
         pool = cls.check_response(response, expected_keys=('IdentityPoolId', 'IdentityPoolName'))
         logger.info("CREATE_IDENTITY_POOL: %(IdentityPoolId)s: Name=%(IdentityPoolName)s", pool)
         return pool
@@ -492,7 +507,8 @@ class SetupPool(Boto3CliFunc):
                                          s3_object_permissions=None,
                                          s3_bucket_permissions=None,
                                          sns_platform_arn=None,
-                                         sns_permissions=None):
+                                         sns_permissions=None,
+                                         amend_pool=False):
         if dynamo_table_permissions is None:
             dynamo_table_permissions = cls.dynamo_table_permissions
         if s3_object_permissions is None:
@@ -514,20 +530,20 @@ class SetupPool(Boto3CliFunc):
                                           sns_platform_arn, sns_permissions)
         roles_created = {}
         if auth_policy_supported:
-            roles_created['authenticated'] = cls.create_cognito_role(pool, iam, role_path, statements, auth=True)
+            roles_created['authenticated'] = cls.create_cognito_role(pool, iam, role_path, statements, auth=True, amend_pool=amend_pool)
 
         if unauth_policy_supported:
-            roles_created['unauthenticated'] = cls.create_cognito_role(pool, iam, role_path, statements, auth=False)
+            roles_created['unauthenticated'] = cls.create_cognito_role(pool, iam, role_path, statements, auth=False, amend_pool=amend_pool)
 
         if not roles_created:
             logger.error("No roles created")
             return False
 
-        # TODO Need to add this once boto3 supports the call
-        #cognito = session.client('cognito-identity', region_name='us-east-1')
-        #response = cognito.set_identity_pool_roles(IdentityPoolId=pool['IdentityPoolId'],
-        #                                           Roles=dict([(k,roles_created[k]['RoleName']) for k in roles_created]))
-        #print response
+        cognito = session.client('cognito-identity', region_name='us-east-1')
+        response = cognito.set_identity_pool_roles(IdentityPoolId=pool['IdentityPoolId'],
+                                                   Roles=dict([(k,"arn:aws:iam::%s:role/%s/%s" % (aws_account_id, cls.role_name_path, roles_created[k]['RoleName'])) for k in roles_created]))
+        logger.debug(response)
+        cls.check_response(response)
         return roles_created
 
     @classmethod

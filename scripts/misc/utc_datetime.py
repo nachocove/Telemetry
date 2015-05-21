@@ -16,31 +16,32 @@ class UtcDateTime:
 
     def __init__(self, value=None):
         dt = None
-        if isinstance(value, (str, unicode, UtcDateTime)):
-            if isinstance(value, (str, unicode)):
-                if value.startswith('now'):
-                    parts = value.split('-')
-                    dt = datetime.datetime.utcnow()
-                    if len(parts) == 1:
-                        pass
-                    elif len(parts) == 2 and parts[1][0] in string.digits:
-                        m = re.match(r'(?P<digit>[0-9]+)(?P<hmsd>[%s])' % self.match_str, parts[1])
-                        if m:
-                            if m.group('hmsd') in self.hours:
-                                sub = datetime.timedelta(hours=int(m.group('digit')))
-                            elif m.group('hmsd') in self.minutes:
-                                sub = datetime.timedelta(minutes=int(m.group('digit')))
-                            elif m.group('hmsd') in self.seconds:
-                                sub = datetime.timedelta(seconds=int(m.group('digit')))
-                            elif m.group('hmsd') in self.days:
-                                sub = datetime.timedelta(days=int(m.group('digit')))
-                            else:
-                                raise Exception("unknown timeframe %s" % m.group('hmsd'))
-                            dt -= sub
-                    else:
-                        raise ValueError('format %s is not valid' % value)
+        if isinstance(value, (str, unicode)):
+            if value.startswith('now'):
+                parts = value.split('-')
+                dt = datetime.datetime.utcnow().replace(microsecond=0)
+                if len(parts) == 1:
+                    pass
+                elif len(parts) == 2 and parts[1][0] in string.digits:
+                    m = re.match(r'(?P<digit>[0-9]+)(?P<hmsd>[%s])' % self.match_str, parts[1])
+                    if m:
+                        if m.group('hmsd') in self.hours:
+                            sub = datetime.timedelta(hours=int(m.group('digit')))
+                        elif m.group('hmsd') in self.minutes:
+                            sub = datetime.timedelta(minutes=int(m.group('digit')))
+                        elif m.group('hmsd') in self.seconds:
+                            sub = datetime.timedelta(seconds=int(m.group('digit')))
+                        elif m.group('hmsd') in self.days:
+                            sub = datetime.timedelta(days=int(m.group('digit')))
+                        else:
+                            raise Exception("unknown timeframe %s" % m.group('hmsd'))
+                        dt -= sub
                 else:
-                    dt = dateutil.parser.parse(str(value))
+                    raise ValueError('format %s is not valid' % value)
+            else:
+                dt = dateutil.parser.parse(str(value))
+        elif isinstance(value, UtcDateTime):
+            dt = value.datetime
         elif isinstance(value, datetime.datetime):
             dt = value
         elif isinstance(value, int):
@@ -61,11 +62,8 @@ class UtcDateTime:
                                               )
         else:
             raise ValueError("Unsupported input type %s" % value.__class__)
-        try:
+        if dt:
             self.datetime = dt.replace(tzinfo=pytz.utc).astimezone(pytz.utc)
-        except TypeError as e:
-            print e
-            raise e
 
     def __repr__(self):
         s = self.datetime.strftime('%Y-%m-%dT%H:%M:%S')

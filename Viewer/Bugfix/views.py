@@ -498,6 +498,7 @@ def entry_page_base(project, client, after, before, params, logger, pinger_only=
                 # widen the search :-(
                 user_query = Query()
                 user_query.add('client', SelectorEqual(client))
+                user_query.add('uploaded_at', SelectorLessThanEqual(UtcDateTime(before)))
                 client_list = Query.users(user_query, conn)
 
         except DynamoDBError, e:
@@ -576,8 +577,8 @@ class SearchForm(forms.Form):
     EVENT_CHOICES = event_choices()
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
     message = forms.CharField(help_text="(optional) Enter a substring to look for in the telemetry.log-message field", required=False)
-    after = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
-    before = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    after = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25Z)")
+    before = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25Z)")
     email = forms.CharField(help_text="(optional) Email of user (maybe be obfuscated already)", required=False)
 
     event_type = forms.MultipleChoiceField(choices=EVENT_CHOICES, widget=forms.CheckboxSelectMultiple(),
@@ -653,72 +654,72 @@ def search_results(request, project, after, before):
         clients = client_ids_from_email(email, after, before, project, include_url=False)
     else:
         clients = {}
-
-    for event_type in request.GET.getlist('event_type', []):
-        if event_type not in events.TYPES:
-            msg = 'illegal event-type values %s' % request.GET.get('event_type')
-            logger.error(msg)
-            return render_to_response('search_results.html', {'message': msg},
-                                      context_instance=RequestContext(request))
-
-        query = Query()
-        query.limit = 100000
-        query.add('event_type', SelectorEqual(event_type))
-        if after and before:
-            query.add_range('uploaded_at', after, before)
-        elif after:
-            query.add('uploaded_at', SelectorGreaterThanEqual(after))
-        elif before:
-            query.add('uploaded_at', SelectorLessThanEqual(after))
-        for k in request.GET:
-            if k in ('event_type', 'email'):
-                continue
-
-            search = request.GET[k]
-            if not search:
-                continue  # don't allow empty values
-            if k == 'message':
-                if event_type == 'SUPPORT':
-                    k = "support"
-                elif event_type == 'CAPTURE':
-                    k = "capture_name"
-                elif event_type == 'COUNTER':
-                    k = "counter_name"
-
-            query.add(k, SelectorContains(search))
-
-        try:
-            logger.debug("Query=%s", query)
-            (_obj_list, _event_count) = Monitor.query_events(conn, query, False, logger)
-            if clients:
-                _obj_list = [x for x in _obj_list if 'client' in x and x['client'] in clients.keys()]
-
-            # TODO the count here seems wrong. It returns 0, despite the list being non-zero. For now, ignore the count.
-            _event_count = len(_obj_list)
-            logger.info('%d objects found', _event_count)
-            if _obj_list:
-                for o in _obj_list:
-                    if 'message' not in o:
-                        if 'support' in o:
-                            o['message'] = o['support']
-                        elif 'capture_name' in o:
-                            o['message'] = o['capture_name']
-                        elif 'counter_name' in o:
-                            o['message'] = o['counter_name']
-
-                obj_list.extend(_obj_list)
-                event_count += _event_count
-        except DynamoDBError, e:
-            logger.error('failed to query events - %s', str(e))
-            return render_to_response('search_results.html', {'message': 'failed to query events - %s' % str(e)},
-                                      context_instance=RequestContext(request))
-
-    for event in obj_list:
-        event['url'] = reverse(entry_page, kwargs={'client': event['client'],
-                                                   'timestamp': event['timestamp'],
-                                                   'span': 1,
-                                                   'project': project})
-        event['class'] = event['event_type'].lower()
+    if (not email or clients != {}):
+        for event_type in request.GET.getlist('event_type', []):
+            if event_type not in events.TYPES:
+                msg = 'illegal event-type values %s' % request.GET.get('event_type')
+                logger.error(msg)
+                return render_to_response('search_results.html', {'message': msg},
+                                          context_instance=RequestContext(request))
+    
+            query = Query()
+            query.limit = 100000
+            query.add('event_type', SelectorEqual(event_type))
+            if after and before:
+                query.add_range('uploaded_at', after, before)
+            elif after:
+                query.add('uploaded_at', SelectorGreaterThanEqual(after))
+            elif before:
+                query.add('uploaded_at', SelectorLessThanEqual(after))
+            for k in request.GET:
+                if k in ('event_type', 'email'):
+                    continue
+    
+                search = request.GET[k]
+                if not search:
+                    continue  # don't allow empty values
+                if k == 'message':
+                    if event_type == 'SUPPORT':
+                        k = "support"
+                    elif event_type == 'CAPTURE':
+                        k = "capture_name"
+                    elif event_type == 'COUNTER':
+                        k = "counter_name"
+    
+                query.add(k, SelectorContains(search))
+    
+            try:
+                logger.debug("Query=%s", query)
+                (_obj_list, _event_count) = Monitor.query_events(conn, query, False, logger)
+                if clients:
+                    _obj_list = [x for x in _obj_list if 'client' in x and x['client'] in clients.keys()]
+    
+                # TODO the count here seems wrong. It returns 0, despite the list being non-zero. For now, ignore the count.
+                _event_count = len(_obj_list)
+                logger.info('%d objects found', _event_count)
+                if _obj_list:
+                    for o in _obj_list:
+                        if 'message' not in o:
+                            if 'support' in o:
+                                o['message'] = o['support']
+                            elif 'capture_name' in o:
+                                o['message'] = o['capture_name']
+                            elif 'counter_name' in o:
+                                o['message'] = o['counter_name']
+    
+                    obj_list.extend(_obj_list)
+                    event_count += _event_count
+            except DynamoDBError, e:
+                logger.error('failed to query events - %s', str(e))
+                return render_to_response('search_results.html', {'message': 'failed to query events - %s' % str(e)},
+                                          context_instance=RequestContext(request))
+    
+        for event in obj_list:
+            event['url'] = reverse(entry_page, kwargs={'client': event['client'],
+                                                       'timestamp': event['timestamp'],
+                                                       'span': 1,
+                                                       'project': project})
+            event['class'] = event['event_type'].lower()
 
     params = [{'key': 'after', 'value': str(after)},
               {'key': 'before', 'value': str(before)},
@@ -732,6 +733,8 @@ def search_results(request, project, after, before):
         params.append({'key': k, 'value': value})
     if clients:
         params.append({'key': 'clients (from email)', 'value': ", ".join(clients.keys())})
+    else:
+        params.append({'key': 'clients (from email)', 'value': "found no clients"})
 
     return render_to_response('search_results.html', {'params': params,
                                                       'project': project,
