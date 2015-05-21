@@ -133,22 +133,22 @@ def period_to_seconds(period):
         raise ValueError('Unknown value %s for period' % period)
     return ret
 
-mapping = {'errors': MonitorErrors,
-           'warnings': MonitorWarnings,
-           'users': MonitorUsers,
-           'emails': MonitorEmails,
-           'events': MonitorEvents,
-           'captures': MonitorCaptures,
-           'counters': MonitorCounters,
-           'crashes': MonitorHockeyApp,
-           'ui': MonitorUi,
-           'support': MonitorSupport,
-           'cost': MonitorCost,
-           'data-usage': MonitorUserDataUsage,
-           'pinger-push': MonitorPingerPushMessages,
-           'pinger-errors': MonitorPingerErrors,
-           'pinger-warnings': MonitorPingerWarnings,
-           'pinger-client': MonitorClientPingerIssues,
+report_mapping = {'errors': {"klass": MonitorErrors, "description": ""},
+           'warnings': {"klass": MonitorWarnings, "description": ""},
+           'users': {"klass": MonitorUsers, "description": ""},
+           'emails': {"klass": MonitorEmails, "description": "Email Addresses Per domain"},
+           'events': {"klass": MonitorEvents, "description": ""},
+           'captures': {"klass": MonitorCaptures, "description": ""},
+           'counters': {"klass": MonitorCounters, "description": ""},
+           'crashes': {"klass": MonitorHockeyApp, "description": ""},
+           'ui': {"klass": MonitorUi, "description": ""},
+           'support': {"klass": MonitorSupport, "description": ""},
+           'cost': {"klass": MonitorCost, "description": ""},
+           'data-usage': {"klass": MonitorUserDataUsage, "description": ""},
+           'pinger-push': {"klass": MonitorPingerPushMessages, "description": "Pinger Push Misses"},
+           'pinger-errors': {"klass": MonitorPingerErrors, "description": "Pinger Errors"},
+           'pinger-warnings': {"klass": MonitorPingerWarnings, "description": "Pinger Warnings"},
+           'pinger-client': {"klass": MonitorClientPingerIssues, "description": "Pinger Client Issues"},
            }
 
 def main():
@@ -226,7 +226,7 @@ def main():
     report_group.add_argument('monitors',
                               nargs='*',
                               metavar='MONITOR',
-                              help='Choices are: %s' % ", ".join(mapping.keys()))
+                              help='Choices are: %s' % ", ".join(report_mapping.keys()))
     options = parser.parse_args()
 
     logging_format = '%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s'
@@ -407,7 +407,7 @@ def run_reports(options, email, logger):
                   'prefix': options.aws_prefix,
                   'attachment_dir': options.attachment_dir}
 
-        if monitor_name not in mapping:
+        if monitor_name not in report_mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
             continue
         elif monitor_name == 'crashes':
@@ -448,7 +448,7 @@ def run_reports(options, email, logger):
                               region='us-west-2',
                               is_secure=True,
                               debug=2 if options.debug_boto else 0)
-            monitor_cls = mapping[monitor_name]
+            monitor_cls = report_mapping[monitor_name]["klass"]
             new_monitor = monitor_cls(conn=conn, **kwargs)
             new_monitor.run()
             return new_monitor

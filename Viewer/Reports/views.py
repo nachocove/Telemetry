@@ -8,14 +8,11 @@ from django.shortcuts import render_to_response
 from django.template import RequestContext
 from django.views.decorators.csrf import csrf_exempt
 
-from AWS.query import Query
 from core.connection import aws_connection, projects, default_project, aws_s3_connection, projects_cfg
 from core.dates import iso_z_format
 from misc.utc_datetime import UtcDateTime
 from monitors.monitor_base import Summary
-from monitors.monitor_count import MonitorEmails
-from monitors.monitor_pinger import MonitorPingerPushMessages, MonitorPingerErrors, MonitorPingerWarnings, \
-    MonitorClientPingerIssues
+from monitor import report_mapping
 
 tmp_logger = logging.getLogger('telemetry')
 
@@ -37,15 +34,11 @@ class NachoDateTimeField(forms.DateTimeField):
         return UtcDateTime(value)
 
 class ReportsForm(forms.Form):
-    reports = {'emails-per-domain': {'description': 'Email Addresses Per domain'},
-               'pinger-push': {'description': 'Pinger Push Misses'},
-               'pinger-errors': {'description': 'Pinger Errors'},
-               'pinger-warnings': {'description': 'Pinger Warnings'},
-               'pinger-client': {'description': 'Pinger Client Issues'},
-               }
-
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects], )
-    report = forms.ChoiceField(choices=[(x, reports[x]['description']) for x in sorted(reports)], initial=sorted(reports.keys())[0])
+    report = forms.ChoiceField(choices=[(x, report_mapping[x]['description'])
+                                        for x in sorted(report_mapping) if report_mapping[x]["description"]],
+                               initial=sorted([k
+                                               for k in report_mapping.keys() if report_mapping[k]["description"]])[0])
     start = NachoDateTimeField()
     end = NachoDateTimeField()
 
@@ -83,16 +76,10 @@ def home(request):
 
 
 def monitor_reports(request, report, project, start, end):
-    monitors = {'pinger-push': MonitorPingerPushMessages,
-                'pinger-errors': MonitorPingerErrors,
-                'pinger-warnings': MonitorPingerWarnings,
-                'pinger-client': MonitorClientPingerIssues,
-                'emails-per-domain': MonitorEmails,
-    }
     conn = aws_connection(project)
     summary_table = Summary()
 
-    if report not in monitors:
+    if report not in report_mapping:
         raise Exception('unknown report')
 
     kwargs = {'start': UtcDateTime(start),
@@ -109,7 +96,7 @@ def monitor_reports(request, report, project, start, end):
               'path_prefix': projects_cfg.get(project, 'telemetry_prefix'),
         })
 
-    monitor = monitors[report](conn=conn, **kwargs)
+    monitor = report_mapping[report]["klass"](conn=conn, **kwargs)
     monitor.run()
     results = monitor.report(summary_table)
     return render_to_response('monitor_reports.html', {'title': monitor.title(),
