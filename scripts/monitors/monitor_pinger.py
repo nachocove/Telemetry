@@ -117,9 +117,9 @@ class MonitorPingerPushMessages(MonitorPinger):
                         query.add_range('timestamp', push_start, push_end)
                         nx, _ = self.query_all(query)
                         if not nx:
-                            push['annotations'].append("No client telemetry (of any kind) uploaded in timeframe %s - %s.", push_start, push_end)
+                            push['annotations'].append("No client telemetry (of any kind) uploaded in timeframe %s - %s." % (push_start, push_end))
                         else:
-                            push['annotations'].append("Some activity, but no usable client telemetry found in timeframe (%s)", nx)
+                            push['annotations'].append("Some activity, but no usable client telemetry found in timeframe (%s)" % nx)
 
                     else:
                         push['annotations'].append("No client telemetry (INFO, SUPPORT) found.")
