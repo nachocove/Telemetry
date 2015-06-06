@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" type="text/css" href="/static/list.css">
+{% endblock %}
+{% block javascript %}
+<script type="text/javascript">
+var params = {{ params|safe }};
+var events = {{ events|safe }};
+var show_user_id = {{ show_user_id }};
+var show_device_id = {{ show_device_id }};
+
+</script>
+<script type="text/javascript" src="/static/list.js"></script>
+{% endblock %}
+{% block navbar %}
+{% endblock %}
+{% block content %}
+<div><h1>Project: {{ project }}</h1></div>
+<table>
+    <tr>
+    {% for button in buttons %}
+        <td><table class="button_table"><td class="button_cell"><a href="{{ button.url }}"><font class="button_text">{{ button.text }}</font></a></td></table><td>
+    {% endfor %}
+    </tr>
+</table>
+<br/><br/>
+<table id="table_summary" class="table"></table><br/>
+<table id="table_events" class="table"></table>
+<table>
+    <tr>
+    {% for button in buttons %}
+        <td><table class="button_table"><td class="button_cell"><a href="{{ button.url }}"><font class="button_text">{{ button.text }}</font></a></td></table><td>
+    {% endfor %}
+    </tr>
+</table>
+{% endblock %}
