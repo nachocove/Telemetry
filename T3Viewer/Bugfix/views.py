@@ -479,16 +479,16 @@ def entry_page_by_timestamps(request, project, userid='', deviceid='', event_cla
 def get_pinger_telemetry(project, conn, userid, deviceid, after, before):
     logger = logging.getLogger('telemetry').getChild('pinger_telemetry')
     bucket_name = projects_cfg.get(project, 'pinger_telemetry_bucket')
-    some_events = get_pinger_events(conn, bucket_name, after, before, logger=logger)
+    some_events = get_pinger_events(conn, bucket_name, userid, deviceid, after, before, logger=logger)
     events = []
     for ev in some_events:
-        if 'user_id' in ev:
-            if userid and userid != ev['user_id']:
+        # TODO - what's this for?
+        if 'client' in ev:
+            if userid and userid != ev['client']:
                 continue
-            parts = ev['user_id'].split(':')
+            parts = ev['client'].split(':')
             if len(parts) > 2:
-                ev['user_id'] = ":".join(parts[0:2])
-        #TODO filter on devices too
+                ev['client'] = ":".join(parts[0:2])
         events.append(ev)
     return events
 

@@ -23,7 +23,7 @@ T3_EVENT_CLASS_FILE_PREFIXES = {
          'PINGER': 'plog',
 }
 
-def get_pinger_events(conn, bucket_name, after, before, logger=None):
+def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, logger=None):
     logger.info("Getting events of class PINGER...")
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)
@@ -52,6 +52,14 @@ def get_pinger_events(conn, bucket_name, after, before, logger=None):
                         if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
                             nm+=1
                             continue
+                        if userid and ev['client'] != userid:
+                            nm+=1
+                            continue
+                        if deviceid and ev['device'] != deviceid:
+                            nm+=1
+                            continue
+                        ev['device_id'] = ev['device']
+                        ev['user_id'] = ev['client']
                         ev['thread_id'] = ""
                         ev['timestamp'] = timestamp
                         ev['uploaded_at'] = uploaded_at_ts
