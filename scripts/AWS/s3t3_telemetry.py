@@ -88,8 +88,12 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
     for date_prefix in get_T3_client_prefixes(after, before):
         get_prefix = date_prefix + client_prefix
         logger.info("get_prefix is %s" % get_prefix)
-        if not userid and deviceid:
-            file_regex = re.compile(r'.*%s/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (deviceid, T3_EVENT_CLASS_FILE_PREFIXES[type]))
+        if not userid:
+            if deviceid:
+                file_regex = re.compile(r'.*%s/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (deviceid, T3_EVENT_CLASS_FILE_PREFIXES[type]))
+            else:
+                userid_regex = '\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+'
+                file_regex = re.compile(r'.*/(?P<user_id>%s)/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (userid_regex, T3_EVENT_CLASS_FILE_PREFIXES[type]))
         else:
             if not deviceid:
                 file_regex = re.compile(r'.*/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[type])
@@ -117,6 +121,10 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
                             ev['device_id'] = m.group('device_id')
                         else:
                             ev['device_id'] = deviceid
+                        if userid == '':
+                            ev['user_id'] = m.group('user_id')
+                        else:
+                            ev['user_id'] = userid
                         ev['uploaded_at'] = uploaded_at_ts
                         if 'event_type' not in ev:
                             ev['event_type'] = type
