@@ -32,6 +32,7 @@ def get_pinger_events(conn, bucket_name, after, before, logger=None):
     #20150529/plog-20150529063152823.gz
     events = []
     nm=0
+    prev_file_uploaded_at_ts = None
     for date_prefix in get_T3_client_prefixes(after, before):
         get_prefix = date_prefix
         logger.info("get_prefix is %s" % get_prefix)
@@ -39,19 +40,23 @@ def get_pinger_events(conn, bucket_name, after, before, logger=None):
         for key in bucket.list(prefix=get_prefix):
             m = file_regex.match(key.key)
             if m is not None:
-                file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
-                for line in file_content.splitlines():
-                    ev = json.loads(line)
-                    timestamp = UtcDateTime(ev['timestamp'])
-                    if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
-                        nm+=1
-                        continue
-                    ev['thread_id'] = ""
-                    ev['timestamp'] = timestamp
-                    uploaded_at = m.group('uploaded_at')
-                    uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
-                    ev['uploaded_at'] = UtcDateTime(uploaded_at_ts)
-                    events.append(ev)
+                uploaded_at = m.group('uploaded_at')
+                uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
+                uploaded_at_ts = UtcDateTime(uploaded_at_ts)
+                if file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
+                    logger.info("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
+                    file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
+                    for line in file_content.splitlines():
+                        ev = json.loads(line)
+                        timestamp = UtcDateTime(ev['timestamp'])
+                        if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
+                            nm+=1
+                            continue
+                        ev['thread_id'] = ""
+                        ev['timestamp'] = timestamp
+                        ev['uploaded_at'] = uploaded_at_ts
+                        events.append(ev)
+                    prev_file_uploaded_at_ts = uploaded_at_ts
     if logger:
         logger.debug("Found %d PINGER events. not matched %s", len(events), nm)
     return events
@@ -71,6 +76,7 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
         client_prefix = ''
     events = []
     nm=0
+    prev_file_uploaded_at_ts = None
     for date_prefix in get_T3_client_prefixes(after, before):
         get_prefix = date_prefix + client_prefix
         logger.info("get_prefix is %s" % get_prefix)
@@ -84,33 +90,49 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
         for key in bucket.list(prefix=get_prefix):
             m = file_regex.match(key.key)
             if m is not None:
-                file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
-                for line in file_content.splitlines():
-                    ev = json.loads(line)
-                    timestamp = UtcDateTime(ev['timestamp'])
-                    if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
-                        nm+=1
-                        continue
-                    ev['timestamp'] = timestamp
-                    ev['module'] = 'client'
-                    if deviceid == '':
-                        ev['device_id'] = m.group('device_id')
-                    else:
-                        ev['device_id'] = deviceid
-                    uploaded_at = m.group('uploaded_at')
-                    uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
-                    ev['uploaded_at'] = UtcDateTime(uploaded_at_ts)
-                    if 'event_type' not in ev:
-                        ev['event_type'] = type
-                    # TODO move this out appropriately
-                    if 'counter_start' in ev:
-                        ev['counter_start'] = UtcDateTime(ev['counter_start'])
-                    if 'counter_end' in ev:
-                        ev['counter_end'] = UtcDateTime(ev['counter_end'])
-                    events.append(ev)
+                uploaded_at = m.group('uploaded_at')
+                uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
+                uploaded_at_ts = UtcDateTime(uploaded_at_ts)
+                if file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
+                    logger.info("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
+                    file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
+                    for line in file_content.splitlines():
+                        ev = json.loads(line)
+                        timestamp = UtcDateTime(ev['timestamp'])
+                        if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
+                            nm+=1
+                            continue
+                        ev['timestamp'] = timestamp
+                        if 'module' not in ev:
+                            ev['module'] = 'client'
+                        if deviceid == '':
+                            ev['device_id'] = m.group('device_id')
+                        else:
+                            ev['device_id'] = deviceid
+                        ev['uploaded_at'] = uploaded_at_ts
+                        if 'event_type' not in ev:
+                            ev['event_type'] = type
+                        # TODO move this out appropriately
+                        if 'counter_start' in ev:
+                            ev['counter_start'] = UtcDateTime(ev['counter_start'])
+                        if 'counter_end' in ev:
+                            ev['counter_end'] = UtcDateTime(ev['counter_end'])
+                        events.append(ev)
+                    prev_file_uploaded_at_ts = uploaded_at_ts
+
     if logger:
         logger.debug("Found %d %s events. not matched %s", len(events), type, nm)
     return events
+
+def file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
+    if uploaded_at_ts.datetime >= after.datetime and uploaded_at_ts.datetime < before.datetime:
+        return True
+    else:
+        if prev_file_uploaded_at_ts and prev_file_uploaded_at_ts.datetime >= after.datetime and prev_file_uploaded_at_ts.datetime < before.datetime:
+            logger.info("Prev File uploaded at %s is between %s and %s. So the file at %s should also be included", prev_file_uploaded_at_ts, before, after, uploaded_at_ts)
+            return True
+        else:
+            return False
 
 def get_T3_client_prefixes(after, before):
     from datetime import timedelta

@@ -223,12 +223,15 @@ def logout(request):
 def parse_paste_data(junk):
     dict_ = _parse_junk(junk, {'timestamp': 'timestamp',
                                 'userid': 'userid',
+                                'user-id': 'userid',
+                                'User ID': 'userid',
                                 'deviceid': 'deviceid',
                                 'Device ID': 'deviceid',
                                 'Date/Time': 'timestamp',
                                 'Launch Time': 'timestamp',
                                 'span': 'span',
-                               'email': 'email',
+                                'email': 'email',
+                                'search': 'search'
                                })
     if 'timestamp' in dict_:
         if dict_['timestamp'] == 'now':
