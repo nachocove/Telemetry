@@ -39,7 +39,6 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
         file_regex = re.compile(r'.*/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES['PINGER'])
         if search!= '':
             search_regex=re.compile(search)
-            print search_regex.pattern
         for key in bucket.list(prefix=get_prefix):
             m = file_regex.match(key.key)
             if m is not None:
@@ -107,10 +106,8 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
                 file_regex = re.compile(r'.*%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[type])
         if search!= '':
             search_regex=re.compile(search)
-            print search_regex.pattern
         for key in bucket.list(prefix=get_prefix):
             m = file_regex.match(key.key)
-            print file_regex.pattern
             if m is not None:
                 uploaded_at = m.group('uploaded_at')
                 uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
