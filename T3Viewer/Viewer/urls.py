@@ -22,8 +22,8 @@ urlpatterns = patterns('',
     url(r'^bugfix/(?P<project>\w+)/logs/(?P<event_class>%s)/(?P<userid>%s)/(?P<deviceid>%s)/(?P<timestamp>%s)/(?P<span>\d+)/$' % (eventclass_regex, userid_regex, deviceid_regex, timestamp_regex), 'Bugfix.views.entry_page'),
     url(r'^bugfix/(?P<project>\w+)/logs/(?P<event_class>%s)/(?P<deviceid>%s)/(?P<timestamp>%s)/(?P<span>\d+)/$' % (eventclass_regex, deviceid_regex, timestamp_regex), 'Bugfix.views.entry_page'),
     url(r'^bugfix/(?P<project>\w+)/logs/(?P<event_class>%s)/(?P<timestamp>%s)/(?P<span>\d+)/$' % (eventclass_regex, timestamp_regex), 'Bugfix.views.entry_page'),
-
-    url(r'^bugfix/(?P<project>\w+)/logs/(?P<event_class>%s)/(?P<userid>%s)/(?P<after>%s)/(?P<before>%s)/$' % (eventclass_regex, userid_regex, timestamp_regex, timestamp_regex), 'Bugfix.views.entry_page_by_timestamps'),
+    # old half supported search on date range. fix before reviving
+    #url(r'^bugfix/(?P<project>\w+)/logs/(?P<event_class>%s)/(?P<userid>%s)/(?P<after>%s)/(?P<before>%s)/$' % (eventclass_regex, userid_regex, timestamp_regex, timestamp_regex), 'Bugfix.views.entry_page_by_timestamps'),
 )
 
 urlpatterns += staticfiles_urlpatterns()
