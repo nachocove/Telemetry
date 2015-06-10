@@ -257,9 +257,15 @@ def process_report(request, project, form, loc, logger):
     else:
         kwargs['event_class'] = 'ALL'
     if 'userid' not in loc and 'deviceid' not in loc and 'email' in loc:
-        deviceid = get_deviceid_from_email(project, loc['timestamp'], loc['email'])
-        if deviceid:
-            kwargs['deviceid'] = deviceid
+        device_list = get_device_list_from_email(project, loc['timestamp'], loc['email'],
+                                                    loc.get('span', default_span), loc['event_class'])
+        if device_list:
+            if len(device_list) > 1:
+                print device_list
+                return render_to_response('device_picker.html', {'device_list': device_list.values(), 'project': project, 'email': loc['email']},
+                                  context_instance=RequestContext(request))
+            elif len(device_list) == 1:
+                kwargs['deviceid'] = device_list[device_list.keys()[0]]['device_id']
     return HttpResponseRedirect(reverse(entry_page, kwargs=kwargs))
 
 def obfuscate_email(email_address):
@@ -300,7 +306,36 @@ def get_email_address_events(email_address, support_events):
         raise Exception("Bad email %s", email_address)
     return obfuscated, filtered_events
 
-def get_deviceid_from_email(project, timestamp, email_address):
+def get_device_list(email_events, project, span, event_class):
+    device_list = {}
+    for ev in email_events:
+        if ev['user_id'] + ':' + ev['device_id'] not in device_list:
+            device_data = {}
+            device_data['user_id'] = ev['user_id']
+            device_data['device_id'] = ev['device_id']
+            support = json.loads(ev['support'])
+            device_data['sha_email'] = support['sha256_email_address']
+            device_data['first_timestamp'] = ev['timestamp']
+            device_data['last_timestamp'] = ev['timestamp']
+            device_data['url'] = reverse(entry_page, kwargs={'userid': device_data['user_id'],
+                                                                'deviceid': device_data['device_id'],
+                                                                'timestamp': device_data['last_timestamp'],
+                                                                'span': span,
+                                                                'event_class': event_class,
+                                                                'project': project})
+            device_list[ev['user_id'] + ':' + ev['device_id']] = device_data
+        else:
+            print "in else ", device_list[ev['user_id'] + ':' + ev['device_id']]['first_timestamp']
+            device_list[ev['user_id'] + ':' + ev['device_id']]['last_timestamp'] = ev['timestamp']
+            device_list[ev['user_id'] + ':' + ev['device_id']]['url'] = reverse(entry_page, kwargs={'userid': device_data['user_id'],
+                                                                'deviceid': device_data['device_id'],
+                                                                'timestamp': device_data['last_timestamp'],
+                                                                'span': span,
+                                                                'event_class': event_class,
+                                                                'project': project})
+    return device_list
+
+def get_device_list_from_email(project, timestamp, email_address, span, event_class):
     logger = logging.getLogger('telemetry').getChild('client_telemetry')
     # search a day back from timestamp backwards, 7 times
     before = UtcDateTime(str(timestamp))
@@ -312,9 +347,7 @@ def get_deviceid_from_email(project, timestamp, email_address):
         support_events = get_support_events(project, after, before, logger=logger)
         obfuscated, email_events = get_email_address_events(email_address, support_events)
         if len(email_events) > 0:
-            deviceid = email_events[-1]['device_id']
-            logger.info("Found device id %s from email %s" % (deviceid, email_address))
-            return deviceid
+            return get_device_list(email_events, project, span, event_class)
         before = UtcDateTime(str(after))
     return None
 
