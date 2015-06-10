@@ -23,7 +23,7 @@ T3_EVENT_CLASS_FILE_PREFIXES = {
          'PINGER': 'plog',
 }
 
-def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, logger=None):
+def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search, logger=None):
     logger.info("Getting events of class PINGER...")
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)
@@ -37,6 +37,9 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, logger
         get_prefix = date_prefix
         logger.info("get_prefix is %s" % get_prefix)
         file_regex = re.compile(r'.*/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES['PINGER'])
+        if search!= '':
+            search_regex=re.compile(search)
+            print search_regex.pattern
         for key in bucket.list(prefix=get_prefix):
             m = file_regex.match(key.key)
             if m is not None:
@@ -52,24 +55,27 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, logger
                         if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
                             nm+=1
                             continue
-                        if userid and ev['client'] != userid:
-                            nm+=1
-                            continue
-                        if deviceid and ev['device'] != deviceid:
-                            nm+=1
-                            continue
-                        ev['device_id'] = ev['device']
-                        ev['user_id'] = ev['client']
-                        ev['thread_id'] = ""
-                        ev['timestamp'] = timestamp
-                        ev['uploaded_at'] = uploaded_at_ts
-                        events.append(ev)
+                        if search != '':
+                            sm = search_regex.search(line)
+                        if search == '' or sm is not None:
+                            if userid and ev['client'] != userid:
+                                nm+=1
+                                continue
+                            if deviceid and ev['device'] != deviceid:
+                                nm+=1
+                                continue
+                            ev['device_id'] = ev['device']
+                            ev['user_id'] = ev['client']
+                            ev['thread_id'] = ""
+                            ev['timestamp'] = timestamp
+                            ev['uploaded_at'] = uploaded_at_ts
+                            events.append(ev)
                     prev_file_uploaded_at_ts = uploaded_at_ts
     if logger:
         logger.debug("Found %d PINGER events. not matched %s", len(events), nm)
     return events
 
-def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, logger=None):
+def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, search, logger=None):
     logger.info("Getting events of class %s for userid %s deviceid %s" % (type, userid, deviceid))
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)
@@ -88,19 +94,23 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
     for date_prefix in get_T3_client_prefixes(after, before):
         get_prefix = date_prefix + client_prefix
         logger.info("get_prefix is %s" % get_prefix)
+        userid_regex = '\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+'
         if not userid:
             if deviceid:
-                file_regex = re.compile(r'.*%s/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (deviceid, T3_EVENT_CLASS_FILE_PREFIXES[type]))
+                file_regex = re.compile(r'.*/(?P<user_id>%s)/%s/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (userid_regex, deviceid, T3_EVENT_CLASS_FILE_PREFIXES[type]))
             else:
-                userid_regex = '\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+'
                 file_regex = re.compile(r'.*/(?P<user_id>%s)/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (userid_regex, T3_EVENT_CLASS_FILE_PREFIXES[type]))
         else:
             if not deviceid:
                 file_regex = re.compile(r'.*/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[type])
             else:
                 file_regex = re.compile(r'.*%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[type])
+        if search!= '':
+            search_regex=re.compile(search)
+            print search_regex.pattern
         for key in bucket.list(prefix=get_prefix):
             m = file_regex.match(key.key)
+            print file_regex.pattern
             if m is not None:
                 uploaded_at = m.group('uploaded_at')
                 uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
@@ -114,26 +124,29 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
                         if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
                             nm+=1
                             continue
-                        ev['timestamp'] = timestamp
-                        if 'module' not in ev:
-                            ev['module'] = 'client'
-                        if deviceid == '':
-                            ev['device_id'] = m.group('device_id')
-                        else:
-                            ev['device_id'] = deviceid
-                        if userid == '':
-                            ev['user_id'] = m.group('user_id')
-                        else:
-                            ev['user_id'] = userid
-                        ev['uploaded_at'] = uploaded_at_ts
-                        if 'event_type' not in ev:
-                            ev['event_type'] = type
-                        # TODO move this out appropriately
-                        if 'counter_start' in ev:
-                            ev['counter_start'] = UtcDateTime(ev['counter_start'])
-                        if 'counter_end' in ev:
-                            ev['counter_end'] = UtcDateTime(ev['counter_end'])
-                        events.append(ev)
+                        if search != '':
+                            sm = search_regex.search(line)
+                        if search == '' or sm is not None:
+                            ev['timestamp'] = timestamp
+                            if 'module' not in ev:
+                                ev['module'] = 'client'
+                            if deviceid == '':
+                                ev['device_id'] = m.group('device_id')
+                            else:
+                                ev['device_id'] = deviceid
+                            if userid == '':
+                                ev['user_id'] = m.group('user_id')
+                            else:
+                                ev['user_id'] = userid
+                            ev['uploaded_at'] = uploaded_at_ts
+                            if 'event_type' not in ev:
+                                ev['event_type'] = type
+                            # TODO move this out appropriately
+                            if 'counter_start' in ev:
+                                ev['counter_start'] = UtcDateTime(ev['counter_start'])
+                            if 'counter_end' in ev:
+                                ev['counter_end'] = UtcDateTime(ev['counter_end'])
+                            events.append(ev)
                     prev_file_uploaded_at_ts = uploaded_at_ts
 
     if logger:

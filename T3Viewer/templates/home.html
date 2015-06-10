@@ -14,16 +14,16 @@
 	<ul>
     <li><b>email</b>: e.g test2@d2.officeburrito.com</li>
     <li><b>timestamp</b> or <b>Date/Time</b> or <b>Launch Time</b>: e.g 2015-06-04T19:12:20.404Z</li>
-    <li><b>userid</b> or <b>user-id</b> or <b>User ID</b>: eg. us-east-1:7df6e942-10c5-431f-9258-772e0b937ccd </li>
+    <li><b>userid</b> or <b>user-id</b> or <b>User ID</b>: eg. us-east-1:7df6e942-10c5-431f-9258-772e0b937ccd</li>
     <li><b>deviceid</b> or <b>Device Id</b>: Ncho39D6C69AXBC8EX4C81XBEB0X</li>
     <li><b>span</b>: e.g 2</li>
-        <li><b>search</b>: eg. "Crash"</li>
+        <li><b>search</b>: eg. Crash or AUTOD. This can also be a regular expression like ASPC\([0-9]\)</li>
 	</ul>
     <br/>
     <b>Note:</b> For faster searches, provide the <b>deviceid</b> along with the <b>userid</b>.
     <br/>
     <br/>
-    <b>Email based search examples:</b>
+    <b>Example 1: Email based search examples:</b>
     <pre>email:user@example.com
 timestamp: 2015-06-03T15:14:30.425Z
 
@@ -50,9 +50,9 @@ Device ID: Ncho39D6C69AXBC8EX4C81XBEB0X</pre>
     <pre>Launch Time: 2015-06-03T15:14:30.425Z
 Device ID: Ncho3ACDDB56XE75BX4668X8F205</pre>
     <br/>
-    <b>Example 6: Search on arbitrary string</b>
-    <pre>message:new mail push sent
-timestamp: 2015-06-03T15:14:30.425Z</pre>
-    <br/>
+    <b>Example 6: Search on a regular expression</b>
+    <pre>userid: us-east-1:7df6e942-10c5-431f-9258-772e0b937ccd
+timestamp: 2015-06-10T00:26:35.821Z
+search:ASPC\([0-9]\)</pre>
 </div>
 {% endblock %}
