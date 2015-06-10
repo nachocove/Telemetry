@@ -9,3 +9,4 @@ Parse/scripts/*.cfg
 .DS_Store
 
 Viewer/.idea/*
+T3Viewer/.idea/*

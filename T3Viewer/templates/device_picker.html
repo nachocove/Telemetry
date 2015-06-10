@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" type="text/css" href="/static/list.css">
+{% endblock %}
+{% block content %}
+<div><h2>Project: {{ project }}</h2></div>
+<div><h2>Email: {{email}}</h2></div>
+<br/>
+Multiple Devices were found. Please select one from the list<br/>
+<br/>
+<table class="table">
+    <thead>
+    <tr>
+        <th class="cell">User ID</th>
+        <th class="cell">Device ID</th>
+        <th class="cell">First Seen</th>
+        <th class="cell">Last Seen</th>
+    </tr>
+    </thead>
+    <tbody>
+{% for device in device_list %}
+       <tr>
+           <td class="cell"><a href="{{device.url}}" target="_blank">{{ device.user_id}}</a></td>
+           <td class="cell"><a href="{{device.url}}" target="_blank">{{ device.device_id}}</a></td>
+           <td class="cell">{{ device.first_timestamp }}</td>
+           <td class="cell">{{ device.last_timestamp }}</td>
+       </tr>
+{% endfor %}
+    </tbody>
+</table>
+{% endblock %}

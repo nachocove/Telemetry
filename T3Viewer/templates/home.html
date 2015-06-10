@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<span class="search" style="float:left;margin:10px;display: inline-block">
+    <form action="{% url 'bugfix-home' %}" method="post">{% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Submit" />
+    </form>
+</span>
+<div class="help" style="margin:10px;display: inline-block">
+    <br/>
+    All entries must be n <b>tag:value</b> format - one per line.
+	<br/>
+    The allowed tags are:
+	<ul>
+    <li><b>email</b>: e.g test2@d2.officeburrito.com</li>
+    <li><b>timestamp</b> or <b>Date/Time</b> or <b>Launch Time</b>: e.g 2015-06-04T19:12:20.404Z</li>
+    <li><b>userid</b> or <b>user-id</b> or <b>User ID</b>: eg. us-east-1:7df6e942-10c5-431f-9258-772e0b937ccd</li>
+    <li><b>deviceid</b> or <b>Device Id</b>: Ncho39D6C69AXBC8EX4C81XBEB0X</li>
+    <li><b>span</b>: e.g 2</li>
+        <li><b>search</b>: eg. Crash or AUTOD. This can also be a regular expression like ASPC\([0-9]\)</li>
+	</ul>
+    <br/>
+    <b>Note:</b> For faster searches, provide the <b>deviceid</b> along with the <b>userid</b>.
+    <br/>
+    <br/>
+    <b>Example 1: Email based search examples:</b>
+    <pre>email:user@example.com
+timestamp: 2015-06-03T15:14:30.425Z
+
+email:@example.com
+timestamp:now
+span:32
+
+email:6a5fff1d2d576dfa3886537f1450d8659359d0c56cb04b35cc52197b61d58222@nac02.com</pre>
+    If timestamp is omitted, latest entry is used.
+    <br/>
+    <br/>
+    <b>Example 2: Search by User Id</b>
+    <pre>userid: us-east-1:7df6e942-10c5-431f-9258-772e0b937ccd
+timestamp: 2015-06-04T19:12:20.404Z</pre>
+    <b>Example 3: Search by User Id & Device Id</b>
+    <pre>userid: us-east-1:7df6e942-10c5-431f-9258-772e0b937ccd
+timestamp: 2015-06-04T19:12:20.404Z
+deviceid: NchoD819080CX2F92X407CXACAC5</pre>
+    <b>Example 4: Search by Date/Time and Device ID</b>
+    <pre>Date/Time: 2015-06-03T15:14:30.425Z
+Device ID: Ncho39D6C69AXBC8EX4C81XBEB0X</pre>
+    <br/>
+    <b>Example 5: Search from paste of Hockey Crash Report Description</b>
+    <pre>Launch Time: 2015-06-03T15:14:30.425Z
+Device ID: Ncho3ACDDB56XE75BX4668X8F205</pre>
+    <br/>
+    <b>Example 6: Search on a regular expression</b>
+    <pre>userid: us-east-1:7df6e942-10c5-431f-9258-772e0b937ccd
+timestamp: 2015-06-10T00:26:35.821Z
+search:ASPC\([0-9]\)</pre>
+</div>
+{% endblock %}
