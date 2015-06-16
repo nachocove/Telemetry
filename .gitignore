@@ -7,3 +7,6 @@ Parse/scripts/*.cfg
 *.state
 .idea/*
 .DS_Store
+
+Viewer/.idea/*
+T3Viewer/.idea/*

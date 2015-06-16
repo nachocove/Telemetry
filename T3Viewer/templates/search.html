@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" type="text/css" href="/static/list.css">
+{% endblock %}
+{% block content %}
+<span>This search will search ALL CLIENTS and look at all the event-types checkmarked. This can be very expensive (and time consuming) if you try to pull too much data at once.</span>
+<span class="search" style="float:left;margin:10px;display: inline-block">
+    <form action="{% url 'search-form' %}" method="post">{% csrf_token %}
+        {{ form.as_p}}
+        <input type="submit" value="Submit"/>
+    </form>
+</span>
+{% endblock %}
