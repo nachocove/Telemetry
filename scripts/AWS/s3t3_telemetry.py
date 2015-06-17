@@ -1,6 +1,5 @@
 # Copyright 2014, NachoCove, Inc
 import json
-import os
 import re
 import zlib
 from boto.s3.connection import S3Connection
@@ -37,8 +36,8 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
         get_prefix = date_prefix
         logger.info("get_prefix is %s" % get_prefix)
         file_regex = re.compile(r'.*/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES['PINGER'])
-        if search!= '':
-            search_regex=re.compile(search)
+
+        search_regex=re.compile(search)
         for key in bucket.list(prefix=get_prefix):
             m = file_regex.match(key.key)
             if m is not None:
@@ -56,6 +55,8 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                             continue
                         if search != '':
                             sm = search_regex.search(line)
+                        else:
+                            sm = None
                         if search == '' or sm is not None:
                             if userid and ev['client'] != userid:
                                 nm+=1
@@ -104,8 +105,8 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
                 file_regex = re.compile(r'.*/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[type])
             else:
                 file_regex = re.compile(r'.*%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[type])
-        if search!= '':
-            search_regex=re.compile(search)
+
+        search_regex=re.compile(search)
         for key in bucket.list(prefix=get_prefix):
             m = file_regex.match(key.key)
             if m is not None:
@@ -123,6 +124,8 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
                             continue
                         if search != '':
                             sm = search_regex.search(line)
+                        else:
+                            sm = None
                         if search == '' or sm is not None:
                             ev['timestamp'] = timestamp
                             if 'module' not in ev:
