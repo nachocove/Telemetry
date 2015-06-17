@@ -64,6 +64,10 @@ function getRow(event) {
         case 'WBXML_RESPONSE':
             event_type = 'wbxml';
             break;
+        case 'IMAP_REQUEST':
+        case 'IMAP_RESPONSE':
+            event_type = 'imap';
+            break;
         default:
             event_type = event.event_type.toLowerCase();
             break;
@@ -286,6 +290,14 @@ function refreshEvents() {
         var event = events[i];
         var row;
         switch (event.event_type) {
+            case 'IMAP_REQUEST':
+            case 'IMAP_RESPONSE': {
+                row = getRowWithCommonFields(i, event, 1);
+                var message = event.message.replace(/\n/g, "<br/>");
+                addFieldToRow(row, 'message', message);
+                table.appendChild(row);
+                break;
+            }
             case 'DEBUG':
             case 'INFO':
             case 'WARN':
@@ -300,7 +312,7 @@ function refreshEvents() {
                 } else {
                     row = getRowWithCommonFields(i, event, 1);
                     addFieldToRow(row, 'message', event.message);
-                    table.appendChild(row)
+                    table.appendChild(row);
                 }
                 break;
             }

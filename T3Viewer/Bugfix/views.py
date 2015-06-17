@@ -46,6 +46,8 @@ T3_TYPES = ['ALL',
          'ERROR',
          'WBXML_REQUEST',
          'WBXML_RESPONSE',
+         'IMAP_REQUEST',
+         'IMAP_RESPONSE',
          'COUNTER',
          'STATISTICS2',
          'UI',
@@ -614,6 +616,10 @@ def entry_page_base(project, userid, deviceid, event_class, search, after, befor
             b64 = event['payload'].encode()
             event['wbxml_base64'] = cgi.escape(b64)
             event['wbxml'] = cgi.escape(decode_wbxml(b64))
+        elif event['event_type'] in ['IMAP_REQUEST', 'IMAP_RESPONSE']:
+            event['message'] = base64.b64decode(event['payload'])
+            del event['payload']
+
         if 'message' in event:
             event['message'] = cgi.escape(event['message'])
         if 'timestamp' in event:
