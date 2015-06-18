@@ -9,7 +9,16 @@
         "aws_secret_access_key" : ""
     },
     "s3_config": {
-        "s3_bucket": "c6ae00d0-e259-4bfc-903d-5b6bc62cd651-dev-telemetry",
+        "client_t3_device_info_bucket": "c6ae00d0-dev-t3-device-info",
+        "client_t3_log_bucket": "c6ae00d0-dev-t3-log",
+        "client_t3_protocol_bucket": "c6ae00d0-dev-t3-protocol",
+        "client_t3_ui_bucket": "c6ae00d0-dev-t3-ui",
+        "client_t3_support_bucket": "c6ae00d0-dev-t3-support",
+        "client_t3_counter_bucket": "c6ae00d0-dev-t3-counter",
+        "client_t3_statistics2_bucket": "c6ae00d0-dev-t3-statistics2",
+        "client_t3_distribution_bucket": "c6ae00d0-dev-t3-distribution",
+        "client_t3_samples_bucket": "c6ae00d0-dev-t3-samples",
+        "client_t3_time_series_bucket": "c6ae00d0-dev-t3-time-series",
         "clientlog_jsonpath": "json/clientlog_jsonpath.json"
     },
     "db_config": {
@@ -26,7 +35,7 @@
         "tls": false,
         "from_address":"janv@nachocove.com",
         "username" : "",
-        "password" : ""
+        "password" : "",
         "recipients":"nerds@nachocove.com"
     }
 }

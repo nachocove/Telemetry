@@ -153,7 +153,7 @@ def get_user_device_prefixes(logger, config, startdt_prefix):
                                                          aws_access_key_id=aws_config["aws_access_key_id"],
                                                          is_secure=True,
                                                          debug=0)
-    bucket_name = s3_config["s3_bucket"]
+    bucket_name = s3_config["client_t3_log_bucket"]
     bucket = conn.get_bucket(bucket_name)
     from boto.s3 import prefix
     for l1_prefix in bucket.list(prefix=startdt_prefix + '/', delimiter='/'):
@@ -200,9 +200,9 @@ def upload_logs(logger, config, start, end):
             sql_statement="COPY clientlog FROM 's3://%s/%s/log-' \
             CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s' \
             gzip \
-            json 's3://%s/%s'" % (s3_config["s3_bucket"], user_device_prefix,
+            json 's3://%s/%s'" % (s3_config["client_t3_log_bucket"], user_device_prefix,
                                   aws_config["aws_access_key_id"], aws_config["aws_secret_access_key"],
-                                  s3_config["s3_bucket"], s3_config["clientlog_jsonpath"])
+                                  s3_config["client_t3_log_bucket"], s3_config["clientlog_jsonpath"])
             try:
                 logger.info(sql_statement)
                 cursor.execute(sql_statement)
