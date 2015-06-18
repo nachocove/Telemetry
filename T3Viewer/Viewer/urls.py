@@ -8,7 +8,7 @@ timestamp_regex = '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z'
 userid_regex = '\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+'
 deviceid_regex = 'Ncho\w+'
 eventclass_regex = '\w+'
-search_regex = '.+'
+search_regex = '.*'
 urlpatterns = patterns('',
     url(r'^login/$', 'Bugfix.views.login'),
     url(r'^logout/$', 'Bugfix.views.logout', name='logout'),

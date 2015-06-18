@@ -1,0 +1,32 @@
+{
+    "general_config": {
+        "project": "Development"
+	},
+    "aws_config": {
+        "region_name": "us-west-2",
+        "zones": ["us-west-2a"],
+        "aws_access_key_id" : "",
+        "aws_secret_access_key" : ""
+    },
+    "s3_config": {
+        "s3_bucket": "c6ae00d0-e259-4bfc-903d-5b6bc62cd651-dev-telemetry",
+        "clientlog_jsonpath": "json/clientlog_jsonpath.json"
+    },
+    "db_config": {
+        "dbname": "t3db",
+        "user":"nachocove",
+        "pwd":"",
+        "host":"t3-dw-instance.ccqihpfuufs8.us-west-2.redshift.amazonaws.com",
+        "port":"5439"
+    },
+    "email_config": {
+        "smtp_server": "email-smtp.us-west-2.amazonaws.com",
+        "port":587,
+        "start_tls": true,
+        "tls": false,
+        "from_address":"janv@nachocove.com",
+        "username" : "",
+        "password" : ""
+        "recipients":"nerds@nachocove.com"
+    }
+}
