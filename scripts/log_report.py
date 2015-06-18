@@ -27,6 +27,10 @@ from django.core.mail import EmailMultiAlternatives
 from django.utils.html import strip_tags
 import os
 import codecs
+try:
+    from cloghandler import ConcurrentRotatingFileHandler as RFHandler
+except ImportError:
+    from logging.handlers import RotatingFileHandler as RFHandler
 
 class DateTimeAction(argparse.Action):
     """
@@ -276,7 +280,8 @@ def parse_dates(args):
         end = args.end
     return start, end
 
-def configure_server_and_email(email_config, debug=False):
+def get_email_backend(email_config):
+    from django.core.mail.backends.smtp import EmailBackend
     server = email_config['smtp_server']
     port = email_config['port']
     username = email_config['username']
@@ -287,18 +292,35 @@ def configure_server_and_email(email_config, debug=False):
     start_tls = email_config['start_tls']
     tls = email_config['tls']
 
+    backend =  EmailBackend(host=server, port=port, username=username,
+        password=password, use_tls=start_tls)
+    return backend
 
-    smtp_server = EmailServer(server=server,
-                              port=port,
-                              username=username,
-                              password=password,
-                              tls=tls,
-                              start_tls=start_tls)
-    email = Email(email_server=smtp_server, debug=debug)
-    email.from_address = email_config['from_address']
-    email.to_addresses = email_config['recipients'].split(',')
-    return email
-
+def send_email(logger, email_config, html_part, start, project):
+    from django.core.mail import send_mail
+    text_part = strip_tags(html_part)
+    subject = "Daily Telemetry Summary %s for %s" % (project, start)
+    username = email_config['username']
+    if username:
+        password = email_config['password']
+    else:
+        password = None
+    from_address = email_config['from_address']
+    to_addresses = email_config['recipients'].split(',')
+    num_retries = 0
+    backend = get_email_backend(email_config)
+    while num_retries < 5:
+        try:
+            logger.info('Sending email to %s...', ', '.join(to_addresses))
+            send_mail(subject, text_part, from_address, to_addresses,
+                      fail_silently=False, auth_user=username, auth_password=password, connection=backend, html_message=html_part)
+            break
+        except Exception, e:
+            logger.error('fail to send email: %s', e)
+            num_retries += 1
+    else:
+        logger.error('fail to send email after %d retries' % num_retries)
+        return False
 # main
 def main():
     parser = argparse.ArgumentParser(description='Run T3 Log Report')
@@ -330,17 +352,26 @@ def main():
                               default=False)
     args = parser.parse_args()
     config = args.config
+
+    if not args.logdir:
+        args.logdir = './log'
+    if not os.path.exists(args.logdir):
+        os.makedirs(args.logdir)
+    log_file = os.path.abspath(os.path.join(args.logdir, 'event_report.log'))
     logging_format = '%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s'
     logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
 
-    logger.setLevel(logging.INFO)
+    handler = RFHandler(log_file, maxBytes=10*1024*1024, backupCount=10)
+    handler.setLevel(logging.DEBUG if args.debug else logging.INFO)
+    handler.setFormatter(logging.Formatter(logging_format))
+    logger.addHandler(handler)
+
     streamhandler = logging.StreamHandler(sys.stdout)
     streamhandler.setLevel(logging.DEBUG if args.debug else logging.INFO)
     streamhandler.setFormatter(logging.Formatter(logging_format))
     logger.addHandler(streamhandler)
 
-    if not args.logdir:
-        args.logdir = './log'
     args.attachment_dir = os.path.join(args.logdir, "attachments")
     if not os.path.exists(args.attachment_dir):
         os.makedirs(args.attachment_dir)
@@ -351,13 +382,6 @@ def main():
     if not end:
         logger.error("Invalid end time(%s)/period(%s)", args.end, args.period)
         exit(-1)
-    if args.email:
-        email = configure_server_and_email(config['email_config'], debug=args.debug)
-        if email is None:
-            logger.error('no email configuration')
-            exit(1)
-    else:
-        email = Email()
     delete_logs(logger, config)
     upload_logs(logger, config, start, end)
     summary, error_list, warning_list = select_counts(logger, config, start, end)
@@ -365,30 +389,7 @@ def main():
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
     report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": config["general_config"] }
     html_part = render_to_string('logreport.html', report_data)
-    text_part = strip_tags(html_part)
-
-    email.subject = "Daily Telemetry Summary %s from %s to %s" % (config['general_config']['project'], start, end)
-    end_time_suffix = datetime_tostr(end)
-    html_file = os.path.join(args.attachment_dir, 'monitor-email.%s.html' % end_time_suffix)
-    text_file = os.path.join(args.attachment_dir, 'monitor-email.%s.txt' % end_time_suffix)
-    email.attachments.append(html_file)
-    #email.attachments.append(text_file)
-    with codecs.open(html_file,'w',encoding='utf8') as f:
-        f.write(html_part)
-    #with open(text_file, 'w') as f:
-        #f.write(text_part)
-    num_retries = 0
-    while num_retries < 5:
-        try:
-            logger.info('Sending email to %s...', ', '.join(email.to_addresses))
-            email.send()
-            break
-        except Exception, e:
-            logger.error('fail to send email: %s', e)
-            num_retries += 1
-    else:
-        logger.error('fail to send email after %d retries' % num_retries)
-        return False
+    send_email(logger, config["email_config"], html_part, start, config['general_config']['project'])
     exit()
 
 if __name__ == '__main__':
