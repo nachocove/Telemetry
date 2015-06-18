@@ -355,7 +355,7 @@ def get_device_list_from_email(project, timestamp, email_address, span, event_cl
 
 def get_support_events(project, after, before, logger=None):
     conn = _aws_s3_connection(project)
-    bucket_name = projects_cfg.get(project, 'client_telemetry_bucket')
+    bucket_name = projects_cfg.get(project, 'client_t3_support_bucket')
     support_event_list = get_client_events(conn, bucket_name, '', '', after, before, 'SUPPORT', '', logger=logger)
     return support_event_list
 
@@ -534,7 +534,6 @@ def get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
 def get_t3_events(project, userid, deviceid, event_class, search, after, before):
     logger = logging.getLogger('telemetry').getChild('client_telemetry')
     conn = _aws_s3_connection(project)
-    bucket_name = projects_cfg.get(project, 'client_telemetry_bucket')
     event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     if isinstance(event_classes, list):
         all_events = []
@@ -542,12 +541,14 @@ def get_t3_events(project, userid, deviceid, event_class, search, after, before)
             if ev_class == 'PINGER':
                some_events = get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
             else:
+                bucket_name = projects_cfg.get(project, 'client_t3_%s_bucket' % T3_EVENT_CLASS_FILE_PREFIXES[ev_class])
                 some_events = get_client_events(conn, bucket_name, userid, deviceid, after, before, ev_class, search, logger=logger)
             all_events.extend(some_events)
     else:
         if event_class == 'PINGER':
             all_events = get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
         else:
+            bucket_name = projects_cfg.get(project, 'client_t3_%s_bucket' % T3_EVENT_CLASS_FILE_PREFIXES[event_class])
             all_events = get_client_events(conn, bucket_name, userid, deviceid, after, before, event_class, search, logger=logger)
     all_events = sorted(all_events, key=lambda x: x['timestamp'])
     return all_events
@@ -556,7 +557,7 @@ def get_t3_events(project, userid, deviceid, event_class, search, after, before)
 def get_last_device_info_event(project, userid, deviceid, after, before):
     logger = logging.getLogger('telemetry').getChild('client_telemetry')
     conn = _aws_s3_connection(project)
-    bucket_name = projects_cfg.get(project, 'client_telemetry_bucket')
+    bucket_name = projects_cfg.get(project, 'client_t3_device_info_bucket')
     device_info_list = get_client_events(conn, bucket_name, userid, deviceid, after, before, 'DEVICEINFO', '', logger=logger)
     if len(device_info_list) > 0:
         return device_info_list[-1]
