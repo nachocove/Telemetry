@@ -20,6 +20,11 @@ class AwsConfig(SectionConfig):
     def __init__(self, config_file):
         SectionConfig.__init__(self, config_file)
 
+    def __getattr__(self, key):
+        if key == 'isT3':
+            return self.config_file.getbool(AwsConfig.SECTION, key)
+        return SectionConfig.__getattr__(self, key)
+
 class CliFunc(object):
     def add_arguments(self, parser, subparser):
         pass
