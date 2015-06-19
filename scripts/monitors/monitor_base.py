@@ -149,10 +149,14 @@ class Monitor(object):
         return retval
 
 
-def get_client_telemetry_link(prefix, client, timestamp, span=2, host="http://localhost:8000/"):
+def get_client_telemetry_link(prefix, client, timestamp, span=2, host="http://localhost:8000/", isT3=False):
     if isinstance(timestamp, datetime):
         timestamp = UtcDateTime(timestamp)
-    return '%sbugfix/%s/logs/%s/%s/%d/' % (host, prefix, client, str(timestamp), span)
+    if isT3:
+        host="http://localhost:8081/"
+        return '%sbugfix/%s/logs/ALL/%s/%s/%d/' % (host, prefix, client, str(timestamp), span)
+    else:
+        return '%sbugfix/%s/logs/%s/%s/%d/' % (host, prefix, client, str(timestamp), span)
 
 def get_pinger_telemetry_link(prefix, timestamp, span=2, host="http://localhost:8000/"):
     if isinstance(timestamp, datetime):

@@ -14,6 +14,7 @@ class AwsConfig(SectionConfig):
         'sns_platform_app_arn',
         'telemetry_bucket',
         'telemetry_prefix',
+        'isT3'
     )
 
     def __init__(self, config_file):

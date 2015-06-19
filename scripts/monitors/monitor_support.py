@@ -6,12 +6,15 @@ from misc.support import *
 from misc.number_formatter import pretty_number
 from misc.html_elements import *
 from monitors.monitor_base import get_client_telemetry_link
-
+from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES
 
 class MonitorSupport(Monitor):
-    def __init__(self, freshdesk=None, *args, **kwargs):
+    def __init__(self, freshdesk=None, isT3=False, bucket_name=None, s3conn=None, *args, **kwargs):
         kwargs.setdefault('desc', 'support requests')
         Monitor.__init__(self, *args, **kwargs)
+        self.isT3 = isT3
+        self.s3conn = s3conn
+        self.bucket_name = bucket_name
         self.freshdesk = freshdesk
         self.freshdesk_api = FreshDesk(freshdesk['api_key']) if freshdesk and 'api_key' in freshdesk else None
 
@@ -27,8 +30,18 @@ class MonitorSupport(Monitor):
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self._query()
-        self._analyze()
+        if self.isT3:
+            self.events = get_client_events(self.s3conn, self.bucket_name, userid='', deviceid='',
+                        after=self.start, before=self.end, type='SUPPORT', search='', logger=self.logger)
+            self.requests = []
+            for event in self.events:
+                support_event = SupportEvent(event)
+                if 'BuildVersion' in support_event.params:
+                    support_request_event = SupportRequestEvent(event)
+                    self.requests.append(support_request_event)
+        else:
+            self._query()
+            self._analyze()
 
     def report(self, summary, **kwargs):
         num_requests = len(self.requests)
@@ -51,7 +64,7 @@ class MonitorSupport(Monitor):
             self.logger.info('\n' + request.display())
             match = re.match('(?P<date>.+)T(?P<time>.+)Z', request.timestamp)
             assert match
-            telemetry_link = get_client_telemetry_link(self.prefix, request.client, request.timestamp)
+            telemetry_link = get_client_telemetry_link(self.prefix, request.client, request.timestamp, isT3=self.isT3)
             if self.freshdesk_api:
                 freshdesk_id = self.freshdesk_api.create_ticket("%s NachoMail Support Request" % self.prefix.capitalize(),
                                                                 request.message,
