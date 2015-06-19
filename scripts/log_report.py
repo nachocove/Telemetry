@@ -175,7 +175,7 @@ def delete_logs(logger, config):
         conn.autocommit = False
         cursor = conn.cursor()
         logger.info("Deleting logs...")
-        sql_statement="delete from clientlog"
+        sql_statement="delete from client_log"
         try:
             logger.info(sql_statement)
             cursor.execute(sql_statement)
@@ -201,12 +201,12 @@ def upload_logs(logger, config, start, end):
         cursor = conn.cursor()
         logger.info("Uploading logs...")
         for user_device_prefix in get_user_device_prefixes(logger, config, startdt_prefix):
-            sql_statement="COPY clientlog FROM 's3://%s/%s/log-' \
+            sql_statement="COPY client_log FROM 's3://%s/%s/log-' \
             CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s' \
             gzip \
             json 's3://%s/%s'" % (s3_config["client_t3_log_bucket"], user_device_prefix,
                                   aws_config["aws_access_key_id"], aws_config["aws_secret_access_key"],
-                                  s3_config["client_t3_log_bucket"], s3_config["clientlog_jsonpath"])
+                                  s3_config["client_t3_log_bucket"], s3_config["client_log_jsonpath"])
             try:
                 logger.info(sql_statement)
                 cursor.execute(sql_statement)
@@ -234,21 +234,21 @@ def select_counts(logger, config, start, end):
         cursor = conn.cursor()
         try:
             logger.info("Selecting error counts from logs...")
-            sql_statement = "select distinct count(*), substring(message, 0, 72) from clientlog where event_type='ERROR' group by message order by count desc"
+            sql_statement = "select distinct count(*), substring(message, 0, 72) from client_log where event_type='ERROR' group by message order by count desc"
             logger.info(sql_statement)
             rows = select(logger, cursor, sql_statement)
             for row in rows:
                 error_list.append({"count":row[0], "message":row[1]})
             logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
             logger.info("Selecting warning counts from logs...")
-            sql_statement = "select distinct count(*), substring(message, 0, 72) from clientlog where event_type='WARN' group by message order by count desc"
+            sql_statement = "select distinct count(*), substring(message, 0, 72) from client_log where event_type='WARN' group by message order by count desc"
             logger.info(sql_statement)
             rows = select(logger, cursor, sql_statement)
             for row in rows:
                 warning_list.append({"count":row[0], "message":row[1]})
             logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
             logger.info("Selecting total counts from logs...")
-            sql_statement = "select distinct count(*), event_type from clientlog group by event_type order by count desc"
+            sql_statement = "select distinct count(*), event_type from client_log group by event_type order by count desc"
             logger.info(sql_statement)
             rows = select(logger, cursor, sql_statement)
             total_count = 0
