@@ -64,7 +64,11 @@ class MonitorSupport(Monitor):
             self.logger.info('\n' + request.display())
             match = re.match('(?P<date>.+)T(?P<time>.+)Z', request.timestamp)
             assert match
-            telemetry_link = get_client_telemetry_link(self.prefix, request.client, request.timestamp, isT3=self.isT3)
+            if self.isT3:
+                host="http://localhost:8081/"
+            else:
+                host="http://localhost:8000/"
+            telemetry_link = get_client_telemetry_link(self.prefix, request.client, request.timestamp, host=host, isT3=self.isT3)
             if self.freshdesk_api:
                 freshdesk_id = self.freshdesk_api.create_ticket("%s NachoMail Support Request" % self.prefix.capitalize(),
                                                                 request.message,
