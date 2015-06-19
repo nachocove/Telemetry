@@ -8,7 +8,7 @@ from datetime import datetime
 import hashlib
 
 T3_EVENT_CLASS_FILE_PREFIXES = {
-         'ALL': ['PROTOCOL','LOG', 'COUNTER', 'STATISTICS2','UI', 'SUPPORT', 'DEVICEINFO','PINGER'],
+         'ALL': ['PROTOCOL','LOG', 'COUNTER', 'STATISTICS2','UI', 'SUPPORT', 'DEVICEINFO','PINGER', 'SAMPLES'],
          'PROTOCOL': 'protocol',
          'LOG': 'log',
          'COUNTER': 'counter',
