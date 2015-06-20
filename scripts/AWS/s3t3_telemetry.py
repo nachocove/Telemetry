@@ -9,7 +9,6 @@ import hashlib
 
 T3_EVENT_CLASS_FILE_PREFIXES = {
          'ALL': ['PROTOCOL','LOG', 'COUNTER', 'STATISTICS2','UI', 'SUPPORT', 'DEVICEINFO','PINGER', 'SAMPLES'],
-         'REDSHIFT': ['PROTOCOL','LOG', 'COUNTER', 'STATISTICS2','UI', 'DEVICEINFO', 'SAMPLES'],
          'PROTOCOL': 'protocol',
          'LOG': 'log',
          'COUNTER': 'counter',

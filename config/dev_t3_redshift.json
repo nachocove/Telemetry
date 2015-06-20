@@ -11,43 +11,47 @@
     "s3_config": {
         "device_info" : {
           "t3_bucket": "c6ae00d0-dev-t3-device-info",
-          "t3_jsonpath": "json/client_device_info_jsonpath.json"
+          "t3_jsonpath": "json/nm_device_info_jsonpath.json"
         },
         "log" : {
           "t3_bucket": "c6ae00d0-dev-t3-log",
-          "t3_jsonpath": "json/client_log_jsonpath.json"
+          "t3_jsonpath": "json/nm_log_jsonpath.json"
         },
         "protocol" : {
           "t3_bucket": "c6ae00d0-dev-t3-protocol",
-          "t3_jsonpath": "json/client_protocol_jsonpath.json"
+          "t3_jsonpath": "json/nm_protocol_jsonpath.json"
         },
         "ui" : {
           "t3_bucket": "c6ae00d0-dev-t3-ui",
-          "t3_jsonpath": "json/client_ui_jsonpath.json"
+          "t3_jsonpath": "json/nm_ui_jsonpath.json"
         },
         "support" : {
           "t3_bucket": "c6ae00d0-dev-t3-support",
-          "t3_jsonpath": "json/client_support_jsonpath.json"
+          "t3_jsonpath": "json/nm_support_jsonpath.json"
         },
         "counter" : {
           "t3_bucket": "c6ae00d0-dev-t3-counter",
-          "t3_jsonpath": "json/client_counter_jsonpath.json"
+          "t3_jsonpath": "json/nm_counter_jsonpath.json"
         },
         "statistics2" : {
           "t3_bucket": "c6ae00d0-dev-t3-statistics2",
-          "t3_jsonpath": "json/client_statistics2_jsonpath.json"
+          "t3_jsonpath": "json/nm_statistics2_jsonpath.json"
         },
         "distribution" : {
           "t3_bucket": "c6ae00d0-dev-t3-distribution",
-          "t3_jsonpath": "json/client_distribution_jsonpath.json"
+          "t3_jsonpath": "json/nm_distribution_jsonpath.json"
         },
         "samples" : {
           "t3_bucket": "c6ae00d0-dev-t3-samples",
-          "t3_jsonpath": "json/client_samples_jsonpath.json"
+          "t3_jsonpath": "json/nm_samples_jsonpath.json"
         },
         "time-series" : {
           "t3_bucket": "c6ae00d0-dev-t3-time-series",
-          "t3_jsonpath": "json/client_time-series_jsonpath.json"
+          "t3_jsonpath": "json/nm_time-series_jsonpath.json"
+        },
+        "plog" : {
+          "t3_bucket": "3ee8d7bb-43a6-4690-8297-8b4800611f36-dev-pinger",
+          "t3_jsonpath": "json/nm_plog_jsonpath.json"
         }
     },
     "db_config": {

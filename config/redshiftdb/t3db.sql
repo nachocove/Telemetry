@@ -1,4 +1,4 @@
-CREATE TABLE client_log (
+CREATE TABLE nm_log (
  "id" varchar(64) not null unique primary key,
  "event_type" varchar(64) not null,
  "timestamped" timestamp,
@@ -9,7 +9,7 @@ CREATE TABLE client_log (
  "module" varchar(64),
  "message" varchar(65535)
 );
-CREATE TABLE pinger_log (
+CREATE TABLE nm_plog (
  "id" varchar(64) not null unique primary key,
  "event_type" varchar(64) not null,
  "timestamped" timestamp,
@@ -22,7 +22,15 @@ CREATE TABLE pinger_log (
  "pinger" varchar(64),
  "message" varchar(256)
 );
-CREATE TABLE client_protocol (
+CREATE TABLE nm_support (
+ "id" varchar(64) not null unique primary key,
+ "event_type" varchar(64) not null,
+ "timestamped" timestamp,
+ "user_id" varchar(64),
+ "device_id" varchar(64),
+ "support" varchar(65535)
+);
+CREATE TABLE nm_protocol (
  "id" varchar(64) not null unique primary key,
  "event_type" varchar(64) not null,
  "timestamped" timestamp,
@@ -30,7 +38,7 @@ CREATE TABLE client_protocol (
  "device_id" varchar(64),
  "payload" varchar(65535)
 );
-CREATE TABLE client_ui (
+CREATE TABLE nm_ui (
  "id" varchar(64) not null unique primary key,
  "event_type" varchar(64) not null,
  "timestamped" timestamp,
@@ -41,7 +49,7 @@ CREATE TABLE client_ui (
  "ui_string" varchar(128),
  "ui_long" int
 );
-CREATE TABLE client_device_info (
+CREATE TABLE nm_device_info (
  "id" varchar(64) not null unique primary key,
  "timestamped" timestamp,
  "user_id" varchar(64),
@@ -53,7 +61,7 @@ CREATE TABLE client_device_info (
  "build_number" varchar(64),
  "fresh_install" boolean
 );
-CREATE TABLE client_counter (
+CREATE TABLE nm_counter (
  "id" varchar(64) not null unique primary key,
  "event_type" varchar(64) not null,
  "timestamped" timestamp,
@@ -64,7 +72,7 @@ CREATE TABLE client_counter (
  "counter_end" timestamp,
  "count" int
 );
-CREATE TABLE client_statistics2 (
+CREATE TABLE nm_statistics2 (
  "id" varchar(64) not null unique primary key,
  "event_type" varchar(64) not null,
  "timestamped" timestamp,
@@ -78,7 +86,7 @@ CREATE TABLE client_statistics2 (
  "count" int
 );
 
-CREATE TABLE client_samples (
+CREATE TABLE nm_samples (
  "id" varchar(64) not null unique primary key,
  "event_type" varchar(64) not null,
  "timestamped" timestamp,

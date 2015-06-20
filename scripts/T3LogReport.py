@@ -32,32 +32,6 @@ try:
 except ImportError:
     from logging.handlers import RotatingFileHandler as RFHandler
 
-class DateTimeAction(argparse.Action):
-    """
-    This class parses the ISO-8601 UTC time given in --start and --end.
-    """
-    def __call__(self, parser, namespace, value, option_string=None):
-        if (option_string != '--start') and (option_string != '--end'):
-            raise ValueError('unexpected option %s with datetime ' % option_string)
-        if (option_string == '--start') and ('last' == value):
-            setattr(namespace, self.dest, 'last')
-        elif (option_string == '--end') and (value.startswith('now')):
-            setattr(namespace, self.dest, UtcDateTime(value))
-        else:
-            try:
-                setattr(namespace, self.dest, UtcDateTime(value))
-            except Exception:
-                raise argparse.ArgumentError(self, "not a valid Date-time argument: %s" % value)
-
-def datetime_tostr(iso_datetime):
-    """
-    This function returns a string from a UtcDateTime object that is good for
-    usage as part of file paths.
-    """
-    datetime_str = str(iso_datetime)
-    return datetime_str.replace(':', '_').replace('-', '_').replace('.', '_')
-
-
 # get region from region_name
 def get_region(region_name):
     for region in boto.ec2.regions():
@@ -111,7 +85,7 @@ def run_report(logger, config, start, end):
         try:
             logger.info("Selecting error counts from logs...")
             #TODO fix %s in SQL statements
-            sql_statement = "select distinct count(*), substring(message, 0, 72) from client_log " \
+            sql_statement = "select distinct count(*), substring(message, 0, 72) from nm_log " \
                             "where event_type='ERROR' and " \
                             "timestamped >= '%s' and timestamped <= '%s'" \
                             "group by message order by count desc" % (startForRS, endForRS)
@@ -121,7 +95,7 @@ def run_report(logger, config, start, end):
                 error_list.append({"count":row[0], "message":row[1]})
             logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
             logger.info("Selecting warning counts from logs...")
-            sql_statement = "select distinct count(*), substring(message, 0, 72) from client_log " \
+            sql_statement = "select distinct count(*), substring(message, 0, 72) from nm_log " \
                             "where event_type='WARN' and " \
                             "timestamped >= '%s' and timestamped <= '%s'" \
                             "group by message order by count desc" % (startForRS, endForRS)
@@ -131,7 +105,7 @@ def run_report(logger, config, start, end):
                 warning_list.append({"count":row[0], "message":row[1]})
             logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
             logger.info("Selecting total counts from logs...")
-            sql_statement = "select distinct count(*), event_type from client_log " \
+            sql_statement = "select distinct count(*), event_type from nm_log " \
                             "where timestamped >= '%s' and timestamped <= '%s'" \
                             "group by event_type order by count desc"% (startForRS, endForRS)
             logger.info(sql_statement)
@@ -158,11 +132,11 @@ def parse_dates(args):
     if not args.start and args.period == "daily": # only support daily right now
         start = UtcDateTime(datetime.fromordinal((UtcDateTime(args.end).datetime - timedelta(1)).toordinal()))
     else:
-        start = args.start
+        start = UtcDateTime(args.start)
     if not args.end and args.period == "daily":
         end = UtcDateTime(datetime.fromordinal((UtcDateTime(args.start).datetime + timedelta(1)).toordinal()))
     else:
-        end = args.end
+        end = UtcDateTime(args.end)
     return start, end
 
 def get_email_backend(email_config):
@@ -216,12 +190,10 @@ def main():
                               default=None, type=str)
     parser.add_argument('--start',
                               help='Time window starting time in ISO-8601 UTC',
-                              action=DateTimeAction,
                               dest='start',
                               default=None)
     parser.add_argument('--end',
                               help='Time window ending time in ISO-8601 UTC or "now" for the current time',
-                              action=DateTimeAction,
                               dest='end',
                               default=None)
     parser.add_argument('--email',
