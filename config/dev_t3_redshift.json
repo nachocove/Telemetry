@@ -1,0 +1,70 @@
+{
+    "general_config": {
+        "project": "Development"
+	},
+    "aws_config": {
+        "region_name": "us-west-2",
+        "zones": ["us-west-2a"],
+        "aws_access_key_id" : "",
+        "aws_secret_access_key" : ""
+    },
+    "s3_config": {
+        "device_info" : {
+          "t3_bucket": "c6ae00d0-dev-t3-device-info",
+          "t3_jsonpath": "json/client_device_info_jsonpath.json"
+        },
+        "log" : {
+          "t3_bucket": "c6ae00d0-dev-t3-log",
+          "t3_jsonpath": "json/client_log_jsonpath.json"
+        },
+        "protocol" : {
+          "t3_bucket": "c6ae00d0-dev-t3-protocol",
+          "t3_jsonpath": "json/client_protocol_jsonpath.json"
+        },
+        "ui" : {
+          "t3_bucket": "c6ae00d0-dev-t3-ui",
+          "t3_jsonpath": "json/client_ui_jsonpath.json"
+        },
+        "support" : {
+          "t3_bucket": "c6ae00d0-dev-t3-support",
+          "t3_jsonpath": "json/client_support_jsonpath.json"
+        },
+        "counter" : {
+          "t3_bucket": "c6ae00d0-dev-t3-counter",
+          "t3_jsonpath": "json/client_counter_jsonpath.json"
+        },
+        "statistics2" : {
+          "t3_bucket": "c6ae00d0-dev-t3-statistics2",
+          "t3_jsonpath": "json/client_statistics2_jsonpath.json"
+        },
+        "distribution" : {
+          "t3_bucket": "c6ae00d0-dev-t3-distribution",
+          "t3_jsonpath": "json/client_distribution_jsonpath.json"
+        },
+        "samples" : {
+          "t3_bucket": "c6ae00d0-dev-t3-samples",
+          "t3_jsonpath": "json/client_samples_jsonpath.json"
+        },
+        "time-series" : {
+          "t3_bucket": "c6ae00d0-dev-t3-time-series",
+          "t3_jsonpath": "json/client_time-series_jsonpath.json"
+        }
+    },
+    "db_config": {
+        "dbname": "t3db",
+        "user":"nachocove",
+        "pwd":"",
+        "host":"t3-dw-instance.ccqihpfuufs8.us-west-2.redshift.amazonaws.com",
+        "port":"5439"
+    },
+    "email_config": {
+        "smtp_server": "email-smtp.us-west-2.amazonaws.com",
+        "port":587,
+        "start_tls": true,
+        "tls": true,
+        "from_address":"janv@nachocove.com",
+        "username" : "",
+        "password" : "",
+        "recipients":"nerds@nachocove.com"
+    }
+}

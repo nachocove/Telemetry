@@ -1,0 +1,14 @@
+{
+    "jsonpaths": [
+      "$['id']",
+      "$['timestamp']",
+      "$['user']",
+      "$['client']",
+      "$['os_type']",
+      "$['os_version']",
+      "$['device_model']",
+      "$['build_version']",
+      "$['build_number']",
+      "$['fresh_install']"
+    ]
+}

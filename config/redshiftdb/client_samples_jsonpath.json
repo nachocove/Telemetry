@@ -1,0 +1,11 @@
+{
+    "jsonpaths": [
+      "$['id']",
+      "$['event_type']",
+      "$['timestamp']",
+      "$['user']",
+      "$['client']",
+      "$['sample_name']",
+      "$['sample_value']"
+    ]
+}

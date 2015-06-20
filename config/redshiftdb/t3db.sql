@@ -39,7 +39,7 @@ CREATE TABLE client_ui (
  "ui_type" varchar(64),
  "ui_object" varchar(64),
  "ui_string" varchar(128),
- "ui_int" int
+ "ui_long" int
 );
 CREATE TABLE client_device_info (
  "id" varchar(64) not null unique primary key,
