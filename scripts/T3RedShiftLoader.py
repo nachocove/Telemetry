@@ -268,10 +268,11 @@ def get_email_backend(email_config):
         password=password, use_tls=start_tls)
     return backend
 
-def send_email(logger, email_config, html_part, start, project):
+def send_email(logger, email_config, html_part, start, project, attachments=None):
     from django.core.mail import send_mail
     text_part = strip_tags(html_part)
     subject = "Daily Redshift Upload Summary %s for %s" % (project, start)
+    report_name = "RSUpload%s-%s" % (project, start)
     username = email_config['username']
     if username:
         password = email_config['password']
@@ -279,16 +280,27 @@ def send_email(logger, email_config, html_part, start, project):
         password = None
     from_address = email_config['from_address']
     to_addresses = email_config['recipients'].split(',')
+
     num_retries = 0
     backend = get_email_backend(email_config)
     while num_retries < 5:
         try:
             logger.info('Sending email to %s...', ', '.join(to_addresses))
-            send_mail(subject, text_part, from_address, to_addresses,
-                      fail_silently=False, auth_user=username, auth_password=password, connection=backend, html_message=html_part)
+            from django.core.mail import EmailMessage
+            email = EmailMessage(subject, '', from_address,
+                to_addresses, connection=backend)
+            email.attach(report_name  + ".html", html_part, "text/html")
+            email.attach(report_name + ".txt", text_part, "text/plain")
+            import mimetypes
+            for attachment in attachments:
+                email.attach_file(attachment, mimetypes.guess_type(attachment)[0])
+            email.send()
+            #send_mail(subject, text_part, from_address, to_addresses,
+            #         fail_silently=False, auth_user=username, auth_password=password, connection=backend, html_message=html_part)
             break
         except Exception, e:
             logger.error('fail to send email: %s', e)
+            logger.error(traceback.format_exc())
             num_retries += 1
     else:
         logger.error('fail to send email after %d retries' % num_retries)
@@ -377,15 +389,15 @@ def main():
     else:
         summary["event_types"] = args.event_type
     upload_stats = {}
-    #upload_stats["log"] = [{"date": "2", "count":22}, {"date": "3", "count":44}]
-    upload_stats = upload_logs(logger, config, args.event_type, start, end)
+    upload_stats["log"] = [{"date": "2", "count":22}, {"date": "3", "count":44}]
+    #upload_stats = upload_logs(logger, config, args.event_type, start, end)
     error_stats = get_upload_error_stats(logger, config, args.event_type, start, end)
     settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=('T3Viewer/templates',),
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
     report_data = {'summary': summary, 'upload_stats': upload_stats, "general_config": config["general_config"]}
     html_part = render_to_string('uploadreport.html', report_data)
     if args.email:
-        send_email(logger, config["email_config"], html_part, start, config['general_config']['project'])
+        send_email(logger, config["email_config"], html_part, start, config['general_config']['project'], [os.path.join(args.logdir, 'event_report.log')])
     elif args.debug:
         print html_part
     exit()
