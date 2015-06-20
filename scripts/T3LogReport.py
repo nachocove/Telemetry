@@ -57,58 +57,6 @@ def datetime_tostr(iso_datetime):
     datetime_str = str(iso_datetime)
     return datetime_str.replace(':', '_').replace('-', '_').replace('.', '_')
 
-def last_sunday():
-    today = date.today().toordinal()
-    sunday = today - (today % 7)
-    return UtcDateTime(datetime.fromordinal(sunday))
-
-def yesterday_midnight():
-    return UtcDateTime(datetime.fromordinal((date.today() - timedelta(1)).toordinal()))
-
-def today_midnight():
-    return UtcDateTime(datetime.fromordinal(date.today().toordinal()))
-
-def guess_last(period):
-    ret = None
-    if isinstance(period, (unicode, str)):
-        if period == 'weekly':
-            ret = last_sunday()
-        elif period == 'daily':
-            ret = yesterday_midnight()
-        else:
-            try:
-                ret = UtcDateTime(datetime.now()-timedelta(seconds=int(period)))
-            except ValueError:
-                pass
-    elif isinstance(period, (int, long)):
-        ret = UtcDateTime(datetime.now()-timedelta(seconds=period))
-    elif isinstance(period, timedelta):
-        ret = UtcDateTime(datetime.now()-period)
-
-    if not ret:
-        raise ValueError('Unknown value %s for period' % period)
-    return ret
-
-def period_to_seconds(period):
-    ret = None
-    if isinstance(period, (unicode, str)):
-        if period == 'weekly':
-            ret = 7*24*60*60
-        elif period == 'daily':
-            ret = 60*60*24
-        elif period == 'hourly':
-            ret = 60*60
-        else:
-            try:
-                ret = int(period)
-            except ValueError:
-                pass
-    elif isinstance(period, (int, long)):
-        ret = period
-    if not ret:
-        raise ValueError('Unknown value %s for period' % period)
-    return ret
-
 
 # get region from region_name
 def get_region(region_name):
@@ -147,84 +95,12 @@ def json_config(file_name):
     #pprint(json_data)
     return json_data
 
-def get_user_device_prefixes(logger, config, startdt_prefix):
-    aws_config = config["aws_config"]
-    s3_config = config["s3_config"]
-    prefixes =[]
-    conn = S3Connection(host='s3-us-west-2.amazonaws.com',
-                                                         port=443,
-                                                         aws_secret_access_key=aws_config["aws_secret_access_key"],
-                                                         aws_access_key_id=aws_config["aws_access_key_id"],
-                                                         is_secure=True,
-                                                         debug=0)
-    bucket_name = s3_config["client_t3_log_bucket"]
-    bucket = conn.get_bucket(bucket_name)
-    from boto.s3 import prefix
-    for l1_prefix in bucket.list(prefix=startdt_prefix + '/', delimiter='/'):
-        for l2_prefix in bucket.list(prefix=l1_prefix.name, delimiter='/'):
-            for l3_prefix in bucket.list(prefix=l2_prefix.name, delimiter='/'):
-                prefixes.append(l3_prefix.name + 'NachoMail')
-    return prefixes
-
-def delete_logs(logger, config):
-    aws_config = config["aws_config"]
-    s3_config = config["s3_config"]
-    try:
-        logger.info("Creating connection...")
-        conn = create_conn(logger, config["db_config"])
-        conn.autocommit = False
-        cursor = conn.cursor()
-        logger.info("Deleting logs...")
-        sql_statement="delete from client_log"
-        try:
-            logger.info(sql_statement)
-            cursor.execute(sql_statement)
-            # we dont get back a row count, no errors means we are good
-            logger.info("%s successful", cursor.statusmessage)
-        except Exception as err:
-            logger.error(err)
-        conn.commit()
-    except (BotoServerError, S3ResponseError, EC2ResponseError) as e:
-        logger.error("Error :%s(%s):%s" % (e.error_code, e.status, e.message))
-        logger.error(traceback.format_exc())
-        cleanup(logger, config)
-
-#upload logs
-def upload_logs(logger, config, start, end):
-    aws_config = config["aws_config"]
-    s3_config = config["s3_config"]
-    startdt_prefix = "%s" % (start.datetime.date().strftime('%Y%m%d'))
-    try:
-        logger.info("Creating connection...")
-        conn = create_conn(logger, config["db_config"])
-        conn.autocommit = False
-        cursor = conn.cursor()
-        logger.info("Uploading logs...")
-        for user_device_prefix in get_user_device_prefixes(logger, config, startdt_prefix):
-            sql_statement="COPY client_log FROM 's3://%s/%s/log-' \
-            CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s' \
-            gzip \
-            json 's3://%s/%s'" % (s3_config["client_t3_log_bucket"], user_device_prefix,
-                                  aws_config["aws_access_key_id"], aws_config["aws_secret_access_key"],
-                                  s3_config["client_t3_log_bucket"], s3_config["client_log_jsonpath"])
-            try:
-                logger.info(sql_statement)
-                cursor.execute(sql_statement)
-                # we dont get back a row count, no errors means we are good
-                logger.info("%s successful", cursor.statusmessage)
-            except Exception as err:
-                logger.error(err)
-            conn.commit()
-    except (BotoServerError, S3ResponseError, EC2ResponseError) as e:
-        logger.error("Error :%s(%s):%s" % (e.error_code, e.status, e.message))
-        logger.error(traceback.format_exc())
-        cleanup(logger, config)
-
-# select counts
-def select_counts(logger, config, start, end):
+def run_report(logger, config, start, end):
     summary = {'start':start, 'end':end}
     summary['period'] = str(end.datetime - start.datetime)
     summary['total_hours'] = (end.datetime-start.datetime).days*24 + (end.datetime-start.datetime).seconds/3600
+    startForRS = start.datetime.strftime('%Y-%m-%d %H:%M:%S')
+    endForRS = end.datetime.strftime('%Y-%m-%d %H:%M:%S')
     error_list = []
     warning_list = []
     try:
@@ -234,21 +110,30 @@ def select_counts(logger, config, start, end):
         cursor = conn.cursor()
         try:
             logger.info("Selecting error counts from logs...")
-            sql_statement = "select distinct count(*), substring(message, 0, 72) from client_log where event_type='ERROR' group by message order by count desc"
+            #TODO fix %s in SQL statements
+            sql_statement = "select distinct count(*), substring(message, 0, 72) from client_log " \
+                            "where event_type='ERROR' and " \
+                            "timestamped >= '%s' and timestamped <= '%s'" \
+                            "group by message order by count desc" % (startForRS, endForRS)
             logger.info(sql_statement)
             rows = select(logger, cursor, sql_statement)
             for row in rows:
                 error_list.append({"count":row[0], "message":row[1]})
             logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
             logger.info("Selecting warning counts from logs...")
-            sql_statement = "select distinct count(*), substring(message, 0, 72) from client_log where event_type='WARN' group by message order by count desc"
+            sql_statement = "select distinct count(*), substring(message, 0, 72) from client_log " \
+                            "where event_type='WARN' and " \
+                            "timestamped >= '%s' and timestamped <= '%s'" \
+                            "group by message order by count desc" % (startForRS, endForRS)
             logger.info(sql_statement)
             rows = select(logger, cursor, sql_statement)
             for row in rows:
                 warning_list.append({"count":row[0], "message":row[1]})
             logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
             logger.info("Selecting total counts from logs...")
-            sql_statement = "select distinct count(*), event_type from client_log group by event_type order by count desc"
+            sql_statement = "select distinct count(*), event_type from client_log " \
+                            "where timestamped >= '%s' and timestamped <= '%s'" \
+                            "group by event_type order by count desc"% (startForRS, endForRS)
             logger.info(sql_statement)
             rows = select(logger, cursor, sql_statement)
             total_count = 0
@@ -382,14 +267,16 @@ def main():
     if not end:
         logger.error("Invalid end time(%s)/period(%s)", args.end, args.period)
         exit(-1)
-    delete_logs(logger, config)
-    upload_logs(logger, config, start, end)
-    summary, error_list, warning_list = select_counts(logger, config, start, end)
+    logger.info("Running log report for the period %s to %s", start, end)
+    summary, error_list, warning_list = run_report(logger, config, start, end)
     settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=('T3Viewer/templates',),
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
     report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": config["general_config"] }
     html_part = render_to_string('logreport.html', report_data)
-    send_email(logger, config["email_config"], html_part, start, config['general_config']['project'])
+    if args.email:
+        send_email(logger, config["email_config"], html_part, start, config['general_config']['project'])
+    elif args.debug:
+        print html_part
     exit()
 
 if __name__ == '__main__':

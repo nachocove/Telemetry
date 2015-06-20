@@ -194,6 +194,7 @@ def delete_all_logs(logger, config):
 def upload_logs(logger, config, event_class, start, end):
     aws_config = config["aws_config"]
     s3_config = config["s3_config"]
+    upload_stats = {}
     try:
         logger.info("Creating connection...")
         conn = create_conn(logger, config["db_config"])
@@ -203,8 +204,9 @@ def upload_logs(logger, config, event_class, start, end):
         event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
         if not isinstance(event_classes, list):
             event_classes = [event_class]
-        print event_classes
         for event_class in event_classes:
+            event_class_stats = []
+            upload_stats[event_class] = event_class_stats
             event_type= T3_EVENT_CLASS_FILE_PREFIXES[event_class]
             date_prefixes = get_T3_date_prefixes(start, end)
             for date_prefix in date_prefixes:
@@ -224,7 +226,8 @@ def upload_logs(logger, config, event_class, start, end):
                     rowsCopied = 0
                     for row in rows:
                         rowsCopied = row[0]
-                    logger.info("%s successful. Copied %s rows", cursor.statusmessage, rowsCopied)
+                        event_class_stats.append({"date":UtcDateTime(date_prefix).datetime.strftime('%Y-%m-%d'), "count":row[0]})
+                    logger.info("Copied %s rows of %s for %s", rowsCopied, event_class, date_prefix)
                 except Exception as err:
                     logger.error(err)
                 conn.commit()
@@ -232,58 +235,11 @@ def upload_logs(logger, config, event_class, start, end):
         logger.error("Error :%s(%s):%s" % (e.error_code, e.status, e.message))
         logger.error(traceback.format_exc())
         cleanup(logger, config)
+    return upload_stats
 
 def get_upload_error_stats(logger, config, event_class, start, end):
-    errors = {}
-    return errors
-
-def get_upload_stats(logger, config, event_class, start, end):
-    summary = {'start':start, 'end':end}
-    summary['period'] = str(end.datetime - start.datetime)
-    summary['total_hours'] = (end.datetime-start.datetime).days*24 + (end.datetime-start.datetime).seconds/3600
-    error_list = []
-    warning_list = []
-    try:
-        logger.info("Creating connection...")
-        conn = create_conn(logger, config["db_config"])
-        conn.autocommit = False
-        cursor = conn.cursor()
-        try:
-            logger.info("Selecting error counts from logs...")
-            sql_statement = "select distinct count(*), substring(message, 0, 72) from client_log where event_type='ERROR' group by message order by count desc"
-            logger.info(sql_statement)
-            rows = select(logger, cursor, sql_statement)
-            for row in rows:
-                error_list.append({"count":row[0], "message":row[1]})
-            logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
-            logger.info("Selecting warning counts from logs...")
-            sql_statement = "select distinct count(*), substring(message, 0, 72) from client_log where event_type='WARN' group by message order by count desc"
-            logger.info(sql_statement)
-            rows = select(logger, cursor, sql_statement)
-            for row in rows:
-                warning_list.append({"count":row[0], "message":row[1]})
-            logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
-            logger.info("Selecting total counts from logs...")
-            sql_statement = "select distinct count(*), event_type from client_log group by event_type order by count desc"
-            logger.info(sql_statement)
-            rows = select(logger, cursor, sql_statement)
-            total_count = 0
-            for row in rows:
-                summary[row[1]] = row[0]
-                summary[row[1] + '_rate'] = float(row[0])/summary['total_hours']
-                total_count += row[0]
-            summary['event_count'] = total_count
-            summary['event_rate'] = float(total_count)/summary['total_hours']
-            logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
-            return summary, error_list, warning_list
-        except Exception as err:
-            logger.error(err)
-        cursor.close()
-        conn.close()
-    except (BotoServerError, S3ResponseError, EC2ResponseError) as e:
-        logger.error("Error :%s(%s):%s" % (e.error_code, e.status, e.message))
-        logger.error(traceback.format_exc())
-        cleanup(logger, config)
+    error_stats = {}
+    return error_stats
 
 def parse_dates(args):
     if not args.start and args.period == "daily": # only support daily right now
@@ -315,7 +271,7 @@ def get_email_backend(email_config):
 def send_email(logger, email_config, html_part, start, project):
     from django.core.mail import send_mail
     text_part = strip_tags(html_part)
-    subject = "Daily Telemetry Summary %s for %s" % (project, start)
+    subject = "Daily Redshift Upload Summary %s for %s" % (project, start)
     username = email_config['username']
     if username:
         password = email_config['password']
@@ -412,14 +368,26 @@ def main():
         exit(-1)
     if args.event_type == "ALL":
         args.event_type = "REDSHIFT" # limit the redshiftable logs
-    upload_logs(logger, config, args.event_type, start, end)
-    summary = get_upload_stats(logger, config, args.event_type, start, end)
-    errors = get_upload_error_stats(logger, config, args.event_type, start, end)
+    summary = {}
+    summary["start"] = start
+    summary["end"] = end
+    event_types = T3_EVENT_CLASS_FILE_PREFIXES[args.event_type]
+    if isinstance(event_types, list):
+        summary["event_types"] = event_types
+    else:
+        summary["event_types"] = args.event_type
+    upload_stats = {}
+    #upload_stats["log"] = [{"date": "2", "count":22}, {"date": "3", "count":44}]
+    upload_stats = upload_logs(logger, config, args.event_type, start, end)
+    error_stats = get_upload_error_stats(logger, config, args.event_type, start, end)
     settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=('T3Viewer/templates',),
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
-    report_data = {'summary': summary, 'errors': errors, "general_config": config["general_config"] }
+    report_data = {'summary': summary, 'upload_stats': upload_stats, "general_config": config["general_config"]}
     html_part = render_to_string('uploadreport.html', report_data)
-    send_email(logger, config["email_config"], html_part, start, config['general_config']['project'])
+    if args.email:
+        send_email(logger, config["email_config"], html_part, start, config['general_config']['project'])
+    elif args.debug:
+        print html_part
     exit()
 
 if __name__ == '__main__':
