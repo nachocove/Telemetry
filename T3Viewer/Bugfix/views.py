@@ -22,17 +22,10 @@ from django.template import RequestContext
 from django.utils.decorators import available_attrs
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
-from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.s3.connection import S3Connection
-from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES, get_pinger_events
 
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
-from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween, SelectorContains, SelectorGreaterThanEqual
-from AWS.tables import TelemetryTable
-from monitors.monitor_base import Monitor
-from misc.support import Support
 from misc.utc_datetime import UtcDateTime
 
 T3_MODULES = ['CLIENT',
@@ -115,22 +108,6 @@ class VectorForm(forms.Form):
         return project
 
 BOTO_DEBUG=False
-_aws_connection_cache = {}
-def _aws_connection(project):
-    global _aws_connection_cache
-    if not project in _aws_connection_cache:
-        if not project in projects:
-            raise ValueError('Project %s is not present in projects.cfg' % project)
-        _aws_connection_cache[project] = DynamoDBConnection(host='dynamodb.us-west-2.amazonaws.com',
-                                                            port=443,
-                                                            aws_secret_access_key=projects_cfg.get(project, 'secret_access_key'),
-                                                            aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
-                                                            region='us-west-2',
-                                                            is_secure=True,
-                                                            debug=2 if BOTO_DEBUG else 0)
-    TelemetryTable.PREFIX = project
-    return _aws_connection_cache[project]
-
 _aws_s3_connection_cache = {}
 def _aws_s3_connection(project):
     """
@@ -146,7 +123,6 @@ def _aws_s3_connection(project):
                                                          aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
                                                          is_secure=True,
                                                          debug=2 if BOTO_DEBUG else 0)
-    TelemetryTable.PREFIX = project
     return _aws_s3_connection_cache[project]
 
 def _parse_junk(junk, mapping):
@@ -358,6 +334,15 @@ def get_support_events(project, after, before, logger=None):
     bucket_name = projects_cfg.get(project, 'client_t3_support_bucket')
     support_event_list = get_client_events(conn, bucket_name, '', '', after, before, 'SUPPORT', '', logger=logger)
     return support_event_list
+
+@nachotoken_required
+def index(request):
+    logger = logging.getLogger('telemetry').getChild('index')
+    # Any message set in 'message' will be displayed as a red error message.
+    # Used for reporting error in any POST.
+    message = ''
+    return render_to_response('index.html', {'message': message},
+                                  context_instance=RequestContext(request))
 
 @nachotoken_required
 def home(request):

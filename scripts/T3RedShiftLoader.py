@@ -207,6 +207,7 @@ def main():
         summary["event_types"] = event_types
     else:
         summary["event_types"] = args.event_type
+    summary["table_name"] = "nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     upload_stats = {}
     #upload_stats["log"] = [{"date": "2", "count":22}, {"date": "3", "count":44}]
     upload_stats = upload_logs(logger, config, args.event_type, start, end)

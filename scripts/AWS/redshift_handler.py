@@ -65,9 +65,13 @@ def delete_logs(logger, config, event_type, start, end):
         logger.error(traceback.format_exc())
 
 #upload logs
-def upload_logs(logger, config, event_class, start, end):
+def upload_logs(logger, config, event_class, start, end, table_prefix=None):
     aws_config = config["aws_config"]
     s3_config = config["s3_config"]
+    if table_prefix:
+        table_prefix = table_prefix + '_'
+    else:
+        table_prefix = ''
     upload_stats = {}
     try:
         logger.info("Creating connection...")
@@ -84,10 +88,10 @@ def upload_logs(logger, config, event_class, start, end):
             event_type= T3_EVENT_CLASS_FILE_PREFIXES[event_class]
             date_prefixes = get_T3_date_prefixes(start, end)
             for date_prefix in date_prefixes:
-                sql_statement="COPY nm_%s FROM 's3://%s/%s' \
+                sql_statement="COPY %snm_%s FROM 's3://%s/%s' \
                 CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s' \
                 gzip maxerror 100000\
-                json 's3://%s/%s'" % (event_type, s3_config[event_type]["t3_bucket"], date_prefix,
+                json 's3://%s/%s'" % (table_prefix, event_type, s3_config[event_type]["t3_bucket"], date_prefix,
                                       aws_config["aws_access_key_id"], aws_config["aws_secret_access_key"],
                                       s3_config[event_type]["t3_bucket"], s3_config[event_type]["t3_jsonpath"])
                 try:
@@ -109,3 +113,35 @@ def upload_logs(logger, config, event_class, start, end):
         logger.error("Error :%s(%s):%s" % (e.error_code, e.status, e.message))
         logger.error(traceback.format_exc())
     return upload_stats
+
+#create tables
+def create_tables(logger, config, event_class, table_prefix):
+    upload_stats = {}
+    try:
+        logger.info("Creating connection...")
+        conn = create_db_conn(logger, config["db_config"])
+        conn.autocommit = False
+        cursor = conn.cursor()
+        logger.info("Creating tables...")
+        event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+        if not isinstance(event_classes, list):
+            event_classes = [event_class]
+        for event_class in event_classes:
+            event_class_stats = []
+            upload_stats[event_class] = event_class_stats
+            event_type= T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+            table_sql_file = config["db_sql"][event_type]
+            with open (table_sql_file, "r") as myfile:
+                table_sql=myfile.read()
+            table_sql = table_sql % table_prefix
+            try:
+                logger.info(table_sql)
+                cursor.execute(table_sql)
+                logger.info("STATUS MESSAGE:%s", cursor.statusmessage)# we dont get back a row count, no errors means we are good
+                conn.commit()
+            except Exception as err:
+                logger.error(err)
+            conn.commit()
+    except (BotoServerError, S3ResponseError, EC2ResponseError) as e:
+        logger.error("Error :%s(%s):%s" % (e.error_code, e.status, e.message))
+        logger.error(traceback.format_exc())
