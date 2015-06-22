@@ -156,7 +156,7 @@ def main():
     settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=('T3Viewer/templates',),
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
     report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": config["general_config"] }
-    html_part = render_to_string('log_report.html', report_data)
+    html_part = render_to_string('log_report_plain.html', report_data)
     if args.email:
         send_email(logger, config["email_config"], html_part, start, config['general_config']['project_name'])
     elif args.debug:

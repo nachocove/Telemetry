@@ -50,7 +50,7 @@ def get_t3_redshift_config(project, file_name):
             raise ValueError('Project %s is not present in projects.cfg' % project)
         with open(file_name) as data_file:
             _t3_redshift_config_cache[project] = json.load(data_file)
-        return _t3_redshift_config_cache[project]
+    return _t3_redshift_config_cache[project]
 
 class DBLoadForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
@@ -222,13 +222,17 @@ def db_log_report_form(request):
         logger.warn('invalid form data')
         return render_to_response('log_form.html', {'form': form, 'message': message},
                                   context_instance=RequestContext(request))
-    project = form.cleaned_data['project']
-    from_date = form.cleaned_data['from_date']
-    to_date = form.cleaned_data['to_date']
+    kwargs={}
+    kwargs['project'] = form.cleaned_data['project']
+    kwargs['from_date'] = UtcDateTime(form.cleaned_data['from_date'])
+    kwargs['to_date'] = UtcDateTime(form.cleaned_data['to_date'])
+    return HttpResponseRedirect(reverse(db_log_report, kwargs=kwargs))
+
+def db_log_report(request, project, from_date, to_date):
+    logger = logging.getLogger('telemetry').getChild('db')
     logger.debug("Running log report for Project:%s, "
                  "From Date:%s, To Date:%s",
                  project, from_date, to_date)
-
     request.session['project'] = project
     from_datetime = UtcDateTime(from_date)
     to_datetime = UtcDateTime(to_date)
@@ -236,7 +240,13 @@ def db_log_report_form(request):
     summary["start"] = from_datetime
     summary["end"] =  to_datetime
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
-    summary, error_list, warning_list = log_report(logger, t3_redshift_config['general_config']['project'],
+    error_list = []
+    warning_list = []
+    print settings.__dict__
+    if not t3_redshift_config:
+        logger.error("Error loading T3 Redshift config for project:%s", project)
+    else:
+        summary, error_list, warning_list = log_report(logger, t3_redshift_config['general_config']['project'],
                                                    t3_redshift_config, from_datetime, to_datetime)
     report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": t3_redshift_config["general_config"] }
     return render_to_response('log_report.html', report_data,

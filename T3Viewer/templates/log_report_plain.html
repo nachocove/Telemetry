@@ -1,6 +1,9 @@
-{% extends "base.html" %}
-{% block title %}Daily Log Report{% endblock %}
-{% block content %}
+<html>
+<head>
+<meta http-equiv="Content-type" content="text/html; charset=UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+</head>
+<body>
 <h2>Project: {{ general_config.project_name }}</h2>
 <br/>
 <b>Summary</b>
@@ -71,4 +74,5 @@
        </tr>
 {% endfor %}
 </table>
-{% endblock %}
+</body>
+</html>
