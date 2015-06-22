@@ -63,6 +63,7 @@ def delete_logs(logger, project, config, event_class, start, end, table_prefix):
             logger.info("%s successful", cursor.statusmessage)
         except Exception as err:
             logger.error(err)
+            logger.error(traceback.format_exc())
         conn.commit()
     except (BotoServerError, S3ResponseError, EC2ResponseError) as e:
         logger.error("Error :%s(%s):%s" % (e.error_code, e.status, e.message))
@@ -112,6 +113,7 @@ def upload_logs(logger, project, config, event_class, start, end, table_prefix=N
                     logger.info("Copied %s rows of %s for %s", rowsCopied, event_class, date_prefix)
                 except Exception as err:
                     logger.error(err)
+                    logger.error(traceback.format_exc())
                 conn.commit()
     except (BotoServerError, S3ResponseError, EC2ResponseError) as e:
         logger.error("Error :%s(%s):%s" % (e.error_code, e.status, e.message))
@@ -150,6 +152,7 @@ def create_tables(logger, project, config, event_class, table_prefix=None):
                 conn.commit()
             except Exception as err:
                 logger.error(err)
+                logger.error(traceback.format_exc())
             conn.commit()
     except (BotoServerError, S3ResponseError, EC2ResponseError) as e:
         logger.error("Error :%s(%s):%s" % (e.error_code, e.status, e.message))

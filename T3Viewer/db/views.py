@@ -27,6 +27,7 @@ from boto.s3.connection import S3Connection
 from AWS.s3t3_telemetry import T3_EVENT_CLASS_FILE_PREFIXES
 from misc.utc_datetime import UtcDateTime
 from AWS.redshift_handler import delete_logs, upload_logs, create_tables
+from AWS.db_reports import log_report
 
 # Get the list of project
 projects_cfg = ConfigParser.ConfigParser()
@@ -93,56 +94,47 @@ class DBLoadForm(forms.Form):
         cleaned_data = super(DBLoadForm, self).clean()
         from_date = cleaned_data.get("from_date")
         to_date = cleaned_data.get("to_date")
-        print to_date, from_date
         if to_date < from_date:
             raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
         elif (to_date-from_date).days > 31:
             raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
-BOTO_DEBUG=False
 
-_aws_s3_connection_cache = {}
-def _aws_s3_connection(project):
-    """
-    :return: boto.s3.connection.S3Connection
-    """
-    global _aws_s3_connection_cache
-    if not project in _aws_s3_connection_cache:
-        if not project in projects:
-            raise ValueError('Project %s is not present in projects.cfg' % project)
-        _aws_s3_connection_cache[project] = S3Connection(host='s3-us-west-2.amazonaws.com',
-                                                         port=443,
-                                                         aws_secret_access_key=projects_cfg.get(project, 'secret_access_key'),
-                                                         aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
-                                                         is_secure=True,
-                                                         debug=2 if BOTO_DEBUG else 0)
-    return _aws_s3_connection_cache[project]
 
-def _parse_junk(junk, mapping):
-    retval = dict()
-    lines = junk.splitlines()
-    for line in lines:
-        splitty = line.split(':', 1)
-        if 2 != len(splitty):
-            continue
-        key = splitty[0].strip()
-        value = splitty[1].strip()
-        if key in mapping:
-            if mapping[key] == 'timestamp' and value.strip() == 'now':
-                value = _iso_z_format(datetime.utcnow())
-            retval[mapping[key]] = value.strip()
-    logger = logging.getLogger('telemetry').getChild('_parse_junk')
-    logger.debug('retval=%s', retval)
-    return retval
+class DBReportForm(forms.Form):
+    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
+    from_date = forms.DateTimeField(initial=datetime.now())
+    to_date = forms.DateTimeField(initial=datetime.now())
 
-def nacho_token():
-    token = "NACHO:%s" % settings.SECRET_KEY
-    return hashlib.sha256(token).hexdigest()
+    def clean_from_date(self):
+        from_date = self.cleaned_data.get('from_date', '')
+        if from_date.replace(tzinfo=None) > datetime.now():
+            self.add_error('from_date', 'Date/Time in future')
+            raise ValidationError(_('Date/Time in future: %(from_date)s'))
+        return from_date
 
-def create_session(request):
-    request.session['nachotoken'] = nacho_token()
+    def clean_to_date(self):
+        to_date = self.cleaned_data.get('to_date', '')
+        if to_date.replace(tzinfo=None) > datetime.now():
+            self.add_error('to_date', 'Date/Time in future')
+            raise ValidationError(_('Date/Time in future: %(to_date)s'))
+        return to_date
 
-def validate_session(request):
-    return request.session.get('nachotoken', None) == nacho_token()
+    def clean_project(self):
+        project = self.cleaned_data.get('project', '')
+        if project not in projects:
+            self.add_error('project', 'Unknown Project')
+            raise ValidationError(_('Unknown Project: %(project)s'),
+                                  code='unknown',
+                                  params={'project': projects})
+        return project
+    def clean(self):
+        cleaned_data = super(DBReportForm, self).clean()
+        from_date = cleaned_data.get("from_date")
+        to_date = cleaned_data.get("to_date")
+        if to_date < from_date:
+            raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
+        elif (to_date-from_date).days > 31:
+            raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
 
 def nachotoken_required(view_func):
     @wraps(view_func, assigned=available_attrs(view_func))
@@ -168,21 +160,21 @@ def nacho_cache(view_func):
 
 # Create your views here.
 @nachotoken_required
-def dbload(request):
-    logger = logging.getLogger('telemetry').getChild('home')
+def db_load(request):
+    logger = logging.getLogger('telemetry').getChild('db')
     # Any message set in 'message' will be displayed as a red error message.
     # Used for reporting error in any POST.
     message = ''
     if request.method != 'POST':
         form = DBLoadForm()
         form.fields['project'].initial = request.session.get('project', default_project)
-        return render_to_response('dbload.html', {'form': form, 'message': message},
+        return render_to_response('db_load.html', {'form': form, 'message': message},
                                   context_instance=RequestContext(request))
 
     form = DBLoadForm(request.POST)
     if not form.is_valid():
         logger.warn('invalid form data')
-        return render_to_response('dbload.html', {'form': form, 'message': message},
+        return render_to_response('db_load.html', {'form': form, 'message': message},
                                   context_instance=RequestContext(request))
     project = form.cleaned_data['project']
     from_date = form.cleaned_data['from_date']
@@ -210,23 +202,51 @@ def dbload(request):
     status = create_tables(logger, project, t3_redshift_config, event_class, table_prefix)
     upload_stats = upload_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime, table_prefix)
     report_data = {'summary': summary, 'upload_stats': upload_stats, "general_config": t3_redshift_config["general_config"]}
-    return render_to_response('uploadreport.html', report_data,
+    return render_to_response('upload_report.html', report_data,
                               context_instance=RequestContext(request))
 
-def _iso_z_format(date):
-    raw = date.isoformat()
-    keep = raw.split('+', 1)[0]
-    if date.microsecond == 0:
-        return keep + '.000Z'
-    return keep[:-3] + 'Z'
+@nachotoken_required
+def db_log_report_form(request):
+    logger = logging.getLogger('telemetry').getChild('db')
+    # Any message set in 'message' will be displayed as a red error message.
+    # Used for reporting error in any POST.
+    message = ''
+    if request.method != 'POST':
+        form = DBReportForm()
+        form.fields['project'].initial = request.session.get('project', default_project)
+        return render_to_response('log_form.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
 
-def json_formatter(obj):
-    if isinstance(obj, UtcDateTime):
-        return obj.datetime.isoformat('T')
-    elif isinstance(obj, datetime):
-        return obj.isoformat('T')
-    else:
-        try:
-            return str(obj)
-        except Exception as e:
-            raise TypeError, 'Object of type %s with value of %s not converted to string: %s' % (type(obj), repr(obj), e)
+    form = DBReportForm(request.POST)
+    if not form.is_valid():
+        logger.warn('invalid form data')
+        return render_to_response('log_form.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+    project = form.cleaned_data['project']
+    from_date = form.cleaned_data['from_date']
+    to_date = form.cleaned_data['to_date']
+    logger.debug("Running log report for Project:%s, "
+                 "From Date:%s, To Date:%s",
+                 project, from_date, to_date)
+
+    request.session['project'] = project
+    from_datetime = UtcDateTime(from_date)
+    to_datetime = UtcDateTime(to_date)
+    summary = {}
+    summary["start"] = from_datetime
+    summary["end"] =  to_datetime
+    t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
+    summary, error_list, warning_list = log_report(logger, t3_redshift_config['general_config']['project'],
+                                                   t3_redshift_config, from_datetime, to_datetime)
+    report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": t3_redshift_config["general_config"] }
+    return render_to_response('log_report.html', report_data,
+                              context_instance=RequestContext(request))
+
+@nachotoken_required
+def db_help(request):
+    logger = logging.getLogger('telemetry').getChild('db')
+    # Any message set in 'message' will be displayed as a red error message.
+    # Used for reporting error in any POST.
+    message = ''
+    return render_to_response('help.html', {'message': message},
+                                  context_instance=RequestContext(request))
