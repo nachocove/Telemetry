@@ -19,7 +19,7 @@
        </tr>
        <tr>
            <td><b>Event Types</b></td>
-           <td>{{ summary.event_types }}</td>
+           <td>{{ summary.event_classes }}</td>
        </tr>
     <tr>
            <td><b>Table Name </b></td>
@@ -31,9 +31,9 @@
 <br/>
 <br/>
 
-{% for event_type, count_dict in upload_stats.items %}
+{% for event_class, count_dict in upload_stats.items %}
     <br/>
-    <b>Event Type : {{ event_type }}</b>
+    <b>Event Class : {{ event_class }}</b>
     <br/>
 
     <table border="1">

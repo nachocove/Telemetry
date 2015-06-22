@@ -144,8 +144,8 @@ def main():
                               help='Date window ending time in ISO-8601 UTC or "now" for the current time. e.g 2015-06-18',
                               dest='end',
                               default=None)
-    parser.add_argument('--event_type',
-                              help="Event Type. Specify one of 'PROTOCOL','LOG', 'COUNTER', \
+    parser.add_argument('--event_class',
+                              help="Event Class. Specify one of 'PROTOCOL','LOG', 'COUNTER', \
                                    'STATISTICS2','UI', 'DEVICEINFO', 'SAMPLES' if you don't need all",
                               default='ALL',
                               type=str)
@@ -196,22 +196,24 @@ def main():
     if not end:
         logger.error("Invalid end time(%s)/period(%s)", args.end, args.period)
         exit(-1)
-    if (args.event_type not in T3_EVENT_CLASS_FILE_PREFIXES):
-        logger.error("Invalid event type %s. Pick one of %s", args.event_type, T3_EVENT_CLASS_FILE_PREFIXES.keys())
+    if (args.event_class not in T3_EVENT_CLASS_FILE_PREFIXES):
+        logger.error("Invalid event type %s. Pick one of %s", args.event_class, T3_EVENT_CLASS_FILE_PREFIXES.keys())
         exit(-1)
     summary = {}
     summary["start"] = start
     summary["end"] = end
-    event_types = T3_EVENT_CLASS_FILE_PREFIXES[args.event_type]
-    if isinstance(event_types, list):
-        summary["event_types"] = event_types
+    event_classes = T3_EVENT_CLASS_FILE_PREFIXES[args.event_class]
+    if isinstance(event_classes, list):
+        summary["event_classes"] = event_classes
+        summary["table_name"] = ""
     else:
-        summary["event_types"] = args.event_type
-    summary["table_name"] = "nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+        summary["event_classes"] = args.event_class
+        summary["table_name"] = "nm_" + T3_EVENT_CLASS_FILE_PREFIXES[arg.event_class]
+
     upload_stats = {}
     #upload_stats["log"] = [{"date": "2", "count":22}, {"date": "3", "count":44}]
-    upload_stats = upload_logs(logger, config, args.event_type, start, end)
-    error_stats = get_upload_error_stats(logger, config, args.event_type, start, end)
+    upload_stats = upload_logs(logger, config, args.event_class, start, end)
+    error_stats = get_upload_error_stats(logger, config, args.event_class, start, end)
     settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=('T3Viewer/templates',),
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
     report_data = {'summary': summary, 'upload_stats': upload_stats, "general_config": config["general_config"]}

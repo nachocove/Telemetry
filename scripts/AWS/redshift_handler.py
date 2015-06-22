@@ -38,7 +38,7 @@ def create_db_conn(logger, db_config):
         logger.error(err)
     return conn
 
-def delete_logs(logger, config, event_type, start, end):
+def delete_logs(logger, config, event_class, start, end):
     aws_config = config["aws_config"]
     s3_config = config["s3_config"]
     startForRS = start.datetime.strftime('%Y-%m-%d %H:%M:%S')
@@ -51,7 +51,7 @@ def delete_logs(logger, config, event_type, start, end):
         logger.info("Deleting logs...")
         sql_statement="delete from nm_%s" \
                       "where  timestamped >= '%s' and timestamped <= '%s'"\
-                      % (T3_EVENT_CLASS_FILE_PREFIXES[event_type], startForRS, endForRS)
+                      % (T3_EVENT_CLASS_FILE_PREFIXES[event_class], startForRS, endForRS)
         try:
             logger.info(sql_statement)
             cursor.execute(sql_statement)
@@ -85,15 +85,15 @@ def upload_logs(logger, config, event_class, start, end, table_prefix=None):
         for event_class in event_classes:
             event_class_stats = []
             upload_stats[event_class] = event_class_stats
-            event_type= T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+            event_class_name= T3_EVENT_CLASS_FILE_PREFIXES[event_class]
             date_prefixes = get_T3_date_prefixes(start, end)
             for date_prefix in date_prefixes:
                 sql_statement="COPY %snm_%s FROM 's3://%s/%s' \
                 CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s' \
                 gzip maxerror 100000\
-                json 's3://%s/%s'" % (table_prefix, event_type, s3_config[event_type]["t3_bucket"], date_prefix,
+                json 's3://%s/%s'" % (table_prefix, event_class_name, s3_config[event_class_name]["t3_bucket"], date_prefix,
                                       aws_config["aws_access_key_id"], aws_config["aws_secret_access_key"],
-                                      s3_config[event_type]["t3_bucket"], s3_config[event_type]["t3_jsonpath"])
+                                      s3_config[event_class_name]["t3_bucket"], s3_config[event_class_name]["t3_jsonpath"])
                 try:
                     logger.info(sql_statement)
                     cursor.execute(sql_statement)
@@ -129,8 +129,8 @@ def create_tables(logger, config, event_class, table_prefix):
         for event_class in event_classes:
             event_class_stats = []
             upload_stats[event_class] = event_class_stats
-            event_type= T3_EVENT_CLASS_FILE_PREFIXES[event_class]
-            table_sql_file = config["db_sql"][event_type]
+            event_class_name= T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+            table_sql_file = config["db_sql"][event_class_name]
             with open (table_sql_file, "r") as myfile:
                 table_sql=myfile.read()
             table_sql = table_sql % table_prefix
