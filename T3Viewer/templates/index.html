@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
-<a href="{% url 'bugfix-home' %}">Help</a><br>
+<a href="help.html">Help</a><br>
 <a href="{% url 'bugfix-home' %}">Search</a><br>
 <a href="{% url 'bugfix-home' %}">Daily Log Report</a><br>
+<a href="{% url 'db-load' %}">RedShift Database Loader</a><br>
+<a href="{% url 'bugfix-home' %}">RedShift Database Query</a><br>
 <a href="{% url 'bugfix-home' %}">Pinger Stats</a><br>
 <a href="{% url 'bugfix-home' %}">Support Requests</a><br>
 <a href="{% url 'bugfix-home' %}">Devices</a><br>
 <a href="{% url 'bugfix-home' %}">RedShift DB Stats</a><br>
-<a href="{% url 'db-load' %}">RedShift Load DB</a><br>
-<a href="{% url 'bugfix-home' %}">RedShift Query DB</a><br>
 <a href="{% url 'bugfix-home' %}">Counters, UI, Samples</a><br>
 
 {% endblock %}

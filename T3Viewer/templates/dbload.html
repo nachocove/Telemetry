@@ -11,18 +11,14 @@
     <br/>
     <b>Overview</b><br>
     This form allows you to load the database with the telemetry data from S3. <br>
-    The data is a set of temporary tables prefixed with the prefix you specify. <br>
-    The current form only allows you to upload a max of a month of data. This limitation is to restrict inadvertant data load.<br>
+    The data is uploaded to a set of temporary tables prefixed with the prefix you specify. <br>
+    If the tables don't exist, they will be created. <br>
+    If the tables exist, they will be loaded with the data for the specified period.<br>
+    Keep in mind that RedhShift doesn't enforce primary key or uniqueness constraints. <br>
+    If you run the same upload twice, the data will be uploaded twice.<br>
+    The period can specified as a range of days.<br>
+    You can choose to upload data for all event classes or for a specific event class.<br>
+    The current form only allows you to upload a max of a month of data. This limitation is to restrict inadvertent data load.<br>
 	<br/>
-    The allowed tags are:
-	<ul>
-    <li><b>email</b>: e.g test2@d2.officeburrito.com. The search for devices goes back 7 days.</li>
-    <li><b>timestamp</b> or <b>Date/Time</b> or <b>Launch Time</b>: e.g 2015-06-12T17:18:30.153Z or just use <b>now</b></li>
-    <li><b>userid</b> or <b>user-id</b> or <b>User ID</b>: eg. us-east-1:7df6e942-10c5-431f-9258-772e0b937ccd</li>
-    <li><b>deviceid</b> or <b>Device Id</b>: Ncho39D6C69AXBC8EX4C81XBEB0X</li>
-    <li><b>span</b>: e.g 2</li>
-        <li><b>search</b>: eg. Crash or AUTOD. This can also be a regular expression like ASPC\([0-9]\)</li>
-	</ul>
-    <br/>
 </div>
 {% endblock %}
