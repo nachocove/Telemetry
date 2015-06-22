@@ -1,4 +1,4 @@
-CREATE TABLE %s_nm_device_info (
+CREATE TABLE IF NOT EXISTS %snm_device_info (
  "id" varchar(64) not null unique primary key,
  "timestamped" timestamp,
  "user_id" varchar(64),

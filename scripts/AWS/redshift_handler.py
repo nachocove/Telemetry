@@ -38,20 +38,24 @@ def create_db_conn(logger, db_config):
         logger.error(err)
     return conn
 
-def delete_logs(logger, config, event_class, start, end):
+def delete_logs(logger, project, config, event_class, start, end, table_prefix):
     aws_config = config["aws_config"]
     s3_config = config["s3_config"]
     startForRS = start.datetime.strftime('%Y-%m-%d %H:%M:%S')
     endForRS = end.datetime.strftime('%Y-%m-%d %H:%M:%S')
+    if table_prefix:
+        table_prefix_for_sql = table_prefix + '_' + project + '_'
+    else:
+        table_prefix_for_sql = project + '_'
     try:
         logger.info("Creating connection...")
         conn = create_db_conn(logger, config["db_config"])
         conn.autocommit = False
         cursor = conn.cursor()
         logger.info("Deleting logs...")
-        sql_statement="delete from nm_%s" \
+        sql_statement="delete from %snm_%s" \
                       "where  timestamped >= '%s' and timestamped <= '%s'"\
-                      % (T3_EVENT_CLASS_FILE_PREFIXES[event_class], startForRS, endForRS)
+                      % (table_prefix_for_sql, T3_EVENT_CLASS_FILE_PREFIXES[event_class], startForRS, endForRS)
         try:
             logger.info(sql_statement)
             cursor.execute(sql_statement)
@@ -65,13 +69,13 @@ def delete_logs(logger, config, event_class, start, end):
         logger.error(traceback.format_exc())
 
 #upload logs
-def upload_logs(logger, config, event_class, start, end, table_prefix=None):
+def upload_logs(logger, project, config, event_class, start, end, table_prefix=None):
     aws_config = config["aws_config"]
     s3_config = config["s3_config"]
     if table_prefix:
-        table_prefix = table_prefix + '_'
+        table_prefix_for_sql = table_prefix + '_' + project + '_'
     else:
-        table_prefix = ''
+        table_prefix_for_sql = project + '_'
     upload_stats = {}
     try:
         logger.info("Creating connection...")
@@ -91,7 +95,7 @@ def upload_logs(logger, config, event_class, start, end, table_prefix=None):
                 sql_statement="COPY %snm_%s FROM 's3://%s/%s' \
                 CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s' \
                 gzip maxerror 100000\
-                json 's3://%s/%s'" % (table_prefix, event_class_name, s3_config[event_class_name]["t3_bucket"], date_prefix,
+                json 's3://%s/%s'" % (table_prefix_for_sql, event_class_name, s3_config[event_class_name]["t3_bucket"], date_prefix,
                                       aws_config["aws_access_key_id"], aws_config["aws_secret_access_key"],
                                       s3_config[event_class_name]["t3_bucket"], s3_config[event_class_name]["t3_jsonpath"])
                 try:
@@ -115,7 +119,7 @@ def upload_logs(logger, config, event_class, start, end, table_prefix=None):
     return upload_stats
 
 #create tables
-def create_tables(logger, config, event_class, table_prefix):
+def create_tables(logger, project, config, event_class, table_prefix=None):
     upload_stats = {}
     try:
         logger.info("Creating connection...")
@@ -133,7 +137,12 @@ def create_tables(logger, config, event_class, table_prefix):
             table_sql_file = config["db_sql"][event_class_name]
             with open (table_sql_file, "r") as myfile:
                 table_sql=myfile.read()
-            table_sql = table_sql % table_prefix
+            if table_prefix:
+                table_prefix_for_sql = table_prefix + '_' + project + '_'
+                table_sql = table_sql % table_prefix_for_sql
+            else:
+                table_prefix_for_sql = project + '_'
+                table_sql = table_sql % table_prefix_for_sql
             try:
                 logger.info(table_sql)
                 cursor.execute(table_sql)

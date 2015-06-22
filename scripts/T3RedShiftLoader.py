@@ -26,7 +26,7 @@ from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 from django.utils.html import strip_tags
 from AWS.s3t3_telemetry import T3_EVENT_CLASS_FILE_PREFIXES, get_T3_date_prefixes
-from AWS.redshift_handler import delete_logs, upload_logs
+from AWS.redshift_handler import delete_logs, upload_logs, create_tables
 import os
 import codecs
 try:
@@ -91,11 +91,11 @@ def get_email_backend(email_config):
         password=password, use_tls=start_tls)
     return backend
 
-def send_email(logger, email_config, html_part, start, project, attachments=None):
+def send_email(logger, email_config, html_part, start, project_name, attachments=None):
     from django.core.mail import send_mail
     text_part = strip_tags(html_part)
-    subject = "Daily Redshift Upload Summary %s for %s" % (project, start)
-    report_name = "RSUpload%s-%s" % (project, start)
+    subject = "Daily Redshift Upload Summary %s for %s" % (project_name, start)
+    report_name = "RSUpload%s-%s" % (project_name, start)
     username = email_config['username']
     if username:
         password = email_config['password']
@@ -196,7 +196,7 @@ def main():
     if not end:
         logger.error("Invalid end time(%s)/period(%s)", args.end, args.period)
         exit(-1)
-    if (args.event_class not in T3_EVENT_CLASS_FILE_PREFIXES):
+    if args.event_class not in T3_EVENT_CLASS_FILE_PREFIXES.keys():
         logger.error("Invalid event type %s. Pick one of %s", args.event_class, T3_EVENT_CLASS_FILE_PREFIXES.keys())
         exit(-1)
     summary = {}
@@ -212,7 +212,9 @@ def main():
 
     upload_stats = {}
     #upload_stats["log"] = [{"date": "2", "count":22}, {"date": "3", "count":44}]
-    upload_stats = upload_logs(logger, config, args.event_class, start, end)
+
+    status = create_tables(logger, config['general_config']['project'], config, args.event_class)
+    upload_stats = upload_logs(logger, config['general_config']['project'], config, args.event_class, start, end)
     error_stats = get_upload_error_stats(logger, config, args.event_class, start, end)
     settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=('T3Viewer/templates',),
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
@@ -220,7 +222,7 @@ def main():
     html_part = render_to_string('uploadreport.html', report_data)
     if args.email:
         send_email(logger, config["email_config"], html_part, start,
-                   config['general_config']['project'], [os.path.join(args.logdir, log_filename)])
+                   config['general_config']['project_name'], [os.path.join(args.logdir, log_filename)])
     elif args.debug:
         print html_part
     exit()

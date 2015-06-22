@@ -69,7 +69,7 @@ def json_config(file_name):
     #pprint(json_data)
     return json_data
 
-def run_report(logger, config, start, end):
+def run_report(logger, project, config, start, end):
     summary = {'start':start, 'end':end}
     summary['period'] = str(end.datetime - start.datetime)
     summary['total_hours'] = (end.datetime-start.datetime).days*24 + (end.datetime-start.datetime).seconds/3600
@@ -85,29 +85,29 @@ def run_report(logger, config, start, end):
         try:
             logger.info("Selecting error counts from logs...")
             #TODO fix %s in SQL statements
-            sql_statement = "select distinct count(*), substring(message, 0, 72) from nm_log " \
+            sql_statement = "select distinct count(*), substring(message, 0, 72) from %s_nm_log " \
                             "where event_type='ERROR' and " \
                             "timestamped >= '%s' and timestamped <= '%s'" \
-                            "group by message order by count desc" % (startForRS, endForRS)
+                            "group by message order by count desc" % (project, startForRS, endForRS)
             logger.info(sql_statement)
             rows = select(logger, cursor, sql_statement)
             for row in rows:
                 error_list.append({"count":row[0], "message":row[1]})
             logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
             logger.info("Selecting warning counts from logs...")
-            sql_statement = "select distinct count(*), substring(message, 0, 72) from nm_log " \
+            sql_statement = "select distinct count(*), substring(message, 0, 72) from %s_nm_log " \
                             "where event_type='WARN' and " \
                             "timestamped >= '%s' and timestamped <= '%s'" \
-                            "group by message order by count desc" % (startForRS, endForRS)
+                            "group by message order by count desc" % (project, startForRS, endForRS)
             logger.info(sql_statement)
             rows = select(logger, cursor, sql_statement)
             for row in rows:
                 warning_list.append({"count":row[0], "message":row[1]})
             logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
             logger.info("Selecting total counts from logs...")
-            sql_statement = "select distinct count(*), event_type from nm_log " \
+            sql_statement = "select distinct count(*), event_type from %s_nm_log " \
                             "where timestamped >= '%s' and timestamped <= '%s'" \
-                            "group by event_type order by count desc"% (startForRS, endForRS)
+                            "group by event_type order by count desc"% (project, startForRS, endForRS)
             logger.info(sql_statement)
             rows = select(logger, cursor, sql_statement)
             total_count = 0
@@ -155,10 +155,10 @@ def get_email_backend(email_config):
         password=password, use_tls=start_tls)
     return backend
 
-def send_email(logger, email_config, html_part, start, project):
+def send_email(logger, email_config, html_part, start, project_name):
     from django.core.mail import send_mail
     text_part = strip_tags(html_part)
-    subject = "Daily Telemetry Summary %s for %s" % (project, start)
+    subject = "Daily Telemetry Summary %s for %s" % (project_name, start)
     username = email_config['username']
     if username:
         password = email_config['password']
@@ -240,13 +240,13 @@ def main():
         logger.error("Invalid end time(%s)/period(%s)", args.end, args.period)
         exit(-1)
     logger.info("Running log report for the period %s to %s", start, end)
-    summary, error_list, warning_list = run_report(logger, config, start, end)
+    summary, error_list, warning_list = run_report(logger, config['general_config']['project'], config, start, end)
     settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=('T3Viewer/templates',),
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
     report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": config["general_config"] }
     html_part = render_to_string('logreport.html', report_data)
     if args.email:
-        send_email(logger, config["email_config"], html_part, start, config['general_config']['project'])
+        send_email(logger, config["email_config"], html_part, start, config['general_config']['project_name'])
     elif args.debug:
         print html_part
     exit()

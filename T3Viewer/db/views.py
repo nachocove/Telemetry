@@ -207,8 +207,8 @@ def dbload(request):
         summary["event_types"] = event_class
     summary["table_name"] = table_prefix + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
-    status = create_tables(logger, t3_redshift_config, event_class, table_prefix)
-    upload_stats = upload_logs(logger, t3_redshift_config, event_class, from_datetime, to_datetime, table_prefix)
+    status = create_tables(logger, project, t3_redshift_config, event_class, table_prefix)
+    upload_stats = upload_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime, table_prefix)
     report_data = {'summary': summary, 'upload_stats': upload_stats, "general_config": t3_redshift_config["general_config"]}
     return render_to_response('uploadreport.html', report_data,
                               context_instance=RequestContext(request))

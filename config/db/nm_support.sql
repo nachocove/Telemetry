@@ -1,4 +1,4 @@
-CREATE TABLE %s_nm_support (
+CREATE TABLE IF NOT EXISTS %snm_support (
  "id" varchar(64) not null unique primary key,
  "event_type" varchar(64) not null,
  "timestamped" timestamp,

@@ -1,0 +1,1 @@
+../../../config/db/nm_counter.sql

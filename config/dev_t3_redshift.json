@@ -1,6 +1,7 @@
 {
     "general_config": {
-        "project": "Development"
+        "project": "dev",
+        "project_name": "Development"
 	},
     "aws_config": {
         "region_name": "us-west-2",
@@ -61,6 +62,17 @@
         "host":"t3-dw-instance.ccqihpfuufs8.us-west-2.redshift.amazonaws.com",
         "port":"5439"
     },
+    "db_sql": {
+        "device_info": "config/db/nm_device_info.sql",
+        "log": "config/db/nm_log.sql",
+        "plog": "config/db/nm_plog.sql",
+        "support": "config/db/nm_support.sql",
+        "protocol": "config/db/nm_protocol.sql",
+        "ui": "config/db/nm_ui.sql",
+        "counter": "config/db/nm_counter.sql",
+        "statistics2": "config/db/nm_statistics2.sql",
+        "samples": "config/db/nm_samples.sql"
+    },
     "email_config": {
         "smtp_server": "email-smtp.us-west-2.amazonaws.com",
         "port":587,
@@ -69,6 +81,6 @@
         "from_address":"janv@nachocove.com",
         "username" : "",
         "password" : "",
-        "recipients":"nerds@nachocove.com"
+        "recipients":"azimo@nachocove.com"
     }
 }
