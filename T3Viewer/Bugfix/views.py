@@ -24,6 +24,7 @@ from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
 from boto.s3.connection import S3Connection
 from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES, get_pinger_events
+from core.auth import nacho_cache, nachotoken_required
 
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from misc.utc_datetime import UtcDateTime
@@ -151,28 +152,6 @@ def create_session(request):
 
 def validate_session(request):
     return request.session.get('nachotoken', None) == nacho_token()
-
-def nachotoken_required(view_func):
-    @wraps(view_func, assigned=available_attrs(view_func))
-    def _wrapped_view(request, *args, **kwargs):
-        return view_func(request, *args, **kwargs)
-        # if validate_session(request):
-        #     return view_func(request, *args, **kwargs)
-        # else:
-        #     return HttpResponseRedirect(settings.LOGIN_URL)
-    return _wrapped_view
-
-def nacho_cache(view_func):
-    """
-    A convenient function where to adjust cache settings for all cached pages. If we later
-    want to add 304 processing or server-side caching, just add it here.
-    """
-    @wraps(view_func, assigned=available_attrs(view_func))
-    @cache_control(private=True, must_revalidate=True, proxy_revalidate=True, max_age=3600)
-    @vary_on_cookie
-    def _wrapped_view(request, *args, **kwargs):
-        return view_func(request, *args, **kwargs)
-    return _wrapped_view
 
 # Create your views here.
 def login(request):
