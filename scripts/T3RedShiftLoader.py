@@ -28,7 +28,8 @@ from django.utils.html import strip_tags
 from AWS.s3t3_telemetry import T3_EVENT_CLASS_FILE_PREFIXES, get_T3_date_prefixes
 from AWS.redshift_handler import delete_logs, upload_logs, create_tables
 import os
-import codecs
+from AWS.db_reports import parse_dates
+
 try:
     from cloghandler import ConcurrentRotatingFileHandler as RFHandler
 except ImportError:
@@ -63,17 +64,6 @@ def get_user_device_prefixes(logger, config, startdt_prefix):
 def get_upload_error_stats(logger, config, event_class, start, end):
     error_stats = {}
     return error_stats
-
-def parse_dates(args):
-    if not args.start and args.period == "daily": # only support daily right now
-        start = UtcDateTime(datetime.fromordinal((UtcDateTime(args.end).datetime - timedelta(1)).toordinal()))
-    else:
-        start = UtcDateTime(args.start)
-    if not args.end and args.period == "daily":
-        end = UtcDateTime(datetime.fromordinal((UtcDateTime(args.start).datetime + timedelta(1)).toordinal()))
-    else:
-        end = UtcDateTime(args.end)
-    return start, end
 
 def get_email_backend(email_config):
     from django.core.mail.backends.smtp import EmailBackend
@@ -216,7 +206,8 @@ def main():
     status = create_tables(logger, config['general_config']['project'], config, args.event_class)
     upload_stats = upload_logs(logger, config['general_config']['project'], config, args.event_class, start, end)
     error_stats = get_upload_error_stats(logger, config, args.event_class, start, end)
-    settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=('T3Viewer/templates',),
+    template_dir = config['general_config']['src_root'] + '/T3Viewer/templates'
+    settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=(template_dir,),
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
     report_data = {'summary': summary, 'upload_stats': upload_stats, "general_config": config["general_config"]}
     html_part = render_to_string('upload_report.html', report_data)

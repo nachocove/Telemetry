@@ -9,6 +9,22 @@ from datetime import timedelta, datetime, date
 from pprint import pprint
 from boto.exception import S3ResponseError, EC2ResponseError, BotoServerError
 from AWS.redshift_handler import create_db_conn
+from misc.utc_datetime import UtcDateTime
+
+def parse_dates(args):
+    if not args.start and not args.end and args.period == "daily": # run yesterday's report
+        start = UtcDateTime(datetime.fromordinal((datetime.now() - timedelta(1)).toordinal()))
+        end = UtcDateTime(datetime.fromordinal((datetime.now()).toordinal()))
+    else:
+        if not args.start and args.period == "daily": # only support daily right now
+            start = UtcDateTime(datetime.fromordinal((UtcDateTime(args.end).datetime - timedelta(1)).toordinal()))
+        else:
+            start = UtcDateTime(args.start)
+        if not args.end and args.period == "daily":
+            end = UtcDateTime(datetime.fromordinal((UtcDateTime(args.start).datetime + timedelta(1)).toordinal()))
+        else:
+            end = UtcDateTime(args.end)
+    return start, end
 
 def select(logger, cursor, sql_st):
     # need a connection with dbname=<username>_db
