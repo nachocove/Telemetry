@@ -83,3 +83,28 @@ def log_report(logger, project, config, start, end):
         logger.error(traceback.format_exc())
     cursor.close()
     conn.close()
+
+def execute_sql(logger, project, config, sql_query):
+    logger.info("Creating connection...")
+    conn = create_db_conn(logger, config["db_config"])
+    conn.autocommit = False
+    cursor = conn.cursor()
+    logger.info("Running custom sql query...")
+    #TODO fix %s in SQL statements
+    sql_statement = sql_query
+    logger.info(sql_statement)
+    rows = []
+    error = ""
+    try:
+        status= cursor.execute(sql_statement)
+        num_fields = len(cursor.description)
+        col_names = [i[0] for i in cursor.description]
+        rows = cursor.fetchall()
+        print rows
+    except Exception as err:
+        error = err
+        logger.error(err)
+        logger.error(traceback.format_exc())
+    cursor.close()
+    conn.close()
+    return error, col_names, rows

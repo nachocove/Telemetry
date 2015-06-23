@@ -27,7 +27,7 @@ from boto.s3.connection import S3Connection
 from AWS.s3t3_telemetry import T3_EVENT_CLASS_FILE_PREFIXES
 from misc.utc_datetime import UtcDateTime
 from AWS.redshift_handler import delete_logs, upload_logs, create_tables
-from AWS.db_reports import log_report
+from AWS.db_reports import log_report, execute_sql
 
 # Get the list of project
 projects_cfg = ConfigParser.ConfigParser()
@@ -136,6 +136,19 @@ class DBReportForm(forms.Form):
         elif (to_date-from_date).days > 31:
             raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
 
+class DBQueryForm(forms.Form):
+    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
+    sql_query = forms.CharField(widget=forms.Textarea)
+
+    def clean_project(self):
+        project = self.cleaned_data.get('project', '')
+        if project not in projects:
+            self.add_error('project', 'Unknown Project')
+            raise ValidationError(_('Unknown Project: %(project)s'),
+                                  code='unknown',
+                                  params={'project': projects})
+        return project
+
 def nachotoken_required(view_func):
     @wraps(view_func, assigned=available_attrs(view_func))
     def _wrapped_view(request, *args, **kwargs):
@@ -242,11 +255,7 @@ def db_log_report(request, project, from_date, to_date):
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
     error_list = []
     warning_list = []
-    print settings.__dict__
-    if not t3_redshift_config:
-        logger.error("Error loading T3 Redshift config for project:%s", project)
-    else:
-        summary, error_list, warning_list = log_report(logger, t3_redshift_config['general_config']['project'],
+    summary, error_list, warning_list = log_report(logger, t3_redshift_config['general_config']['project'],
                                                    t3_redshift_config, from_datetime, to_datetime)
     report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": t3_redshift_config["general_config"] }
     return render_to_response('log_report.html', report_data,
@@ -260,3 +269,25 @@ def db_help(request):
     message = ''
     return render_to_response('help.html', {'message': message},
                                   context_instance=RequestContext(request))
+
+@nachotoken_required
+def db_query(request):
+    logger = logging.getLogger('telemetry').getChild('db')
+    message = ''
+    if request.method != 'POST':
+        form = DBQueryForm()
+        return render_to_response('db_query.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+    form = DBQueryForm(request.POST)
+    if not form.is_valid():
+        logger.warn('invalid form data')
+        return render_to_response('db_query.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+    sql_query = form.cleaned_data['sql_query']
+    project = form.cleaned_data['project']
+    print "project", project
+    t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
+    error, col_names, results = execute_sql(logger, project, t3_redshift_config, sql_query)
+    report_data = {'results': results, 'col_names': col_names, 'message':error, "general_config": t3_redshift_config["general_config"], 'form': form}
+    return render_to_response('db_query.html', report_data,
+                              context_instance=RequestContext(request))
