@@ -26,7 +26,7 @@ from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 from django.utils.html import strip_tags
 import os
-from AWS.db_reports import log_report
+from AWS.db_reports import log_report, parse_dates
 
 try:
     from cloghandler import ConcurrentRotatingFileHandler as RFHandler
@@ -39,17 +39,6 @@ def json_config(file_name):
         json_data = json.load(data_file)
     #pprint(json_data)
     return json_data
-
-def parse_dates(args):
-    if not args.start and args.period == "daily": # only support daily right now
-        start = UtcDateTime(datetime.fromordinal((UtcDateTime(args.end).datetime - timedelta(1)).toordinal()))
-    else:
-        start = UtcDateTime(args.start)
-    if not args.end and args.period == "daily":
-        end = UtcDateTime(datetime.fromordinal((UtcDateTime(args.start).datetime + timedelta(1)).toordinal()))
-    else:
-        end = UtcDateTime(args.end)
-    return start, end
 
 def get_email_backend(email_config):
     from django.core.mail.backends.smtp import EmailBackend
@@ -153,7 +142,8 @@ def main():
         exit(-1)
     logger.info("Running log report for the period %s to %s", start, end)
     summary, error_list, warning_list = log_report(logger, config['general_config']['project'], config, start, end)
-    settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=('T3Viewer/templates',),
+    template_dir = config['general_config']['src_root'] + '/T3Viewer/templates'
+    settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=(template_dir,),
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
     report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": config["general_config"] }
     html_part = render_to_string('log_report_plain.html', report_data)
