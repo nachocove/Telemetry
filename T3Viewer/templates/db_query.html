@@ -11,6 +11,14 @@
     <br/>
     <b>Overview</b><br>
     This form allows you to query the database with the telemetry data from S3. <br>
+    A few examples are:<br>
+    <pre>
+select * from dev_nm_device_info;
+
+select * from dev_nm_log where  where timestamped >= '2015-06-22 00:00:00'
+        and timestamped <= '2015-06-22 23:59:59';
+
+select count(*), event_type from azim_dev_nm_device_info group by event_type;</pre>
 	<br/>
 </div>
 <div style="clear:left">

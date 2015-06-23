@@ -239,7 +239,6 @@ def process_report(request, project, form, loc, logger):
                                                     loc.get('span', default_span), loc['event_class'])
         if device_list:
             if len(device_list) > 1:
-                print device_list
                 return render_to_response('device_picker.html', {'device_list': device_list.values(), 'project': project, 'email': loc['email']},
                                   context_instance=RequestContext(request))
             elif len(device_list) == 1:
@@ -303,7 +302,6 @@ def get_device_list(email_events, project, span, event_class):
                                                                 'project': project})
             device_list[ev['user_id'] + ':' + ev['device_id']] = device_data
         else:
-            print "in else ", device_list[ev['user_id'] + ':' + ev['device_id']]['first_timestamp']
             device_list[ev['user_id'] + ':' + ev['device_id']]['last_timestamp'] = ev['timestamp']
             device_list[ev['user_id'] + ':' + ev['device_id']]['url'] = reverse(entry_page, kwargs={'userid': device_data['user_id'],
                                                                 'deviceid': device_data['device_id'],

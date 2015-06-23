@@ -26,9 +26,6 @@ def log_report(logger, project, config, start, end):
     summary['total_hours'] = (end.datetime-start.datetime).days*24 + (end.datetime-start.datetime).seconds/3600
     startForRS = start.datetime.strftime('%Y-%m-%d %H:%M:%S')
     endForRS = end.datetime.strftime('%Y-%m-%d %H:%M:%S')
-    print summary
-    print "start, end ", start, end
-    print "dates", startForRS, endForRS
     error_list = []
     warning_list = []
     logger.info("Creating connection...")
@@ -100,7 +97,6 @@ def execute_sql(logger, project, config, sql_query):
         num_fields = len(cursor.description)
         col_names = [i[0] for i in cursor.description]
         rows = cursor.fetchall()
-        print rows
     except Exception as err:
         error = err
         logger.error(err)
