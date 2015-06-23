@@ -1,3 +1,13 @@
+h2 {
+    color: dark-grey;
+    font-family: Arial, Helvetica, sans-serif;
+    text-indent: 30px;
+}
+h3 {
+    color: dark-grey;
+    font-family: Arial, Helvetica, sans-serif;
+    text-indent: 30px;
+}
 .table {
     border-collapse: collapse;
     border: 1px solid black;

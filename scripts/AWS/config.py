@@ -14,10 +14,16 @@ class AwsConfig(SectionConfig):
         'sns_platform_app_arn',
         'telemetry_bucket',
         'telemetry_prefix',
+        'isT3',
     )
 
     def __init__(self, config_file):
         SectionConfig.__init__(self, config_file)
+
+    def __getattr__(self, key):
+        if key == 'isT3':
+            return self.config_file.getbool(AwsConfig.SECTION, key)
+        return SectionConfig.__getattr__(self, key)
 
 class CliFunc(object):
     def add_arguments(self, parser, subparser):

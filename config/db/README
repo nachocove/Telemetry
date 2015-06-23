@@ -1,0 +1,4 @@
+#README
+The t3db.sql script contains all the RedShift database schema
+The *jsonpath.json files are the upload mapping for redshift copy commands.
+They need to be located in their respective buckets/json folders.

@@ -8,7 +8,7 @@ from datetime import datetime
 import hashlib
 
 T3_EVENT_CLASS_FILE_PREFIXES = {
-         'ALL': ['PROTOCOL','LOG', 'COUNTER', 'STATISTICS2','UI', 'SUPPORT', 'DEVICEINFO','PINGER'],
+         'ALL': ['PROTOCOL','LOG', 'COUNTER', 'STATISTICS2','UI', 'SUPPORT', 'DEVICEINFO','PINGER', 'SAMPLES'],
          'PROTOCOL': 'protocol',
          'LOG': 'log',
          'COUNTER': 'counter',
@@ -32,7 +32,7 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
     events = []
     nm=0
     prev_file_uploaded_at_ts = None
-    for date_prefix in get_T3_client_prefixes(after, before):
+    for date_prefix in get_T3_date_prefixes(after, before):
         get_prefix = date_prefix
         logger.info("get_prefix is %s" % get_prefix)
         file_regex = re.compile(r'.*/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES['PINGER'])
@@ -91,7 +91,7 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
     events = []
     nm=0
     prev_file_uploaded_at_ts = None
-    for date_prefix in get_T3_client_prefixes(after, before):
+    for date_prefix in get_T3_date_prefixes(after, before):
         get_prefix = date_prefix + client_prefix
         logger.info("get_prefix is %s" % get_prefix)
         userid_regex = '\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+'
@@ -139,6 +139,8 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
                             else:
                                 ev['user_id'] = userid
                             ev['uploaded_at'] = uploaded_at_ts
+                            if 'ui_integer' not in ev and 'ui_long' in ev:
+                                ev['ui_integer'] = ev['ui_long']
                             if 'event_type' not in ev:
                                 ev['event_type'] = type
                             # TODO move this out appropriately
@@ -163,7 +165,7 @@ def file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded
         else:
             return False
 
-def get_T3_client_prefixes(after, before):
+def get_T3_date_prefixes(after, before):
     from datetime import timedelta
     prefixes = []
     delta = before.datetime.date() - after.datetime.date()

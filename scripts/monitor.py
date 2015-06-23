@@ -421,6 +421,16 @@ def run_reports(options, email, logger):
                     if k.startswith('freshdesk_'):
                         freshdesk_options[k.split('freshdesk_')[1]] = getattr(options, k)
                 kwargs['freshdesk'] = freshdesk_options
+                if 'aws_isT3' in options and options.aws_isT3:
+                    kwargs['isT3'] = options.aws_isT3
+                    kwargs['s3conn'] = S3Connection(host='s3-us-west-2.amazonaws.com',
+                                                   port=443,
+                                                   aws_secret_access_key=options.aws_secret_access_key,
+                                                   aws_access_key_id=options.aws_access_key_id,
+                                                   is_secure=True)
+                    kwargs['bucket_name'] = options.aws_telemetry_bucket
+                else:
+                    kwargs['isT3'] = False
             except AttributeError:
                 pass
         elif monitor_name == 'cost':

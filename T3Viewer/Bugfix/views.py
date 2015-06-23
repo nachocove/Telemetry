@@ -22,17 +22,11 @@ from django.template import RequestContext
 from django.utils.decorators import available_attrs
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
-from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.s3.connection import S3Connection
-from boto.dynamodb2.exceptions import DynamoDBError
 from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES, get_pinger_events
+from core.auth import nacho_cache, nachotoken_required
 
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
-from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween, SelectorContains, SelectorGreaterThanEqual
-from AWS.tables import TelemetryTable
-from monitors.monitor_base import Monitor
-from misc.support import Support
 from misc.utc_datetime import UtcDateTime
 
 T3_MODULES = ['CLIENT',
@@ -115,22 +109,6 @@ class VectorForm(forms.Form):
         return project
 
 BOTO_DEBUG=False
-_aws_connection_cache = {}
-def _aws_connection(project):
-    global _aws_connection_cache
-    if not project in _aws_connection_cache:
-        if not project in projects:
-            raise ValueError('Project %s is not present in projects.cfg' % project)
-        _aws_connection_cache[project] = DynamoDBConnection(host='dynamodb.us-west-2.amazonaws.com',
-                                                            port=443,
-                                                            aws_secret_access_key=projects_cfg.get(project, 'secret_access_key'),
-                                                            aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
-                                                            region='us-west-2',
-                                                            is_secure=True,
-                                                            debug=2 if BOTO_DEBUG else 0)
-    TelemetryTable.PREFIX = project
-    return _aws_connection_cache[project]
-
 _aws_s3_connection_cache = {}
 def _aws_s3_connection(project):
     """
@@ -146,7 +124,6 @@ def _aws_s3_connection(project):
                                                          aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
                                                          is_secure=True,
                                                          debug=2 if BOTO_DEBUG else 0)
-    TelemetryTable.PREFIX = project
     return _aws_s3_connection_cache[project]
 
 def _parse_junk(junk, mapping):
@@ -175,28 +152,6 @@ def create_session(request):
 
 def validate_session(request):
     return request.session.get('nachotoken', None) == nacho_token()
-
-def nachotoken_required(view_func):
-    @wraps(view_func, assigned=available_attrs(view_func))
-    def _wrapped_view(request, *args, **kwargs):
-        return view_func(request, *args, **kwargs)
-        # if validate_session(request):
-        #     return view_func(request, *args, **kwargs)
-        # else:
-        #     return HttpResponseRedirect(settings.LOGIN_URL)
-    return _wrapped_view
-
-def nacho_cache(view_func):
-    """
-    A convenient function where to adjust cache settings for all cached pages. If we later
-    want to add 304 processing or server-side caching, just add it here.
-    """
-    @wraps(view_func, assigned=available_attrs(view_func))
-    @cache_control(private=True, must_revalidate=True, proxy_revalidate=True, max_age=3600)
-    @vary_on_cookie
-    def _wrapped_view(request, *args, **kwargs):
-        return view_func(request, *args, **kwargs)
-    return _wrapped_view
 
 # Create your views here.
 def login(request):
@@ -263,7 +218,6 @@ def process_report(request, project, form, loc, logger):
                                                     loc.get('span', default_span), loc['event_class'])
         if device_list:
             if len(device_list) > 1:
-                print device_list
                 return render_to_response('device_picker.html', {'device_list': device_list.values(), 'project': project, 'email': loc['email']},
                                   context_instance=RequestContext(request))
             elif len(device_list) == 1:
@@ -327,7 +281,6 @@ def get_device_list(email_events, project, span, event_class):
                                                                 'project': project})
             device_list[ev['user_id'] + ':' + ev['device_id']] = device_data
         else:
-            print "in else ", device_list[ev['user_id'] + ':' + ev['device_id']]['first_timestamp']
             device_list[ev['user_id'] + ':' + ev['device_id']]['last_timestamp'] = ev['timestamp']
             device_list[ev['user_id'] + ':' + ev['device_id']]['url'] = reverse(entry_page, kwargs={'userid': device_data['user_id'],
                                                                 'deviceid': device_data['device_id'],
@@ -355,9 +308,18 @@ def get_device_list_from_email(project, timestamp, email_address, span, event_cl
 
 def get_support_events(project, after, before, logger=None):
     conn = _aws_s3_connection(project)
-    bucket_name = projects_cfg.get(project, 'client_telemetry_bucket')
+    bucket_name = projects_cfg.get(project, 'client_t3_support_bucket')
     support_event_list = get_client_events(conn, bucket_name, '', '', after, before, 'SUPPORT', '', logger=logger)
     return support_event_list
+
+@nachotoken_required
+def index(request):
+    logger = logging.getLogger('telemetry').getChild('index')
+    # Any message set in 'message' will be displayed as a red error message.
+    # Used for reporting error in any POST.
+    message = ''
+    return render_to_response('index.html', {'message': message},
+                                  context_instance=RequestContext(request))
 
 @nachotoken_required
 def home(request):
@@ -534,7 +496,6 @@ def get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
 def get_t3_events(project, userid, deviceid, event_class, search, after, before):
     logger = logging.getLogger('telemetry').getChild('client_telemetry')
     conn = _aws_s3_connection(project)
-    bucket_name = projects_cfg.get(project, 'client_telemetry_bucket')
     event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     if isinstance(event_classes, list):
         all_events = []
@@ -542,12 +503,14 @@ def get_t3_events(project, userid, deviceid, event_class, search, after, before)
             if ev_class == 'PINGER':
                some_events = get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
             else:
+                bucket_name = projects_cfg.get(project, 'client_t3_%s_bucket' % T3_EVENT_CLASS_FILE_PREFIXES[ev_class])
                 some_events = get_client_events(conn, bucket_name, userid, deviceid, after, before, ev_class, search, logger=logger)
             all_events.extend(some_events)
     else:
         if event_class == 'PINGER':
             all_events = get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
         else:
+            bucket_name = projects_cfg.get(project, 'client_t3_%s_bucket' % T3_EVENT_CLASS_FILE_PREFIXES[event_class])
             all_events = get_client_events(conn, bucket_name, userid, deviceid, after, before, event_class, search, logger=logger)
     all_events = sorted(all_events, key=lambda x: x['timestamp'])
     return all_events
@@ -556,7 +519,7 @@ def get_t3_events(project, userid, deviceid, event_class, search, after, before)
 def get_last_device_info_event(project, userid, deviceid, after, before):
     logger = logging.getLogger('telemetry').getChild('client_telemetry')
     conn = _aws_s3_connection(project)
-    bucket_name = projects_cfg.get(project, 'client_telemetry_bucket')
+    bucket_name = projects_cfg.get(project, 'client_t3_device_info_bucket')
     device_info_list = get_client_events(conn, bucket_name, userid, deviceid, after, before, 'DEVICEINFO', '', logger=logger)
     if len(device_info_list) > 0:
         return device_info_list[-1]

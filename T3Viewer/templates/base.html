@@ -3,19 +3,25 @@
 <meta http-equiv="Content-type" content="text/html; charset=UTF-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
 {% block head %}
+    <link rel="stylesheet" type="text/css" href="/static/list.css">
 {% endblock %}
 {% block javascript %}
 {% endblock %}
 <title>Telemetry Viewer</title>
 </head>
 <body {{ body_args }}>
-<span style="float:right;"><a href="{% url 'logout' %}">Logout</a></span>
-<span style="float:left;">
-    <a href="{% url 'bugfix-home' %}">User/Device Searches</a>
-</span>
-<hr style="clear:both;">
+<table border="0">
+    <tr>
+        <td><a href="{% url 'index' %}"><img src="/static/nachocove-icon.png" width=39px/></a></td>
+        <td>
+            <h2>Telemetry Viewer - {% block title %}Index{% endblock %}</h2>
+        </td>
+    </tr>
+</table>
 <p><font color="red">{{ message }}</font></p>
 {% block content %}
 {% endblock %}
-<div style="clear:both;">&copy; Copyright 2014-2015 Nacho Cove, Inc</div>
+<hr style="clear:both;">
+<span style="float:right;"><a href="{% url 'logout' %}">Logout</a></span>
+<span style="float:left;">&copy; Copyright 2014-2015 Nacho Cove, Inc</span>
 </body>

@@ -415,6 +415,16 @@ function refreshEvents() {
                 addFieldToRow(row, 'counter_end (UTC)', dateTimeUtc(event.counter_end));
                 break;
             }
+            case 'SAMPLES': {
+                row = getRowWithCommonFields(i, event, 2);
+                addFieldToRow(row, 'sample_name', event.sample_name)
+                table.appendChild(row);
+
+                row = getRow(event);
+                addFieldToRow(row, 'sample_value', event.sample_value);
+                table.appendChild(row);
+                break;
+            }
             case 'STATISTICS2': {
                 row = getRowWithCommonFields(i, event, 8);
                 addFieldToRow(row, 'stat2_name', event.stat2_name);
