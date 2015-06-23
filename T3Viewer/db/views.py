@@ -189,7 +189,7 @@ def db_load(request):
         summary["event_types"] = event_classes
     else:
         summary["event_types"] = event_class
-    summary["table_name"] = table_prefix + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+    summary["table_name"] = table_prefix + "_" + project + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
     status = create_tables(logger, project, t3_redshift_config, event_class, table_prefix)
     upload_stats = upload_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime, table_prefix)
