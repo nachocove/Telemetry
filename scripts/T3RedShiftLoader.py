@@ -208,7 +208,7 @@ def main():
         summary["table_name"] = ""
     else:
         summary["event_classes"] = args.event_class
-        summary["table_name"] = "nm_" + T3_EVENT_CLASS_FILE_PREFIXES[arg.event_class]
+        summary["table_name"] = "nm_" + T3_EVENT_CLASS_FILE_PREFIXES[args.event_class]
 
     upload_stats = {}
     #upload_stats["log"] = [{"date": "2", "count":22}, {"date": "3", "count":44}]
