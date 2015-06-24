@@ -1,7 +1,8 @@
 {
     "general_config": {
         "project": "alpha",
-        "project_name": "Alpha"
+        "project_name": "Alpha",
+        "src_root": "/home/ec2-user/src/nacho/Telemetry"
 	},
     "aws_config": {
         "region_name": "us-west-2",

@@ -53,6 +53,54 @@ def get_t3_redshift_config(project, file_name):
             _t3_redshift_config_cache[project] = json.load(data_file)
     return _t3_redshift_config_cache[project]
 
+class DBDeleteForm(forms.Form):
+    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
+    from_date = forms.DateTimeField(initial=datetime.now())
+    to_date = forms.DateTimeField(initial=datetime.now())
+    event_class = forms.ChoiceField(choices=[(x, x.capitalize()) for x in sorted(T3_EVENT_CLASS_FILE_PREFIXES)])
+    table_prefix = forms.CharField(widget=forms.TextInput, required=True)
+
+    def clean_event_class(self):
+        event_class = self.cleaned_data.get('event_class', '')
+        if event_class not in T3_EVENT_CLASS_FILE_PREFIXES.keys():
+            self.add_error('event_class', 'Unknown Event Class')
+            raise ValidationError(_('Unknown Event Class: %(event_class)s'),
+                                  code='unknown',
+                                  params={'event_class': T3_EVENT_CLASS_FILE_PREFIXES.keys()})
+        return event_class
+
+    def clean_from_date(self):
+        from_date = self.cleaned_data.get('from_date', '')
+        if from_date.replace(tzinfo=None) > datetime.now():
+            self.add_error('from_date', 'Date/Time in future')
+            raise ValidationError(_('Date/Time in future: %(from_date)s'))
+        return from_date
+
+    def clean_to_date(self):
+        to_date = self.cleaned_data.get('to_date', '')
+        if to_date.replace(tzinfo=None) > datetime.now():
+            self.add_error('to_date', 'Date/Time in future')
+            raise ValidationError(_('Date/Time in future: %(to_date)s'))
+        return to_date
+
+    def clean_project(self):
+        project = self.cleaned_data.get('project', '')
+        if project not in projects:
+            self.add_error('project', 'Unknown Project')
+            raise ValidationError(_('Unknown Project: %(project)s'),
+                                  code='unknown',
+                                  params={'project': projects})
+        return project
+
+    def clean(self):
+        cleaned_data = super(DBDeleteForm, self).clean()
+        from_date = cleaned_data.get("from_date")
+        to_date = cleaned_data.get("to_date")
+        if to_date < from_date:
+            raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
+        elif (to_date-from_date).days > 31:
+            raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
+
 class DBLoadForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
     from_date = forms.DateField(initial=date.today())
@@ -91,6 +139,7 @@ class DBLoadForm(forms.Form):
                                   code='unknown',
                                   params={'project': projects})
         return project
+
     def clean(self):
         cleaned_data = super(DBLoadForm, self).clean()
         from_date = cleaned_data.get("from_date")
@@ -103,8 +152,8 @@ class DBLoadForm(forms.Form):
 
 class DBReportForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
-    from_date = forms.DateTimeField(initial=datetime.now())
-    to_date = forms.DateTimeField(initial=datetime.now())
+    from_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now() - timedelta(1)).toordinal()))
+    to_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now()).toordinal())-timedelta(seconds=1))
 
     def clean_from_date(self):
         from_date = self.cleaned_data.get('from_date', '')
@@ -128,6 +177,7 @@ class DBReportForm(forms.Form):
                                   code='unknown',
                                   params={'project': projects})
         return project
+
     def clean(self):
         cleaned_data = super(DBReportForm, self).clean()
         from_date = cleaned_data.get("from_date")
@@ -186,15 +236,75 @@ def db_load(request):
     summary["end"] =  to_datetime
     event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     if isinstance(event_classes, list):
-        summary["event_types"] = event_classes
+        summary["event_classes"] = event_classes
+        for ev_class in event_classes:
+            if "table_name" in summary:
+                summary["table_name"] = summary["table_name"] + ", " + \
+                                    table_prefix + "_" + project + \
+                                    "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
+            else:
+                summary["table_name"] = table_prefix + "_" + project + \
+                                    "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
     else:
-        summary["event_types"] = event_class
-    summary["table_name"] = table_prefix + "_" + project + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+        summary["event_classes"] = event_class
+        summary["table_name"] = table_prefix + "_" + project + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
     status = create_tables(logger, project, t3_redshift_config, event_class, table_prefix)
     upload_stats = upload_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime, table_prefix)
     report_data = {'summary': summary, 'upload_stats': upload_stats, "general_config": t3_redshift_config["general_config"]}
     return render_to_response('upload_report.html', report_data,
+                              context_instance=RequestContext(request))
+
+@nachotoken_required
+def db_delete(request):
+    logger = logging.getLogger('telemetry').getChild('db')
+    message = ''
+    if request.method != 'POST':
+        form = DBDeleteForm()
+        form.fields['project'].initial = request.session.get('project', default_project)
+        return render_to_response('db_delete.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+
+    form = DBDeleteForm(request.POST)
+    if not form.is_valid():
+        logger.warn('invalid form data')
+        return render_to_response('db_delete.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+    project = form.cleaned_data['project']
+    from_date = form.cleaned_data['from_date']
+    to_date = form.cleaned_data['to_date']
+    event_class = form.cleaned_data['event_class']
+    table_prefix = form.cleaned_data['table_prefix']
+    logger.debug("Deleting data from the database Project:%s, "
+                 "From Date:%s, To Date:%s, Event Class=%s, Table Prefix:%s",
+                 project, from_date, to_date, event_class, table_prefix)
+
+    request.session['project'] = project
+    request.session['event_class'] = event_class
+    from_datetime = UtcDateTime(from_date)
+    to_datetime = UtcDateTime(to_date)
+    summary = {}
+    summary["start"] = from_datetime
+    summary["end"] =  to_datetime
+    event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+    if isinstance(event_classes, list):
+        summary["event_classes"] = event_classes
+        for ev_class in event_classes:
+            if "table_name" in summary:
+                summary["table_name"] = summary["table_name"] + ", " + \
+                                    table_prefix + "_" + project + \
+                                    "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
+            else:
+                summary["table_name"] = table_prefix + "_" + project + \
+                                    "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
+    else:
+        summary["event_classes"] = event_class
+        summary["table_name"] = table_prefix + "_" + project + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+    t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
+    delete_stats = delete_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime, table_prefix)
+    report_data = {'summary': summary, 'delete_stats': delete_stats,
+                   "general_config": t3_redshift_config["general_config"], 'message':message}
+    return render_to_response('delete_report.html', report_data,
                               context_instance=RequestContext(request))
 
 @nachotoken_required

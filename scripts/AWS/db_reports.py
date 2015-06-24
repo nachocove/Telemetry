@@ -14,7 +14,7 @@ from misc.utc_datetime import UtcDateTime
 def parse_dates(args):
     if not args.start and not args.end and args.period == "daily": # run yesterday's report
         start = UtcDateTime(datetime.fromordinal((datetime.now() - timedelta(1)).toordinal()))
-        end = UtcDateTime(datetime.fromordinal((datetime.now()).toordinal()))
+        end = UtcDateTime(datetime.fromordinal((datetime.now()).toordinal())-timedelta(seconds=1))
     else:
         if not args.start and args.period == "daily": # only support daily right now
             start = UtcDateTime(datetime.fromordinal((UtcDateTime(args.end).datetime - timedelta(1)).toordinal()))
