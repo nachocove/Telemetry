@@ -152,8 +152,8 @@ class DBLoadForm(forms.Form):
 
 class DBReportForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
-    from_date = forms.DateTimeField(initial=datetime.now())
-    to_date = forms.DateTimeField(initial=datetime.now())
+    from_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now() - timedelta(1)).toordinal()))
+    to_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now()).toordinal())-timedelta(seconds=1))
 
     def clean_from_date(self):
         from_date = self.cleaned_data.get('from_date', '')
