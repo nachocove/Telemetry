@@ -200,8 +200,7 @@ def main():
         summary["event_classes"] = args.event_class
         summary["table_name"] = "nm_" + T3_EVENT_CLASS_FILE_PREFIXES[args.event_class]
 
-    upload_stats = {}
-    #upload_stats["log"] = [{"date": "2", "count":22}, {"date": "3", "count":44}]
+    logger.info("Running T3 Redshift Uploader for the period %s to %s", start, end)
 
     status = create_tables(logger, config['general_config']['project'], config, args.event_class)
     upload_stats = upload_logs(logger, config['general_config']['project'], config, args.event_class, start, end)
