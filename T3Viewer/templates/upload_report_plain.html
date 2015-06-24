@@ -18,7 +18,7 @@
            <td>{{ summary.end }}</td>
        </tr>
        <tr>
-           <td><b>Event Types</b></td>
+           <td><b>Event Classes</b></td>
            <td>{{ summary.event_classes }}</td>
        </tr>
     <tr>
@@ -38,8 +38,8 @@
 
     <table border="1">
         <tr>
+            <th class="cell">Date</th>
             <th class="cell">Count</th>
-            <th class="cell">Message</th>
         </tr>
         {% for k in count_dict %}
                 <tr>
