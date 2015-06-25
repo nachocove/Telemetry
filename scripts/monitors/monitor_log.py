@@ -56,16 +56,15 @@ class MonitorLog(Monitor):
     def _query(self):
         if self.isT3:
             raw_events = get_client_events(self.s3conn, self.log_t3_bucket, userid='', deviceid='',
-                                           after=self.start, before=self.end,  type='LOG', search='', logger=self.logger)
+                                           after=self.start, before=self.end,  event_class='LOG',
+                                           event_type=self.event_type, search='', logger=self.logger)
             self.events = []
             for ev in raw_events:
-                # TODO: move this to get_client_events
-                if ev['event_type'] == self.event_type:
-                    log_event = LogEvent(self.conn, id_=ev['id'], client=ev['client'], timestamp=ev['timestamp'],
-                                 uploaded_at=ev['uploaded_at'], event_type=ev['event_type'], thread_id=ev['thread_id'],
-                                     message=ev['message'])
-                    self.events.append(log_event)
-                    self.event_count = len(self.events)
+                log_event = LogEvent(self.conn, id_=ev['id'], client=ev['client'], timestamp=ev['timestamp'],
+                             uploaded_at=ev['uploaded_at'], event_type=ev['event_type'], thread_id=ev['thread_id'],
+                                 message=ev['message'])
+                self.events.append(log_event)
+                self.event_count = len(self.events)
         else:
             query = Query()
             query.add('event_type', SelectorEqual(self.event_type))

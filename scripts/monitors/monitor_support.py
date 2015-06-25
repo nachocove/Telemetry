@@ -32,7 +32,7 @@ class MonitorSupport(Monitor):
         self.logger.info('Querying %s...', self.desc)
         if self.isT3:
             self.events = get_client_events(self.s3conn, self.bucket_name, userid='', deviceid='',
-                        after=self.start, before=self.end, type='SUPPORT', search='', logger=self.logger)
+                        after=self.start, before=self.end, event_class='SUPPORT', search='', logger=self.logger)
             self.requests = []
             for event in self.events:
                 support_event = SupportEvent(event)
