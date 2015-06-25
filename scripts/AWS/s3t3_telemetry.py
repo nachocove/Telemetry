@@ -173,3 +173,19 @@ def get_T3_date_prefixes(after, before):
         d = after.datetime.date() + timedelta(days=i)
         prefixes.append("%s" % (d.strftime('%Y%m%d')))
     return prefixes
+
+def get_latest_device_info_event(conn, bucket_name, userid, deviceid, after, before, logger=None):
+    device_info_list = get_client_events(conn, bucket_name, userid, deviceid, after, before, 'DEVICEINFO', '', logger=logger)
+    if len(device_info_list) > 0:
+        return device_info_list[-1]
+    else:
+        # widen the search :-( a week before
+        for i in range(7):
+            before = UtcDateTime(str(after))
+            from datetime import timedelta
+            after = before.datetime - timedelta(days=1)
+            logger.info("Check from %s to %s for device info", after, before)
+            device_info_list = get_client_events(conn, bucket_name, userid, deviceid, UtcDateTime(str(after)), UtcDateTime(str(before)), 'DEVICEINFO', '', logger=logger)
+            if len(device_info_list) > 0:
+                return device_info_list[-1]
+        return None

@@ -410,6 +410,21 @@ def run_reports(options, email, logger):
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
             continue
+        elif monitor_name == 'errors' or monitor_name == 'warnings':
+            try:
+                if 'aws_isT3' in options and options.aws_isT3:
+                    kwargs['isT3'] = options.aws_isT3
+                    kwargs['s3conn'] = S3Connection(host='s3-us-west-2.amazonaws.com',
+                                                   port=443,
+                                                   aws_secret_access_key=options.aws_secret_access_key,
+                                                   aws_access_key_id=options.aws_access_key_id,
+                                                   is_secure=True)
+                    kwargs['log_t3_bucket'] = options.aws_log_t3_bucket
+                    kwargs['device_info_t3_bucket'] = options.aws_device_info_t3_bucket
+                else:
+                    kwargs['isT3'] = False
+            except AttributeError:
+                pass
         elif monitor_name == 'crashes':
             ha_obj = HockeyApp.hockeyapp.HockeyApp(options.hockeyapp_api_token)
             ha_app_obj = ha_obj.app(options.hockeyapp_app_id)
@@ -428,7 +443,7 @@ def run_reports(options, email, logger):
                                                    aws_secret_access_key=options.aws_secret_access_key,
                                                    aws_access_key_id=options.aws_access_key_id,
                                                    is_secure=True)
-                    kwargs['bucket_name'] = options.aws_telemetry_bucket
+                    kwargs['bucket_name'] = options.aws_support_t3_bucket
                 else:
                     kwargs['isT3'] = False
             except AttributeError:
