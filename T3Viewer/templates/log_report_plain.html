@@ -47,13 +47,13 @@
        </tr>
 </table>
 <br/>
-<b>Errors</b>
+<b>Errors Clustered</b>
 <table border="1">
     <tr>
         <th class="cell">Count</th>
         <th class="cell">Message</th>
     </tr>
-{% for error in errors %}
+{% for error in clustered_errors %}
        <tr>
            <td class="cell">{{ error.count }}</td>
            <td class="cell">{{ error.message }}</td>
@@ -61,16 +61,56 @@
 {% endfor %}
 </table>
 <br/>
-<b>Warnings</b>
+<b>Warnings Clustered</b>
 <table border="1">
     <tr>
         <th class="cell">Count</th>
         <th class="cell">Message</th>
     </tr>
-{% for warning in warnings %}
+{% for warning in clustered_warnings %}
        <tr>
            <td class="cell">{{ warning.count }}</td>
            <td class="cell">{{ warning.message }}</td>
+       </tr>
+{% endfor %}
+</table>
+<br/>
+<b>Errors Detail</b>
+<table border="1">
+    <tr>
+        <th class="cell">Event Type</th>
+        <th class="cell">User Id</th>
+        <th class="cell">Device Id</th>
+        <th class="cell">Timestamp</th>
+        <th class="cell">Message</th>
+    </tr>
+{% for error in errors %}
+       <tr>
+           <td class="cell"><a href="{{error.telemetry_link}}" target="_blank">{{ error.event_type }}</a></td>
+           <td class="cell"><a href="{{error.telemetry_link}}" target="_blank">{{ error.user_id }}</a></td>
+           <td class="cell"><a href="{{error.telemetry_link}}" target="_blank">{{ error.device_id }}</a></td>
+           <td class="cell"><a href="{{error.telemetry_link}}" target="_blank">{{ error.timestamp }}</a></td>
+           <td class="cell"><a href="{{error.telemetry_link}}" target="_blank">{{ error.message }}</a></td>
+       </tr>
+{% endfor %}
+</table>
+<br/>
+<b>Warnings Detail</b>
+<table border="1">
+    <tr>
+        <th class="cell">Event Type</th>
+        <th class="cell">User Id</th>
+        <th class="cell">Device Id</th>
+        <th class="cell">Timestamp</th>
+        <th class="cell">Message</th>
+    </tr>
+{% for warning in warnings %}
+       <tr>
+           <td class="cell"><a href="{{warning.telemetry_link}}" target="_blank">{{ warning.event_type }}</a></td>
+           <td class="cell"><a href="{{warning.telemetry_link}}" target="_blank">{{ warning.user_id }}</a></td>
+           <td class="cell"><a href="{{warning.telemetry_link}}" target="_blank">{{ warning.device_id }}</a></td>
+           <td class="cell"><a href="{{warning.telemetry_link}}" target="_blank">{{ warning.timestamp }}</a></td>
+           <td class="cell"><a href="{{warning.telemetry_link}}" target="_blank">{{ warning.message }}</a></td>
        </tr>
 {% endfor %}
 </table>
