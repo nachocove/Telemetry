@@ -38,7 +38,7 @@ class MonitorLogTraceThread(ThreadPoolThread):
 
 
 class MonitorLog(Monitor):
-    def __init__(self, event_type=None, msg=None, rate_msg=None,isT3=False, log_t3_bucket=None, device_info_t3_bucket=None, s3conn=None, *args, **kwargs):
+    def __init__(self, event_type=None, msg=None, rate_msg=None, isT3=False, log_t3_bucket=None, device_info_t3_bucket=None, s3conn=None, *args, **kwargs):
         super(MonitorLog, self).__init__(*args, **kwargs)
         self.event_type = event_type
         self.events = list()  # events returned from the query

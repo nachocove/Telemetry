@@ -7,18 +7,23 @@ from AWS.selectors import SelectorEqual
 from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
-
+from AWS.s3t3_telemetry import get_client_events
 
 class MonitorCount(Monitor):
-    def __init__(self, rate_desc=None, *args, **kwargs):
+    def __init__(self, rate_desc=None, isT3=False, log_t3_bucket=None, device_info_t3_bucket=None, s3conn=None, *args, **kwargs):
         Monitor.__init__(self, *args, **kwargs)
         self.count = 0
         self.rate_desc = rate_desc
+        self.isT3 = isT3
+        self.s3conn = s3conn
+        self.log_t3_bucket = log_t3_bucket
+        self.device_info_t3_bucket = device_info_t3_bucket
 
         # Create the query
         self.query = Query()
         self.query.add_range('uploaded_at', self.start, self.end)
         self.query.count = True
+
 
     def run(self):
         # Derived class must provide its own implementation
@@ -43,9 +48,20 @@ class MonitorUsers(MonitorCount):
         kwargs.setdefault('desc', 'Active user count')
         MonitorCount.__init__(self, *args, **kwargs)
 
+    def get_active_device_count(self):
+        device_info_list = get_client_events(self.s3conn, self.device_info_t3_bucket, '', '', self.start,
+                                             self.end, 'DEVICEINFO', '', logger=self.logger)
+        clients = set()
+        for di in device_info_list:
+            clients.add(di['client'])
+        return len(clients)
+
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self.count = Query.users(self.query, self.conn)
+        if self.isT3:
+            self.count = self.get_active_device_count()
+        else:
+            self.count = Query.users(self.query, self.conn)
 
     def report(self, summary, **kwargs):
         count_str = pretty_number(self.count)
