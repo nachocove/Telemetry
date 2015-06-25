@@ -51,7 +51,7 @@ def log_report(logger, project, config, start, end):
     try:
         logger.info("Selecting error counts from logs...")
         #TODO fix %s in SQL statements
-        sql_statement = "select distinct count(*), substring(message, 0, 72) from %s_nm_log " \
+        sql_statement = "select distinct count(*), message from %s_nm_log " \
                         "where event_type='ERROR' and " \
                         "timestamped >= '%s' and timestamped <= '%s'" \
                         "group by message order by count desc" % (project, startForRS, endForRS)
@@ -61,7 +61,7 @@ def log_report(logger, project, config, start, end):
             error_list.append({"count":row[0], "message":row[1]})
         logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
         logger.info("Selecting warning counts from logs...")
-        sql_statement = "select distinct count(*), substring(message, 0, 72) from %s_nm_log " \
+        sql_statement = "select distinct count(*), message from %s_nm_log " \
                         "where event_type='WARN' and " \
                         "timestamped >= '%s' and timestamped <= '%s'" \
                         "group by message order by count desc" % (project, startForRS, endForRS)

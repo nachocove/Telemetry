@@ -29,6 +29,8 @@ from misc.utc_datetime import UtcDateTime
 from AWS.redshift_handler import delete_logs, upload_logs, create_tables
 from AWS.db_reports import log_report, execute_sql
 from core.auth import nacho_cache, nachotoken_required
+from analytics.token import TokenList, WhiteSpaceTokenizer
+from analytics.cluster import Clusterer
 
 # Get the list of project
 projects_cfg = ConfigParser.ConfigParser()
@@ -330,6 +332,28 @@ def db_log_report_form(request):
     kwargs['to_date'] = UtcDateTime(form.cleaned_data['to_date'])
     return HttpResponseRedirect(reverse(db_log_report, kwargs=kwargs))
 
+def classify(events):
+    # Cluster log messages
+    clusterer = Clusterer()
+    tokenizer = WhiteSpaceTokenizer()
+    for log in events:
+        # We cluster using only the first line of the message
+        message = log['message'].split('\n')[0]
+        token_list = TokenList(tokenizer.process(message))
+        clusterer.add(token_list)
+
+    # Generate the report dictionary
+    clustered_events = []
+    for cluster in clusterer.clusters:
+        message = unicode(cluster.pattern)
+        if len(message) > 70:
+            new_message = message[:76] + ' ...'
+        else:
+            new_message = message
+        clustered_events.append({"count":len(cluster), "message":new_message})
+    clustered_events_sorted = sorted(clustered_events, key=lambda x: x['count'], reverse=True)
+    return clustered_events_sorted
+
 def db_log_report(request, project, from_date, to_date):
     logger = logging.getLogger('telemetry').getChild('db')
     logger.debug("Running log report for Project:%s, "
@@ -346,7 +370,10 @@ def db_log_report(request, project, from_date, to_date):
     warning_list = []
     summary, error_list, warning_list = log_report(logger, t3_redshift_config['general_config']['project'],
                                                    t3_redshift_config, from_datetime, to_datetime)
-    report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": t3_redshift_config["general_config"] }
+    clustered_error_list=classify(error_list)
+    clustered_warning_list=classify(warning_list)
+    report_data = {'summary': summary, 'errors': clustered_error_list, 'warnings': clustered_warning_list,
+                   "general_config": t3_redshift_config["general_config"] }
     return render_to_response('log_report.html', report_data,
                               context_instance=RequestContext(request))
 

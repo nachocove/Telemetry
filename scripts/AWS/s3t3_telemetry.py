@@ -23,7 +23,8 @@ T3_EVENT_CLASS_FILE_PREFIXES = {
 }
 
 def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search, logger=None):
-    logger.info("Getting events of class PINGER...")
+    logger.info("Getting events of class PINGER for userid %s deviceid %s from %s to %s with search '%s'" %
+                (userid, deviceid, after, before, search))
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)
     #sample key
@@ -34,7 +35,7 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
     prev_file_uploaded_at_ts = None
     for date_prefix in get_T3_date_prefixes(after, before):
         get_prefix = date_prefix
-        logger.info("get_prefix is %s" % get_prefix)
+        logger.debug("get_prefix is %s" % get_prefix)
         file_regex = re.compile(r'.*/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES['PINGER'])
 
         search_regex=re.compile(search)
@@ -45,7 +46,7 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                 uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
                 uploaded_at_ts = UtcDateTime(uploaded_at_ts)
                 if file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
-                    logger.info("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
+                    logger.debug("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
                     file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
                     for line in file_content.splitlines():
                         ev = json.loads(line)
@@ -76,7 +77,8 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
     return events
 
 def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_class, search, logger=None, event_type=None):
-    logger.info("Getting events of class %s for userid %s deviceid %s" % (event_class, userid, deviceid))
+    logger.info("Getting events of class %s for userid %s deviceid %s from %s to %s with search='%s' for event_type %s" %
+                (event_class, userid, deviceid, after, before, search, event_type))
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)
     if userid:
@@ -90,7 +92,7 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_
     prev_file_uploaded_at_ts = None
     for date_prefix in get_T3_date_prefixes(after, before):
         get_prefix = date_prefix + client_prefix
-        logger.info("get_prefix is %s" % get_prefix)
+        logger.debug("get_prefix is %s" % get_prefix)
         userid_regex = '\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+'
         if not userid:
             if deviceid:
@@ -111,7 +113,7 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_
                 uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
                 uploaded_at_ts = UtcDateTime(uploaded_at_ts)
                 if file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
-                    logger.info("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
+                    logger.debug("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
                     file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
                     for line in file_content.splitlines():
                         ev = json.loads(line)
@@ -159,7 +161,7 @@ def file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded
         return True
     else:
         if prev_file_uploaded_at_ts and prev_file_uploaded_at_ts.datetime >= after.datetime and prev_file_uploaded_at_ts.datetime < before.datetime:
-            logger.info("Prev File uploaded at %s is between %s and %s. So the file at %s should also be included", prev_file_uploaded_at_ts, before, after, uploaded_at_ts)
+            logger.debug("Prev File uploaded at %s is between %s and %s. So the file at %s should also be included", prev_file_uploaded_at_ts, before, after, uploaded_at_ts)
             return True
         else:
             return False
@@ -183,7 +185,7 @@ def get_latest_device_info_event(conn, bucket_name, userid, deviceid, after, bef
             before = UtcDateTime(str(after))
             from datetime import timedelta
             after = before.datetime - timedelta(days=1)
-            logger.info("Check from %s to %s for device info", after, before)
+            logger.debug("Check from %s to %s for device info", after, before)
             device_info_list = get_client_events(conn, bucket_name, userid, deviceid, UtcDateTime(str(after)), UtcDateTime(str(before)), 'DEVICEINFO', '', logger=logger)
             if len(device_info_list) > 0:
                 return device_info_list[-1]
