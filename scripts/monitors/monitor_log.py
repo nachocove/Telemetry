@@ -11,8 +11,8 @@ from logtrace import LogTrace
 from analytics.token import TokenList, WhiteSpaceTokenizer
 from analytics.cluster import Clusterer
 from misc.threadpool import *
-from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES, get_latest_device_info_event
-from AWS.events import LogEvent, WbxmlEvent, CounterEvent, CaptureEvent, SupportEvent, UiEvent, DeviceInfoEvent
+from AWS.s3t3_telemetry import get_client_events, get_latest_device_info_event
+from AWS.events import LogEvent, DeviceInfoEvent
 
 
 class MonitorLogTraceThread(ThreadPoolThread):
