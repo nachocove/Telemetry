@@ -410,8 +410,7 @@ def run_reports(options, email, logger):
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
             continue
-        elif monitor_name == 'errors' or monitor_name == 'warnings' \
-                or monitor_name == 'users':
+        elif monitor_name in ['errors', 'warnings', 'users', 'events']:
             try:
                 if 'aws_isT3' in options and options.aws_isT3:
                     kwargs['isT3'] = options.aws_isT3

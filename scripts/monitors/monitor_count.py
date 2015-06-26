@@ -332,6 +332,11 @@ class MonitorEvents(MonitorCount):
         kwargs.setdefault('rate_desc', 'Event rate')
         MonitorCount.__init__(self, *args, **kwargs)
 
+    def get_event_count(self):
+        event_list = get_client_events(self.s3conn, self.log_t3_bucket, '', '', self.start,
+                                             self.end, 'LOG', '', logger=self.logger)
+        return len(event_list)
+
     def run(self):
         self.logger.info('Querying %s...', self.desc)
         # We cannot just issue a query with a range on uploaded_at because it
@@ -339,11 +344,14 @@ class MonitorEvents(MonitorCount):
         # a query for event_type + uploaded_at range which results in a indexed query
         # for each event type and finally combine the count
         self.count = 0
-        for table in TABLE_CLASSES:
-            for event_type in table.EVENT_TYPES:
-                query = Query()
-                query.add('event_type', SelectorEqual(event_type))
-                query.add_range('uploaded_at', self.start, self.end)
-                query.count = True
-                count = Query.events(query, self.conn)
-                self.count += count
+        if self.isT3:
+            self.count = self.get_event_count()
+        else:
+            for table in TABLE_CLASSES:
+                for event_type in table.EVENT_TYPES:
+                    query = Query()
+                    query.add('event_type', SelectorEqual(event_type))
+                    query.add_range('uploaded_at', self.start, self.end)
+                    query.count = True
+                    count = Query.events(query, self.conn)
+                    self.count += count
