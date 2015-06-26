@@ -27,7 +27,7 @@ from boto.s3.connection import S3Connection
 from AWS.s3t3_telemetry import T3_EVENT_CLASS_FILE_PREFIXES
 from misc.utc_datetime import UtcDateTime
 from AWS.redshift_handler import delete_logs, upload_logs, create_tables
-from AWS.db_reports import log_report, execute_sql
+from AWS.db_reports import log_report, execute_sql, classify_log_events
 from core.auth import nacho_cache, nachotoken_required
 
 # Get the list of project
@@ -346,7 +346,12 @@ def db_log_report(request, project, from_date, to_date):
     warning_list = []
     summary, error_list, warning_list = log_report(logger, t3_redshift_config['general_config']['project'],
                                                    t3_redshift_config, from_datetime, to_datetime)
-    report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": t3_redshift_config["general_config"] }
+    clustered_error_list=classify_log_events(error_list)
+    clustered_warning_list=classify_log_events(warning_list)
+    report_data = {'summary': summary, 'clustered_errors': clustered_error_list,
+                   'clustered_warnings': clustered_warning_list,
+                   'errors': error_list, 'warnings': warning_list,
+                   "general_config": t3_redshift_config["general_config"]}
     return render_to_response('log_report.html', report_data,
                               context_instance=RequestContext(request))
 

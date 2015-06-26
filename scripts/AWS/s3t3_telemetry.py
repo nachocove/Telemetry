@@ -23,7 +23,8 @@ T3_EVENT_CLASS_FILE_PREFIXES = {
 }
 
 def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search, logger=None):
-    logger.info("Getting events of class PINGER...")
+    logger.info("Getting events of class PINGER for userid %s deviceid %s from %s to %s with search '%s'" %
+                (userid, deviceid, after, before, search))
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)
     #sample key
@@ -34,7 +35,7 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
     prev_file_uploaded_at_ts = None
     for date_prefix in get_T3_date_prefixes(after, before):
         get_prefix = date_prefix
-        logger.info("get_prefix is %s" % get_prefix)
+        logger.debug("get_prefix is %s" % get_prefix)
         file_regex = re.compile(r'.*/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES['PINGER'])
 
         search_regex=re.compile(search)
@@ -45,7 +46,7 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                 uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
                 uploaded_at_ts = UtcDateTime(uploaded_at_ts)
                 if file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
-                    logger.info("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
+                    logger.debug("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
                     file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
                     for line in file_content.splitlines():
                         ev = json.loads(line)
@@ -75,17 +76,15 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
         logger.debug("Found %d PINGER events. not matched %s", len(events), nm)
     return events
 
-def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, search, logger=None):
-    logger.info("Getting events of class %s for userid %s deviceid %s" % (type, userid, deviceid))
+def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_class, search, logger=None, event_type=None):
+    logger.info("Getting events of class %s for userid %s deviceid %s from %s to %s with search='%s' for event_type %s" %
+                (event_class, userid, deviceid, after, before, search, event_type))
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)
-    #sample key
-    #c6ae00d0-e259-4bfc-903d-5b6bc62cd651-dev-telemetry
-    #20150529/bc88aa25/us-east-1:40cc3511-c031-4f67-ba6e-0bbf26e9403d/Nchob8e8562d6b22/NachoMail/log-20150529063152823.gz
     if userid:
         client_prefix = '/' + hashlib.sha256(userid).hexdigest()[0:8] + '/' + userid
         if deviceid:
-            client_prefix += '/' + deviceid + '/NachoMail/' + T3_EVENT_CLASS_FILE_PREFIXES[type]
+            client_prefix += '/' + deviceid + '/NachoMail/' + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     else:
         client_prefix = ''
     events = []
@@ -93,18 +92,18 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
     prev_file_uploaded_at_ts = None
     for date_prefix in get_T3_date_prefixes(after, before):
         get_prefix = date_prefix + client_prefix
-        logger.info("get_prefix is %s" % get_prefix)
+        logger.debug("get_prefix is %s" % get_prefix)
         userid_regex = '\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+'
         if not userid:
             if deviceid:
-                file_regex = re.compile(r'.*/(?P<user_id>%s)/%s/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (userid_regex, deviceid, T3_EVENT_CLASS_FILE_PREFIXES[type]))
+                file_regex = re.compile(r'.*/(?P<user_id>%s)/%s/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (userid_regex, deviceid, T3_EVENT_CLASS_FILE_PREFIXES[event_class]))
             else:
-                file_regex = re.compile(r'.*/(?P<user_id>%s)/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (userid_regex, T3_EVENT_CLASS_FILE_PREFIXES[type]))
+                file_regex = re.compile(r'.*/(?P<user_id>%s)/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (userid_regex, T3_EVENT_CLASS_FILE_PREFIXES[event_class]))
         else:
             if not deviceid:
-                file_regex = re.compile(r'.*/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[type])
+                file_regex = re.compile(r'.*/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[event_class])
             else:
-                file_regex = re.compile(r'.*%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[type])
+                file_regex = re.compile(r'.*%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[event_class])
 
         search_regex=re.compile(search)
         for key in bucket.list(prefix=get_prefix):
@@ -114,10 +113,12 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
                 uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
                 uploaded_at_ts = UtcDateTime(uploaded_at_ts)
                 if file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
-                    logger.info("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
+                    logger.debug("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
                     file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
                     for line in file_content.splitlines():
                         ev = json.loads(line)
+                        if event_type and 'event_type' in ev and ev['event_type'] != event_type:
+                            continue
                         timestamp = UtcDateTime(ev['timestamp'])
                         if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
                             nm+=1
@@ -142,7 +143,7 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
                             if 'ui_integer' not in ev and 'ui_long' in ev:
                                 ev['ui_integer'] = ev['ui_long']
                             if 'event_type' not in ev:
-                                ev['event_type'] = type
+                                ev['event_type'] = event_class
                             # TODO move this out appropriately
                             if 'counter_start' in ev:
                                 ev['counter_start'] = UtcDateTime(ev['counter_start'])
@@ -152,7 +153,7 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, type, 
                     prev_file_uploaded_at_ts = uploaded_at_ts
 
     if logger:
-        logger.debug("Found %d %s events. not matched %s", len(events), type, nm)
+        logger.debug("Found %d %s events. not matched %s", len(events), event_class, nm)
     return events
 
 def file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
@@ -160,7 +161,7 @@ def file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded
         return True
     else:
         if prev_file_uploaded_at_ts and prev_file_uploaded_at_ts.datetime >= after.datetime and prev_file_uploaded_at_ts.datetime < before.datetime:
-            logger.info("Prev File uploaded at %s is between %s and %s. So the file at %s should also be included", prev_file_uploaded_at_ts, before, after, uploaded_at_ts)
+            logger.debug("Prev File uploaded at %s is between %s and %s. So the file at %s should also be included", prev_file_uploaded_at_ts, before, after, uploaded_at_ts)
             return True
         else:
             return False
@@ -173,3 +174,19 @@ def get_T3_date_prefixes(after, before):
         d = after.datetime.date() + timedelta(days=i)
         prefixes.append("%s" % (d.strftime('%Y%m%d')))
     return prefixes
+
+def get_latest_device_info_event(conn, bucket_name, userid, deviceid, after, before, logger=None):
+    device_info_list = get_client_events(conn, bucket_name, userid, deviceid, after, before, 'DEVICEINFO', '', logger=logger)
+    if len(device_info_list) > 0:
+        return device_info_list[-1]
+    else:
+        # widen the search :-( a week before
+        for i in range(7):
+            before = UtcDateTime(str(after))
+            from datetime import timedelta
+            after = before.datetime - timedelta(days=1)
+            logger.debug("Check from %s to %s for device info", after, before)
+            device_info_list = get_client_events(conn, bucket_name, userid, deviceid, UtcDateTime(str(after)), UtcDateTime(str(before)), 'DEVICEINFO', '', logger=logger)
+            if len(device_info_list) > 0:
+                return device_info_list[-1]
+        return None

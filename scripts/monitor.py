@@ -407,6 +407,26 @@ def run_reports(options, email, logger):
                   'prefix': options.aws_prefix,
                   'attachment_dir': options.attachment_dir}
 
+        if monitor_name in ['errors', 'warnings', 'users', 'events', 'crashes', 'support', 'pinger', 'emails']:
+            try:
+                if 'aws_isT3' in options and options.aws_isT3:
+                    kwargs['isT3'] = options.aws_isT3
+                    kwargs['s3conn'] = S3Connection(host='s3-us-west-2.amazonaws.com',
+                                                   port=443,
+                                                   aws_secret_access_key=options.aws_secret_access_key,
+                                                   aws_access_key_id=options.aws_access_key_id,
+                                                   is_secure=True)
+                    if monitor_name not in ['support', 'pinger']:
+                        kwargs['log_t3_bucket'] = options.aws_log_t3_bucket
+                        kwargs['device_info_t3_bucket'] = options.aws_device_info_t3_bucket
+                    if monitor_name == 'support':
+                        kwargs['bucket_name'] = options.aws_support_t3_bucket
+                    elif monitor_name == 'emails':
+                        kwargs['support_t3_bucket'] = options.aws_support_t3_bucket
+                else:
+                    kwargs['isT3'] = False
+            except AttributeError:
+                pass
         if monitor_name not in mapping:
             logger.error('unknown monitor %s. ignore', monitor_name)
             continue
@@ -421,16 +441,6 @@ def run_reports(options, email, logger):
                     if k.startswith('freshdesk_'):
                         freshdesk_options[k.split('freshdesk_')[1]] = getattr(options, k)
                 kwargs['freshdesk'] = freshdesk_options
-                if 'aws_isT3' in options and options.aws_isT3:
-                    kwargs['isT3'] = options.aws_isT3
-                    kwargs['s3conn'] = S3Connection(host='s3-us-west-2.amazonaws.com',
-                                                   port=443,
-                                                   aws_secret_access_key=options.aws_secret_access_key,
-                                                   aws_access_key_id=options.aws_access_key_id,
-                                                   is_secure=True)
-                    kwargs['bucket_name'] = options.aws_telemetry_bucket
-                else:
-                    kwargs['isT3'] = False
             except AttributeError:
                 pass
         elif monitor_name == 'cost':
@@ -440,10 +450,10 @@ def run_reports(options, email, logger):
                                                                       is_secure=True)
         elif monitor_name.startswith('pinger'):
             kwargs['s3conn'] = S3Connection(host='s3-us-west-2.amazonaws.com',
-                                                   port=443,
-                                                   aws_secret_access_key=options.aws_secret_access_key,
-                                                   aws_access_key_id=options.aws_access_key_id,
-                                                   is_secure=True)
+                            port=443,
+                            aws_secret_access_key=options.aws_secret_access_key,
+                            aws_access_key_id=options.aws_access_key_id,
+                            is_secure=True)
             kwargs['bucket_name'] = options.aws_telemetry_bucket
             kwargs['path_prefix'] = options.aws_telemetry_prefix
             if monitor_name == 'pinger-push':

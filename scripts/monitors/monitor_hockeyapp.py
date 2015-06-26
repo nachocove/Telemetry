@@ -12,6 +12,7 @@ from monitor_base import Monitor
 from misc.utc_datetime import UtcDateTime
 from logtrace import LogTrace
 from misc.html_elements import *
+from AWS.s3t3_telemetry import get_client_events, get_latest_device_info_event
 
 
 class CrashInfo:
@@ -23,7 +24,7 @@ class CrashInfo:
     """
     A class that ties a HockeyApp Crash object with its associated raw log and telemetry event trace.
     """
-    def __init__(self, ha_crash_obj, conn, prefix=None):
+    def __init__(self, ha_crash_obj, conn, prefix=None, T3_info=None):
         assert isinstance(ha_crash_obj, HockeyApp.crash.Crash)
         assert isinstance(conn, DynamoDBConnection)
 
@@ -33,9 +34,19 @@ class CrashInfo:
         self.ha_desc_obj = None
         self.conn = conn
         self.log = self.ha_crash_obj.read_log()
+        if T3_info:
+            self.isT3 = T3_info['isT3']
+            self.s3conn = T3_info['s3conn']
+            self.log_t3_bucket = T3_info['log_t3_bucket']
+            self.device_info_t3_bucket = T3_info['device_info_t3_bucket']
+        else:
+            self.isT3 = False
         self.crash_utc = self._determine_crash_time()  # require initialized self.log
         self.client = self._determine_client()
-        self.trace = self._get_trace()
+        if self.isT3: #TODO include traces in T3 when traces start working
+            self.trace = None
+        else:
+            self.trace = self._get_trace()
 
     def _determine_crash_time(self):
         """
@@ -80,7 +91,7 @@ class CrashInfo:
         if not devices:
             # the search from (crash-1month to crash) didn't give us anything. Try to search for historical data
             # i.e. < crash-1month
-            self.logger.debug('     No client found in telemetry.device_info within a month of the crash. Expanding search.')
+            self.logger.debug('No client found in telemetry.device_info within a month of the crash. Expanding search.')
             query = Query()
             query.add('device_id', SelectorEqual(ha_desc_obj.device_id))
             query.add('uploaded_at', SelectorLessThanEqual(lower_bound))
@@ -108,7 +119,8 @@ class CrashInfo:
             return None
         else:
             self.logger.debug('    device id = %s', ha_desc_obj.device_id)
-
+        if self.isT3:
+            return ha_desc_obj.device_id # client == device_id in T3
         if ha_desc_obj.device_id in CrashInfo.client_cache:
             self.logger.debug('     Client found in cache')
             return CrashInfo.client_cache[ha_desc_obj.device_id]
@@ -157,8 +169,8 @@ class CrashInfo:
 
 
 class CrashInfoIos(CrashInfo):
-    def __init__(self, ha_crash_obj, conn, prefix=None):
-        CrashInfo.__init__(self, ha_crash_obj, conn, prefix=prefix)
+    def __init__(self, ha_crash_obj, conn, prefix=None, T3_info=None):
+        CrashInfo.__init__(self, ha_crash_obj, conn, prefix=prefix, T3_info=T3_info)
 
     def _determine_crash_time(self):
         for line in self.log.split('\n')[:11]:
@@ -171,7 +183,7 @@ class CrashInfoIos(CrashInfo):
 class CrashInfoUnknownPlatformException(Exception):
     pass
 
-def CrashInfoFactory(ha_crash_obj, conn, prefix=None):
+def CrashInfoFactory(ha_crash_obj, conn, prefix=None, T3_info=None):
     """
     Create a crashinfo subclass based on the crash-group
 
@@ -184,17 +196,21 @@ def CrashInfoFactory(ha_crash_obj, conn, prefix=None):
     assert(isinstance(ha_crash_obj, HockeyApp.crash.Crash))
     platform = ha_crash_obj.crash_group_obj.app_obj.platform
     if platform == 'iOS':
-        return CrashInfoIos(ha_crash_obj, conn, prefix=prefix)
+        return CrashInfoIos(ha_crash_obj, conn, prefix=prefix, T3_info=T3_info)
     else:
         raise CrashInfoUnknownPlatformException("Unsupported (unimplemented) crash platform %s" % platform)
 
 class MonitorHockeyApp(Monitor):
-    def __init__(self, ha_app_obj=None, *args, **kwargs):
+    def __init__(self, ha_app_obj=None,  isT3=False, log_t3_bucket=None, device_info_t3_bucket=None, s3conn=None, *args, **kwargs):
         kwargs.setdefault('desc', 'crashes')
         Monitor.__init__(self, *args, **kwargs)
         assert isinstance(ha_app_obj, HockeyApp.app.App)
         self.ha_app_obj = ha_app_obj
         self.crashes = dict()
+        self.isT3 = isT3
+        self.s3conn = s3conn
+        self.log_t3_bucket = log_t3_bucket
+        self.device_info_t3_bucket = device_info_t3_bucket
 
     def _within_window(self, datetime):
         assert isinstance(datetime, UtcDateTime)
@@ -226,7 +242,10 @@ class MonitorHockeyApp(Monitor):
                 # a new one
                 conn = self.clone_connection(self.conn)
                 try:
-                    crash = CrashInfoFactory(crash, conn, prefix=self.prefix)
+                    T3_info = {'isT3': self.isT3, 'log_t3_bucket': self.log_t3_bucket,
+                                             'device_info_t3_bucket': self.device_info_t3_bucket,
+                                                                     's3conn': self.s3conn}
+                    crash = CrashInfoFactory(crash, conn, prefix=self.prefix, T3_info=T3_info)
                     if crash_group.crash_group_id not in self.crashes:
                         self.crashes[crash_group.crash_group_id] = {'crash_group': crash_group,
                                                                     'crashes': []}

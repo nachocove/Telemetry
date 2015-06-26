@@ -23,7 +23,7 @@ from django.utils.decorators import available_attrs
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
 from boto.s3.connection import S3Connection
-from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES, get_pinger_events
+from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES, get_pinger_events, get_latest_device_info_event
 from core.auth import nacho_cache, nachotoken_required
 
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
@@ -515,25 +515,11 @@ def get_t3_events(project, userid, deviceid, event_class, search, after, before)
     all_events = sorted(all_events, key=lambda x: x['timestamp'])
     return all_events
 
-
 def get_last_device_info_event(project, userid, deviceid, after, before):
     logger = logging.getLogger('telemetry').getChild('client_telemetry')
     conn = _aws_s3_connection(project)
     bucket_name = projects_cfg.get(project, 'client_t3_device_info_bucket')
-    device_info_list = get_client_events(conn, bucket_name, userid, deviceid, after, before, 'DEVICEINFO', '', logger=logger)
-    if len(device_info_list) > 0:
-        return device_info_list[-1]
-    else:
-        # widen the search :-( a week before
-        for i in range(7):
-            before = UtcDateTime(str(after))
-            from datetime import timedelta
-            after = before.datetime - timedelta(days=1)
-            logger.info("Check from %s to %s for device info", after, before)
-            device_info_list = get_client_events(conn, bucket_name, userid, deviceid, UtcDateTime(str(after)), UtcDateTime(str(before)), 'DEVICEINFO', '', logger=logger)
-            if len(device_info_list) > 0:
-                return device_info_list[-1]
-        return None
+    return get_latest_device_info_event(conn, bucket_name, userid, deviceid, after, before, logger=logger)
 
 def entry_page_base(project, userid, deviceid, event_class, search, after, before, params, logger):
     event_list = []

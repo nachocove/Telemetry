@@ -6,7 +6,7 @@ from misc.support import *
 from misc.number_formatter import pretty_number
 from misc.html_elements import *
 from monitors.monitor_base import get_client_telemetry_link
-from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES
+from AWS.s3t3_telemetry import get_client_events
 
 class MonitorSupport(Monitor):
     def __init__(self, freshdesk=None, isT3=False, bucket_name=None, s3conn=None, *args, **kwargs):
@@ -32,7 +32,7 @@ class MonitorSupport(Monitor):
         self.logger.info('Querying %s...', self.desc)
         if self.isT3:
             self.events = get_client_events(self.s3conn, self.bucket_name, userid='', deviceid='',
-                        after=self.start, before=self.end, type='SUPPORT', search='', logger=self.logger)
+                        after=self.start, before=self.end, event_class='SUPPORT', search='', logger=self.logger)
             self.requests = []
             for event in self.events:
                 support_event = SupportEvent(event)

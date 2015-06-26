@@ -26,7 +26,7 @@ from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 from django.utils.html import strip_tags
 import os
-from AWS.db_reports import log_report, parse_dates
+from AWS.db_reports import log_report, parse_dates, classify_log_events
 
 try:
     from cloghandler import ConcurrentRotatingFileHandler as RFHandler
@@ -142,10 +142,15 @@ def main():
         exit(-1)
     logger.info("Running log report for the period %s to %s", start, end)
     summary, error_list, warning_list = log_report(logger, config['general_config']['project'], config, start, end)
+    clustered_error_list=classify_log_events(error_list)
+    clustered_warning_list=classify_log_events(warning_list)
     template_dir = config['general_config']['src_root'] + '/T3Viewer/templates'
     settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=(template_dir,),
                        TEMPLATE_LOADERS=('django.template.loaders.filesystem.Loader',))
-    report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list, "general_config": config["general_config"] }
+    report_data = {'summary': summary, 'errors': error_list, 'warnings': warning_list,
+                   'clustered_errors': clustered_error_list,
+                   'clustered_warnings': clustered_warning_list,
+                   "general_config": config["general_config"]}
     html_part = render_to_string('log_report_plain.html', report_data)
     if args.email:
         send_email(logger, config["email_config"], html_part, start, config['general_config']['project_name'])

@@ -125,7 +125,7 @@ class EventFormatter:
                  timestamp_section, event_type_section,
                  ident_section, info_section, link_section, prefix,
                  default_decorator=None,
-                 wbxml_tool_path=None):
+                 wbxml_tool_path=None, isT3=False, host=None):
         self.timestamp = timestamp_section(None)
         self.event_type = event_type_section(None)
         self.ident = ident_section(None)
@@ -134,6 +134,8 @@ class EventFormatter:
         self.default_decorator = default_decorator
         self.decorators = dict()
         self.prefix=prefix
+        self.isT3 = isT3
+        self.host = host
         for et in events.TYPES:
             self.decorators[et] = EventDecorator(default_decorator)
         self.wbxml_tool_path = wbxml_tool_path
@@ -199,8 +201,11 @@ class EventFormatter:
                 timestamp = str(obj['timestamp'])
             else:
                 raise ValueError("Unknown timestamp class: %s" % obj['timestamp'].__class__)
-
-            self.link.format('telemetry', get_client_telemetry_link(self.prefix, obj['client'], timestamp))
+            if (self.isT3):
+                tel_link = get_client_telemetry_link(self.prefix, obj['client'], timestamp, host=self.host, isT3=self.isT3)
+            else:
+                tel_link = get_client_telemetry_link(self.prefix, obj['client'], timestamp)
+            self.link.format('telemetry', tel_link)
 
         # Format the identification section
         for field in (events.IDENT_FIELDS + events.INTERNAL_FIELDS):

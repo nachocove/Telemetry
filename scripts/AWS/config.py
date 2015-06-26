@@ -14,6 +14,10 @@ class AwsConfig(SectionConfig):
         'sns_platform_app_arn',
         'telemetry_bucket',
         'telemetry_prefix',
+        'log_t3_bucket',
+        'device_info_t3_bucket',
+        'support_t3_bucket',
+        'pinger_t3_bucket',
         'isT3',
     )
 
