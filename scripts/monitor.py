@@ -416,8 +416,13 @@ def run_reports(options, email, logger):
                                                    aws_secret_access_key=options.aws_secret_access_key,
                                                    aws_access_key_id=options.aws_access_key_id,
                                                    is_secure=True)
-                    kwargs['log_t3_bucket'] = options.aws_log_t3_bucket
-                    kwargs['device_info_t3_bucket'] = options.aws_device_info_t3_bucket
+                    if monitor_name not in ['support', 'pinger']:
+                        kwargs['log_t3_bucket'] = options.aws_log_t3_bucket
+                        kwargs['device_info_t3_bucket'] = options.aws_device_info_t3_bucket
+                    if monitor_name == 'support':
+                        kwargs['bucket_name'] = options.aws_support_t3_bucket
+                    elif monitor_name == 'emails':
+                        kwargs['support_t3_bucket'] = options.aws_support_t3_bucket
                 else:
                     kwargs['isT3'] = False
             except AttributeError:
@@ -429,8 +434,6 @@ def run_reports(options, email, logger):
             ha_obj = HockeyApp.hockeyapp.HockeyApp(options.hockeyapp_api_token)
             ha_app_obj = ha_obj.app(options.hockeyapp_app_id)
             kwargs['ha_app_obj'] = ha_app_obj
-        elif monitor_name == 'emails':
-            kwargs['support_t3_bucket'] = options.aws_support_t3_bucket
         elif monitor_name == 'support':
             try:
                 freshdesk_options = {}
@@ -438,7 +441,6 @@ def run_reports(options, email, logger):
                     if k.startswith('freshdesk_'):
                         freshdesk_options[k.split('freshdesk_')[1]] = getattr(options, k)
                 kwargs['freshdesk'] = freshdesk_options
-                kwargs['bucket_name'] = options.aws_support_t3_bucket
             except AttributeError:
                 pass
         elif monitor_name == 'cost':
@@ -447,6 +449,11 @@ def run_reports(options, email, logger):
                                                                       aws_access_key_id=options.aws_access_key_id,
                                                                       is_secure=True)
         elif monitor_name.startswith('pinger'):
+            kwargs['s3conn'] = S3Connection(host='s3-us-west-2.amazonaws.com',
+                            port=443,
+                            aws_secret_access_key=options.aws_secret_access_key,
+                            aws_access_key_id=options.aws_access_key_id,
+                            is_secure=True)
             kwargs['bucket_name'] = options.aws_telemetry_bucket
             kwargs['path_prefix'] = options.aws_telemetry_prefix
             if monitor_name == 'pinger-push':
