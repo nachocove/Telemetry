@@ -407,7 +407,7 @@ def run_reports(options, email, logger):
                   'prefix': options.aws_prefix,
                   'attachment_dir': options.attachment_dir}
 
-        if monitor_name in ['errors', 'warnings', 'users', 'events', 'crashes', 'support', 'pinger']:
+        if monitor_name in ['errors', 'warnings', 'users', 'events', 'crashes', 'support', 'pinger', 'emails']:
             try:
                 if 'aws_isT3' in options and options.aws_isT3:
                     kwargs['isT3'] = options.aws_isT3
@@ -429,6 +429,8 @@ def run_reports(options, email, logger):
             ha_obj = HockeyApp.hockeyapp.HockeyApp(options.hockeyapp_api_token)
             ha_app_obj = ha_obj.app(options.hockeyapp_app_id)
             kwargs['ha_app_obj'] = ha_app_obj
+        elif monitor_name == 'emails':
+            kwargs['support_t3_bucket'] = options.aws_support_t3_bucket
         elif monitor_name == 'support':
             try:
                 freshdesk_options = {}

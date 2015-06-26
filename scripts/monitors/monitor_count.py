@@ -8,9 +8,10 @@ from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement,
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
 from AWS.s3t3_telemetry import get_client_events
+from AWS.events import DeviceInfoEvent, SupportEvent
 
 class MonitorCount(Monitor):
-    def __init__(self, rate_desc=None, isT3=False, log_t3_bucket=None, device_info_t3_bucket=None, s3conn=None, *args, **kwargs):
+    def __init__(self, rate_desc=None, isT3=False, log_t3_bucket=None, device_info_t3_bucket=None, support_t3_bucket=None, s3conn=None, *args, **kwargs):
         Monitor.__init__(self, *args, **kwargs)
         self.count = 0
         self.rate_desc = rate_desc
@@ -18,6 +19,7 @@ class MonitorCount(Monitor):
         self.s3conn = s3conn
         self.log_t3_bucket = log_t3_bucket
         self.device_info_t3_bucket = device_info_t3_bucket
+        self.support_t3_bucket = support_t3_bucket
 
         # Create the query
         self.query = Query()
@@ -208,31 +210,53 @@ class MonitorEmails(MonitorCount):
 
     def _get_active_clients_this_period(self):
         clients = dict()
-        query = Query()
-        query.add_range('timestamp', self.start, self.end)
-        t1 = time.time()
-        results = Query.users(query, self.conn)
-        t2 = time.time()
-        if self.debug_timing: self.logger.debug("TIME active_clients_this_period %s: results %d %s", (t2-t1), len(results), query)
-        for x in results:
-            if x['client'] not in clients or clients[x['client']]['timestamp'] < x['timestamp']:
-                clients[x['client']] = x
+        if self.isT3:
+            raw_events = get_client_events(self.s3conn, self.device_info_t3_bucket, userid='', deviceid='',
+                                           after=self.start, before=self.end,  event_class='DEVICEINFO',
+                                            search='', logger=self.logger)
+            for ev in raw_events:
+                di_event = DeviceInfoEvent(self.conn, id_=ev['id'], client=ev['client'], timestamp=ev['timestamp'],
+                                    uploaded_at=ev['uploaded_at'], device_model=ev['device_model'], os_type=ev['os_type'],
+                                    os_version=ev['os_version'], build_version=ev['build_version'],
+                                    build_number=ev['build_number'], device_id=ev['device_id'],
+                                    fresh_install=ev['fresh_install'])
+                if ev['client'] not in clients or clients[ev['client']]['timestamp'] < ev['timestamp']:
+                    clients[ev['client']] = ev
+        else:
+            query = Query()
+            query.add_range('timestamp', self.start, self.end)
+            t1 = time.time()
+            results = Query.users(query, self.conn)
+            t2 = time.time()
+            if self.debug_timing: self.logger.debug("TIME active_clients_this_period %s: results %d %s", (t2-t1), len(results), query)
+            for x in results:
+                if x['client'] not in clients or clients[x['client']]['timestamp'] < x['timestamp']:
+                    clients[x['client']] = x
         return clients
 
     def _get_support_events_for_clients(self, clients):
         assert isinstance(clients, list)
         results = []
         for client_id in clients:
-            query = Query()
-            query.add('event_type', SelectorEqual('SUPPORT'))
-            query.add('client', SelectorEqual(client_id))
-            query.add_range('timestamp', self.start, self.end)
-            t1 = time.time()
-            r = Query.events(query, self.conn)
-            t2 = time.time()
-            if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
-            if r:
-                results.extend(r)
+            if self.isT3:
+                self.events = get_client_events(self.s3conn, self.support_t3_bucket, userid='', deviceid=client_id,
+                            after=self.start, before=self.end, event_class='SUPPORT', search='', logger=self.logger)
+                self.requests = []
+                for ev in self.events:
+                    support_event = SupportEvent(self.s3conn, id_=ev['id'], client=ev['client'], timestamp=ev['timestamp'],
+                                    uploaded_at=ev['uploaded_at'], event_type=ev['event_type'], support = ev['support'])
+                    results.append(support_event)
+            else:
+                query = Query()
+                query.add('event_type', SelectorEqual('SUPPORT'))
+                query.add('client', SelectorEqual(client_id))
+                query.add_range('timestamp', self.start, self.end)
+                t1 = time.time()
+                r = Query.events(query, self.conn)
+                t2 = time.time()
+                if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
+                if r:
+                    results.extend(r)
         return results
 
     def _summarize_emails_addresses(self, events):
