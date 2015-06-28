@@ -192,18 +192,26 @@ def main():
     summary = {}
     summary["start"] = start
     summary["end"] = end
+    project = config['general_config']['project']
     event_classes = T3_EVENT_CLASS_FILE_PREFIXES[args.event_class]
     if isinstance(event_classes, list):
         summary["event_classes"] = event_classes
-        summary["table_name"] = ""
+        for ev_class in event_classes:
+            if "table_name" in summary:
+                summary["table_name"] = summary["table_name"] + ", " + \
+                                     project + \
+                                    "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
+            else:
+                summary["table_name"] = project + \
+                                    "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
     else:
         summary["event_classes"] = args.event_class
         summary["table_name"] = "nm_" + T3_EVENT_CLASS_FILE_PREFIXES[args.event_class]
 
     logger.info("Running T3 Redshift Uploader for the period %s to %s", start, end)
 
-    status = create_tables(logger, config['general_config']['project'], config, args.event_class)
-    upload_stats = upload_logs(logger, config['general_config']['project'], config, args.event_class, start, end)
+    status = create_tables(logger, project, config, args.event_class)
+    upload_stats = upload_logs(logger, project, config, args.event_class, start, end)
     error_stats = get_upload_error_stats(logger, config, args.event_class, start, end)
     template_dir = config['general_config']['src_root'] + '/T3Viewer/templates'
     settings.configure(DEBUG=True, TEMPLATE_DEBUG=True, TEMPLATE_DIRS=(template_dir,),
@@ -212,7 +220,7 @@ def main():
     html_part = render_to_string('upload_report_plain.html', report_data)
     if args.email:
         send_email(logger, config["email_config"], html_part, start,
-                   config['general_config']['project_name'], [os.path.join(args.logdir, log_filename)])
+                   project, [os.path.join(args.logdir, log_filename)])
     elif args.debug:
         print html_part
     exit()
