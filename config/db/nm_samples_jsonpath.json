@@ -6,6 +6,8 @@
       "$['user']",
       "$['client']",
       "$['sample_name']",
-      "$['sample_value']"
+      "$['sample_value']",
+      "$['sample_string']",
+      "$['sample_float']"
     ]
 }
