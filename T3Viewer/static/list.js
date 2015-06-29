@@ -416,13 +416,33 @@ function refreshEvents() {
                 break;
             }
             case 'SAMPLES': {
-                row = getRowWithCommonFields(i, event, 2);
+                if (event.hasOwnProperty('sample_int')) {
+                    row = getRowWithCommonFields(i, event, 4);
+                } else {
+                    row = getRowWithCommonFields(i, event, 2);
+                }
                 addFieldToRow(row, 'sample_name', event.sample_name)
                 table.appendChild(row);
-
-                row = getRow(event);
-                addFieldToRow(row, 'sample_value', event.sample_value);
-                table.appendChild(row);
+                if (event.hasOwnProperty('sample_value')) {
+                    row = getRow(event);
+                    addFieldToRow(row, 'sample_value', event.sample_value);
+                    table.appendChild(row);
+                }
+                if (event.hasOwnProperty('sample_int')) {
+                    row = getRow(event);
+                    addFieldToRow(row, 'sample_int', event.sample_int);
+                    table.appendChild(row);
+                }
+                if (event.hasOwnProperty('sample_float')) {
+                    row = getRow(event);
+                    addFieldToRow(row, 'sample_float', event.sample_float);
+                    table.appendChild(row);
+                }
+                if (event.hasOwnProperty('sample_string')) {
+                    row = getRow(event);
+                    addFieldToRow(row, 'sample_string', event.sample_string);
+                    table.appendChild(row);
+                }
                 break;
             }
             case 'STATISTICS2': {

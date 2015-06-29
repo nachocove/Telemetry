@@ -5,5 +5,7 @@ CREATE TABLE IF NOT EXISTS %snm_samples (
  "user_id" varchar(64),
  "device_id" varchar(64),
  "samples_name" varchar(64),
- "sample_value" int
+ "sample_int" int,
+ "sample_string" varchar(256),
+ "sample_float" float
 );
