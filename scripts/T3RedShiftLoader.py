@@ -169,10 +169,10 @@ def main():
     handler.setFormatter(logging.Formatter(logging_format))
     logger.addHandler(handler)
 
-    streamhandler = logging.StreamHandler(sys.stdout)
-    streamhandler.setLevel(logging.DEBUG if args.debug else logging.INFO)
-    streamhandler.setFormatter(logging.Formatter(logging_format))
-    logger.addHandler(streamhandler)
+    #streamhandler = logging.StreamHandler(sys.stdout)
+    #streamhandler.setLevel(logging.DEBUG if args.debug else logging.INFO)
+    #streamhandler.setFormatter(logging.Formatter(logging_format))
+    #logger.addHandler(streamhandler)
 
     if args.period and args.period != 'daily':
         logger.error("Invalid period (%s). Only daily is supported for now.", args.period)

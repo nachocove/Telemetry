@@ -445,6 +445,39 @@ function refreshEvents() {
                 }
                 break;
             }
+            case 'TIME_SERIES': {
+                if (event.hasOwnProperty('time_series_int')) {
+                    row = getRowWithCommonFields(i, event, 5);
+                } else {
+                    row = getRowWithCommonFields(i, event, 3);
+                }
+                addFieldToRow(row, 'time_series_name', event.time_series_name)
+                table.appendChild(row);
+                row = getRow(event);
+                addFieldToRow(row, 'time_series_timestamp', event.time_series_timestamp)
+                table.appendChild(row);
+                if (event.hasOwnProperty('time_series_value')) {
+                    row = getRow(event);
+                    addFieldToRow(row, 'time_series_value', event.time_series_value);
+                    table.appendChild(row);
+                }
+                if (event.hasOwnProperty('time_series_int')) {
+                    row = getRow(event);
+                    addFieldToRow(row, 'time_series_int', event.time_series_int);
+                    table.appendChild(row);
+                }
+                if (event.hasOwnProperty('time_series_float')) {
+                    row = getRow(event);
+                    addFieldToRow(row, 'time_series_float', event.time_series_float);
+                    table.appendChild(row);
+                }
+                if (event.hasOwnProperty('time_series_string')) {
+                    row = getRow(event);
+                    addFieldToRow(row, 'time_series_string', event.time_series_string);
+                    table.appendChild(row);
+                }
+                break;
+            }
             case 'STATISTICS2': {
                 row = getRowWithCommonFields(i, event, 8);
                 addFieldToRow(row, 'stat2_name', event.stat2_name);
