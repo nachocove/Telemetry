@@ -47,9 +47,9 @@
           "t3_bucket": "c6ae00d0-dev-t3-samples",
           "t3_jsonpath": "json/nm_samples_jsonpath.json"
         },
-        "time-series" : {
+        "time_series" : {
           "t3_bucket": "c6ae00d0-dev-t3-time-series",
-          "t3_jsonpath": "json/nm_time-series_jsonpath.json"
+          "t3_jsonpath": "json/nm_time_series_jsonpath.json"
         },
         "plog" : {
           "t3_bucket": "3ee8d7bb-43a6-4690-8297-8b4800611f36-dev-pinger",
@@ -72,7 +72,9 @@
         "ui": "config/db/nm_ui.sql",
         "counter": "config/db/nm_counter.sql",
         "statistics2": "config/db/nm_statistics2.sql",
-        "samples": "config/db/nm_samples.sql"
+        "samples": "config/db/nm_samples.sql",
+        "time_series": "config/db/nm_time_series.sql",
+        "distribution": "config/db/nm_distribution.sql"
     },
     "email_config": {
         "smtp_server": "email-smtp.us-west-2.amazonaws.com",
