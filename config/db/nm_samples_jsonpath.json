@@ -6,7 +6,7 @@
       "$['user']",
       "$['client']",
       "$['sample_name']",
-      "$['sample_value']",
+      "$['sample_int']",
       "$['sample_string']",
       "$['sample_float']"
     ]
