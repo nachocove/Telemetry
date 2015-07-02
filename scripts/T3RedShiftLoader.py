@@ -136,7 +136,8 @@ def main():
                               default=None)
     parser.add_argument('--event_class',
                               help="Event Class. Specify one of 'PROTOCOL','LOG', 'COUNTER', \
-                                   'STATISTICS2','UI', 'DEVICEINFO', 'SAMPLES' if you don't need all",
+                                   'STATISTICS2','UI', 'DEVICEINFO', 'SAMPLES', 'TIMESERIES',\
+                                    'SUPPORT', 'PINGER', if you don't need all",
                               default='ALL',
                               type=str)
     parser.add_argument('--email',
@@ -169,10 +170,11 @@ def main():
     handler.setFormatter(logging.Formatter(logging_format))
     logger.addHandler(handler)
 
-    #streamhandler = logging.StreamHandler(sys.stdout)
-    #streamhandler.setLevel(logging.DEBUG if args.debug else logging.INFO)
-    #streamhandler.setFormatter(logging.Formatter(logging_format))
-    #logger.addHandler(streamhandler)
+    if args.debug:
+        streamhandler = logging.StreamHandler(sys.stdout)
+        streamhandler.setLevel(logging.DEBUG if args.debug else logging.INFO)
+        streamhandler.setFormatter(logging.Formatter(logging_format))
+        logger.addHandler(streamhandler)
 
     if args.period and args.period != 'daily':
         logger.error("Invalid period (%s). Only daily is supported for now.", args.period)
@@ -187,7 +189,7 @@ def main():
         logger.error("Invalid end time(%s)/period(%s)", args.end, args.period)
         exit(-1)
     if args.event_class not in T3_EVENT_CLASS_FILE_PREFIXES.keys():
-        logger.error("Invalid event type %s. Pick one of %s", args.event_class, T3_EVENT_CLASS_FILE_PREFIXES.keys())
+        logger.error("Invalid event class %s. Pick one of %s", args.event_class, T3_EVENT_CLASS_FILE_PREFIXES.keys())
         exit(-1)
     summary = {}
     summary["start"] = start
