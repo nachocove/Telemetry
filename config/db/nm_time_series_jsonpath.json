@@ -7,7 +7,7 @@
       "$['user']",
       "$['client']",
       "$['time_series_name']",
-      "$['time_series_value']",
+      "$['time_series_int']",
       "$['time_series_string']",
       "$['time_series_float']"
     ]
