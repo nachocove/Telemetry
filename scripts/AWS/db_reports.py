@@ -43,9 +43,9 @@ def classify_log_events(events):
     clustered_events = []
     ccount = 0
     for cluster in clusterer.clusters:
-        message = unicode(cluster.pattern)
+        message = cluster.pattern
         if len(message) > 70:
-            new_message = message[:76] + ' ...'
+            new_message = str(message)[:76] + ' ...'
         else:
             new_message = message
         ccount += len(cluster)
@@ -88,7 +88,7 @@ def log_report(logger, project, config, start, end):
             telemetry_link = get_client_telemetry_link(project, row[2], row[3], host=host, isT3=True)
             error_list.append({"event_type": row[0], "user_id": row[1], "device_id": row[2], "timestamp": UtcDateTime(row[3]),
                                  "message": row[4], 'telemetry_link': telemetry_link})
-            logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
+        logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
         logger.info("Selecting warning counts from logs...")
         sql_statement = "select event_type, user_id, device_id, timestamped, message from %s_nm_log " \
                         "where event_type='WARN' and " \

@@ -125,14 +125,18 @@ def main():
     handler.setFormatter(logging.Formatter(logging_format))
     logger.addHandler(handler)
 
-    streamhandler = logging.StreamHandler(sys.stdout)
-    streamhandler.setLevel(logging.DEBUG if args.debug else logging.INFO)
-    streamhandler.setFormatter(logging.Formatter(logging_format))
-    logger.addHandler(streamhandler)
+    if args.debug:
+        streamhandler = logging.StreamHandler(sys.stdout)
+        streamhandler.setLevel(logging.DEBUG if args.debug else logging.INFO)
+        streamhandler.setFormatter(logging.Formatter(logging_format))
+        logger.addHandler(streamhandler)
 
     args.attachment_dir = os.path.join(args.logdir, "attachments")
     if not os.path.exists(args.attachment_dir):
         os.makedirs(args.attachment_dir)
+    if not args.start and not args.end and not args.period:
+        logger.error("You must specify start or end or period for the report")
+        exit(-1)
     start, end = parse_dates(args)
     if not start:
         logger.error("Invalid start time(%s)/period(%s)", args.start, args.period)
