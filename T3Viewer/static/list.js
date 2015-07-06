@@ -416,11 +416,7 @@ function refreshEvents() {
                 break;
             }
             case 'SAMPLES': {
-                if (event.hasOwnProperty('sample_int')) {
-                    row = getRowWithCommonFields(i, event, 4);
-                } else {
-                    row = getRowWithCommonFields(i, event, 2);
-                }
+                row = getRowWithCommonFields(i, event, 2);
                 addFieldToRow(row, 'sample_name', event.sample_name)
                 table.appendChild(row);
                 if (event.hasOwnProperty('sample_value')) {
@@ -433,12 +429,12 @@ function refreshEvents() {
                     addFieldToRow(row, 'sample_int', event.sample_int);
                     table.appendChild(row);
                 }
-                if (event.hasOwnProperty('sample_float')) {
+                else if (event.hasOwnProperty('sample_float')) {
                     row = getRow(event);
                     addFieldToRow(row, 'sample_float', event.sample_float);
                     table.appendChild(row);
                 }
-                if (event.hasOwnProperty('sample_string')) {
+                else if (event.hasOwnProperty('sample_string')) {
                     row = getRow(event);
                     addFieldToRow(row, 'sample_string', event.sample_string);
                     table.appendChild(row);
@@ -446,11 +442,7 @@ function refreshEvents() {
                 break;
             }
             case 'TIME_SERIES': {
-                if (event.hasOwnProperty('time_series_int')) {
-                    row = getRowWithCommonFields(i, event, 5);
-                } else {
-                    row = getRowWithCommonFields(i, event, 3);
-                }
+                row = getRowWithCommonFields(i, event, 3);
                 addFieldToRow(row, 'time_series_name', event.time_series_name)
                 table.appendChild(row);
                 row = getRow(event);
@@ -466,12 +458,12 @@ function refreshEvents() {
                     addFieldToRow(row, 'time_series_int', event.time_series_int);
                     table.appendChild(row);
                 }
-                if (event.hasOwnProperty('time_series_float')) {
+                else if (event.hasOwnProperty('time_series_float')) {
                     row = getRow(event);
                     addFieldToRow(row, 'time_series_float', event.time_series_float);
                     table.appendChild(row);
                 }
-                if (event.hasOwnProperty('time_series_string')) {
+                else if (event.hasOwnProperty('time_series_string')) {
                     row = getRow(event);
                     addFieldToRow(row, 'time_series_string', event.time_series_string);
                     table.appendChild(row);
