@@ -29,10 +29,6 @@ from core.auth import nacho_cache, nachotoken_required
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from misc.utc_datetime import UtcDateTime
 
-T3_MODULES = ['CLIENT',
-           'PINGER',
-           'ALL']
-
 T3_TYPES = ['ALL',
          'DEBUG',
          'INFO',
@@ -77,7 +73,6 @@ class LoginForm(forms.Form):
 
 class VectorForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
-    #module = forms.ChoiceField(choices=[(x, x.capitalize()) for x in events.T3_MODULES])
     event_class = forms.ChoiceField(choices=[(x, x.capitalize()) for x in sorted(T3_EVENT_CLASS_FILE_PREFIXES)])
     tele_paste = forms.CharField(widget=forms.Textarea)
 
@@ -89,15 +84,6 @@ class VectorForm(forms.Form):
                                   code='unknown',
                                   params={'event_class': T3_EVENT_CLASS_FILE_PREFIXES.keys()})
         return event_class
-
-    def clean_module(self):
-        module = self.cleaned_data.get('module', '')
-        if module not in T3_MODULES:
-            self.add_error('module', 'Unknown Module')
-            raise ValidationError(_('Unknown Module: %(module)s'),
-                                  code='unknown',
-                                  params={'module': T3_MODULES})
-        return module
 
     def clean_project(self):
         project = self.cleaned_data.get('project', '')
@@ -265,7 +251,14 @@ def get_email_address_events(email_address, support_events):
 def get_device_list(email_events, project, span, event_class):
     device_list = {}
     for ev in email_events:
-        if ev['user_id'] + ':' + ev['device_id'] not in device_list:
+        key = ev['user_id'] + ':' + ev['device_id']
+        url = reverse(entry_page, kwargs={'userid': ev['user_id'],
+                                          'deviceid': ev['device_id'],
+                                          'timestamp': ev['timestamp'],
+                                          'span': span,
+                                          'event_class': event_class,
+                                          'project': project})
+        if key not in device_list:
             device_data = {}
             device_data['user_id'] = ev['user_id']
             device_data['device_id'] = ev['device_id']
@@ -273,21 +266,11 @@ def get_device_list(email_events, project, span, event_class):
             device_data['sha_email'] = support['sha256_email_address']
             device_data['first_timestamp'] = ev['timestamp']
             device_data['last_timestamp'] = ev['timestamp']
-            device_data['url'] = reverse(entry_page, kwargs={'userid': device_data['user_id'],
-                                                                'deviceid': device_data['device_id'],
-                                                                'timestamp': device_data['last_timestamp'],
-                                                                'span': span,
-                                                                'event_class': event_class,
-                                                                'project': project})
-            device_list[ev['user_id'] + ':' + ev['device_id']] = device_data
+            device_data['url'] = url
+            device_list[key] = device_data
         else:
-            device_list[ev['user_id'] + ':' + ev['device_id']]['last_timestamp'] = ev['timestamp']
-            device_list[ev['user_id'] + ':' + ev['device_id']]['url'] = reverse(entry_page, kwargs={'userid': device_data['user_id'],
-                                                                'deviceid': device_data['device_id'],
-                                                                'timestamp': device_data['last_timestamp'],
-                                                                'span': span,
-                                                                'event_class': event_class,
-                                                                'project': project})
+            device_list[key]['last_timestamp'] = ev['timestamp']
+            device_list[key]['url'] = url
     return device_list
 
 def get_device_list_from_email(project, timestamp, email_address, span, event_class):
@@ -341,7 +324,6 @@ def home(request):
 
     logger.debug('tele_paste=%s', form.cleaned_data['tele_paste'])
     project = form.cleaned_data['project']
-    #module = form.cleaned_data['module']
     event_class = form.cleaned_data['event_class']
     request.session['project'] = project
     request.session['event_class'] = event_class
