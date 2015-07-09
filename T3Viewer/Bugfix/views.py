@@ -125,6 +125,8 @@ def _parse_junk(junk, mapping):
             if mapping[key] == 'timestamp' and value.strip() == 'now':
                 value = _iso_z_format(datetime.utcnow())
             retval[mapping[key]] = value.strip()
+    if 'timestamp' not in retval: # default to timestamp now
+        retval['timestamp'] = _iso_z_format(datetime.utcnow())
     logger = logging.getLogger('telemetry').getChild('_parse_junk')
     logger.debug('retval=%s', retval)
     return retval
