@@ -29,7 +29,8 @@ class MonitorPinger(Monitor):
             all_events = get_s3_events(self.s3conn, self.bucket_name, self.path_prefix, "log", self.start, self.end, logger=self.logger)
             pinger_telemetry[key] = sorted([ev for ev in all_events if self.start <= ev['timestamp'] < self.end], key=lambda x: x['timestamp'])
         else:
-            self.logger.info('Pulling results from cache')
+            self.logger.info('Pulling results from cache for %s', self.desc)
+        self.logger.info("Returning [%s] = %d events",key, len(pinger_telemetry[key]))
         return pinger_telemetry[key]
 
     def report(self, summary, **kwargs):
@@ -275,21 +276,25 @@ def percentage(whole, part):
 
 class MonitorPingerErrors(MonitorPinger):
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault('desc', 'Pinger errors')
+        kwargs.setdefault('desc', 'Pinger Errors')
         MonitorPinger.__init__(self, *args, **kwargs)
 
     def run(self):
+        self.logger.info("Collecting Errors...")
         all_events = super(MonitorPingerErrors, self).run()
         self.events = [ev for ev in all_events if ev['event_type'] == 'ERROR']
+        self.logger.info("Collected %d Errors" % len(self.events))
 
 class MonitorPingerWarnings(MonitorPinger):
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault('desc', 'Pinger warnings')
+        kwargs.setdefault('desc', 'Pinger Warnings')
         MonitorPinger.__init__(self, *args, **kwargs)
 
     def run(self):
+        self.logger.info("Collecting Warnings...")
         all_events = super(MonitorPingerWarnings, self).run()
-        self.events = [ev for ev in all_events if ev['event_type'] == 'WARNING']
+        self.events = [ev for ev in all_events if ev['event_type'] == 'WARN']
+        self.logger.info("Collected %d Warnings" % len(self.events))
 
 class MonitorClientPingerIssues(MonitorPinger):
     def __init__(self, *args, **kwargs):
