@@ -294,8 +294,35 @@ function refreshEvents() {
             case 'IMAP_RESPONSE': {
                 row = getRowWithCommonFields(i, event, 1);
                 var message = event.message.replace(/\n/g, "<br/>");
-                addFieldToRow(row, 'message', message);
-                table.appendChild(row);
+                var lines = event.message.split('\n')
+                var previewLines = lines[0]
+                if (lines.length >= 2) {
+                    previewLines += "\n" + lines[1]
+                }
+                row.appendChild(getCell('message'));
+                var valueCell = getCell(lines[0]);
+                valueCell.id = i;
+                valueCell.title = previewLines;
+                valueCell.onclick = function() {
+                    var event = events[this.id];
+                    var message = event.message.replace(/\n/g, "<br/>");
+                    var firstLine = event.message.split('\n')[0]
+                    if (this.innerHTML == firstLine) {
+                        this.innerHTML = message;
+                    } else {
+                        this.innerHTML = firstLine;
+                    }
+                    if (!isElementInViewport(this)) {
+                        // if after collapsing the IMAP element is no longer visible,
+                        // we should scroll it back in view.
+                        this.scrollIntoView(true);
+                        // TODO - need a better way to scroll. Right now, it always
+                        // scroll to the left. It should track the amount of horizontal
+                        // shift and undo that.
+                        window.scrollBy(-10000, 0);
+                    }
+                }
+                row.appendChild(valueCell);
                 break;
             }
             case 'DEBUG':
