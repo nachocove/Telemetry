@@ -60,7 +60,7 @@ class FreshDesk(object):
             'helpdesk_ticket': {
                 'subject': subject,
                 'description': description,
-                'email': email,
+                'email': email if email else "unknown@example.com",
                 'priority': priority,
                 'status': status
             },
