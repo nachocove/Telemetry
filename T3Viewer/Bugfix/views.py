@@ -432,6 +432,9 @@ def entry_page(request, project='', userid='', deviceid='', event_class='ALL', s
     context['buttons'].append({'text': 'Go forward %d min' % span,
                                'url': ctrl_url(userid, deviceid, event_class, search, iso_go_later, span, project),
                                })
+    context['buttons'].append({'text': 'Go to now',
+                               'url': ctrl_url(userid, deviceid, event_class, search, _iso_z_format(datetime.utcnow()), span, project),
+                               })
     context['body_args'] = 'onload=refresh()'
     return render_to_response('entry_page.html', context,
                               context_instance=RequestContext(request))
