@@ -410,7 +410,10 @@ def entry_page(request, project='', userid='', deviceid='', event_class='ALL', s
     deviceid = str(deviceid)
     if timestamp.strip() == 'now':
         center = _iso_z_format(datetime.utcnow())
-        return HttpResponseRedirect(ctrl_url(userid, deviceid, event_class, search, center, span, project))
+        response =  HttpResponseRedirect(ctrl_url(userid, deviceid, event_class, search, center, span, project))
+        from django.utils.cache import add_never_cache_headers
+        add_never_cache_headers(response)
+        return response
     else:
         center = dateutil.parser.parse(timestamp)
     spread = timedelta(minutes=int(span))
