@@ -7,7 +7,7 @@
       "$['user']",
       "$['client']",
       "$['thread_id']",
-      "$['nothing']",
+      "$['module']",
       "$['message']"
     ]
 }
