@@ -408,7 +408,14 @@ def entry_page(request, project='', userid='', deviceid='', event_class='ALL', s
     span = int(span)
     userid = str(userid)
     deviceid = str(deviceid)
-    center = dateutil.parser.parse(timestamp)
+    if timestamp.strip() == 'now':
+        center = _iso_z_format(datetime.utcnow())
+        response =  HttpResponseRedirect(ctrl_url(userid, deviceid, event_class, search, center, span, project))
+        from django.utils.cache import add_never_cache_headers
+        add_never_cache_headers(response)
+        return response
+    else:
+        center = dateutil.parser.parse(timestamp)
     spread = timedelta(minutes=int(span))
     after = center - spread
     before = center + spread
@@ -431,6 +438,9 @@ def entry_page(request, project='', userid='', deviceid='', event_class='ALL', s
                                })
     context['buttons'].append({'text': 'Go forward %d min' % span,
                                'url': ctrl_url(userid, deviceid, event_class, search, iso_go_later, span, project),
+                               })
+    context['buttons'].append({'text': 'Go to now',
+                               'url': ctrl_url(userid, deviceid, event_class, search, 'now', span, project),
                                })
     context['body_args'] = 'onload=refresh()'
     return render_to_response('entry_page.html', context,

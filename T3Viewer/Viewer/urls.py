@@ -4,7 +4,7 @@ from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 
 admin.autodiscover()
 
-timestamp_regex = '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z'
+timestamp_regex = '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z|now'
 userid_regex = '\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+'
 deviceid_regex = 'Ncho\w+'
 eventclass_regex = '\w+'
