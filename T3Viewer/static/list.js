@@ -241,7 +241,7 @@ function createTitleBar() {
 
     var eventType = document.createElement('th');
     eventType.className = 'cell';
-    eventType.innerHTML = 'Event Type';
+    eventType.innerHTML = 'Event Class';
     tr.appendChild(eventType);
 
     if (show_user_id == 1) {
