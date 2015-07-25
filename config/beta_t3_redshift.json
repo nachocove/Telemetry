@@ -1,6 +1,6 @@
 {
     "general_config": {
-        "project": "beta1",
+        "project": "beta",
         "project_name": "Beta",
         "src_root": "/home/ec2-user/src/nacho/Telemetry"
 	},
