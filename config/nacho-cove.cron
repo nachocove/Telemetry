@@ -3,6 +3,7 @@ RANDOM_DELAY=360
 MAILTO=janv@nachocove.com,azimo@nachocove.com
 1 0 * * * ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/T3RedShiftLoader.py --config /home/ec2-user/src/nacho/Telemetry/config/dev_t3_redshift.json --period daily --email
 1 0 * * * ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/T3RedShiftLoader.py --config /home/ec2-user/src/nacho/Telemetry/config/alpha_t3_redshift.json --period daily --email
+1 0 * * * ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/T3RedShiftLoader.py --config /home/ec2-user/src/nacho/Telemetry/config/beta_t3_redshift.json --period daily --email
 0 2 * * * ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/T3LogReport.py --config /home/ec2-user/src/nacho/Telemetry/config/alpha_t3_redshift.json --period daily --email
 0 2 * * * ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/T3LogReport.py --config /home/ec2-user/src/nacho/Telemetry/config/dev_t3_redshift.json --period daily --email
 0    6 * * * ec2-user /usr/bin/python2.7 /home/ec2-user/src/nacho/Telemetry/scripts/monitor.py --config /home/ec2-user/src/nacho/Telemetry/config/monitor_dev.cfg --email-config /home/ec2-user/src/nacho/Telemetry/config/aws_ses_email.cfg --after last --period daily --email
