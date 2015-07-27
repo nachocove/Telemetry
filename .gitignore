@@ -10,4 +10,5 @@ Parse/scripts/*.cfg
 
 Viewer/.idea/*
 T3Viewer/.idea/*
+scripts/.idea/*
 scripts/log/*
