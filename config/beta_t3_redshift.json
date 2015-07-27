@@ -64,17 +64,17 @@
         "port":"5439"
     },
     "db_sql": {
-        "device_info": "config/db/nm_device_info.sql",
-        "log": "config/db/nm_log.sql",
-        "plog": "config/db/nm_plog.sql",
-        "support": "config/db/nm_support.sql",
-        "protocol": "config/db/nm_protocol.sql",
-        "ui": "config/db/nm_ui.sql",
-        "counter": "config/db/nm_counter.sql",
-        "statistics2": "config/db/nm_statistics2.sql",
-        "samples": "config/db/nm_samples.sql",
-        "time_series": "config/db/nm_time_series.sql",
-        "distribution": "config/db/nm_distribution.sql"
+        "device_info": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_device_info.sql",
+        "log": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_log.sql",
+        "plog": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_plog.sql",
+        "support": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_support.sql",
+        "protocol": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_protocol.sql",
+        "ui": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_ui.sql",
+        "counter": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_counter.sql",
+        "statistics2": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_statistics2.sql",
+        "samples": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_samples.sql",
+        "time_series": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_time_series.sql",
+        "distribution": "/home/ec2-user/src/nacho/Telemetry/config/db/nm_distribution.sql"
     },
     "email_config": {
         "smtp_server": "email-smtp.us-west-2.amazonaws.com",
@@ -84,6 +84,6 @@
         "from_address":"janv@nachocove.com",
         "username" : "",
         "password" : "",
-        "recipients":"azimo@nachocove.com"
+        "recipients":"nerds@nachocove.com"
     }
 }
