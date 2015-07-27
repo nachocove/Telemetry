@@ -406,8 +406,7 @@ def run_reports(options, email, logger):
                   'end': options.end,
                   'prefix': options.aws_prefix,
                   'attachment_dir': options.attachment_dir}
-
-        if monitor_name in ['errors', 'warnings', 'users', 'events', 'crashes', 'support', 'pinger', 'emails']:
+        if monitor_name in ['errors', 'warnings', 'users', 'events', 'crashes', 'support', 'emails']:
             try:
                 if 'aws_isT3' in options and options.aws_isT3:
                     kwargs['isT3'] = options.aws_isT3
@@ -449,6 +448,8 @@ def run_reports(options, email, logger):
                                                                       aws_access_key_id=options.aws_access_key_id,
                                                                       is_secure=True)
         elif monitor_name.startswith('pinger'):
+            if 'aws_isT3' in options and options.aws_isT3:
+                kwargs['isT3'] = options.aws_isT3
             kwargs['s3conn'] = S3Connection(host='s3-us-west-2.amazonaws.com',
                             port=443,
                             aws_secret_access_key=options.aws_secret_access_key,

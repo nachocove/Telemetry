@@ -3,6 +3,7 @@ from datetime import timedelta, datetime
 import re
 from AWS.query import Query
 from AWS.s3_telemetry import get_s3_events
+from AWS.s3t3_telemetry import get_pinger_events
 from AWS.selectors import SelectorEqual, SelectorContains
 from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph, Link, ListItem, \
     UnorderedList
@@ -14,11 +15,12 @@ from monitors.monitor_base import Monitor, get_client_telemetry_link, get_pinger
 
 pinger_telemetry = {}
 class MonitorPinger(Monitor):
-    def __init__(self, s3conn=None, bucket_name=None, path_prefix=None, *args, **kwargs):
+    def __init__(self, s3conn=None, isT3=False, bucket_name=None, path_prefix=None, *args, **kwargs):
         Monitor.__init__(self, *args, **kwargs)
         self.s3conn = s3conn
         self.bucket_name = bucket_name
         self.path_prefix = path_prefix
+        self.isT3 = isT3
         self.events = []
 
     def run(self):
@@ -26,7 +28,10 @@ class MonitorPinger(Monitor):
         key = "%s--%s" % (str(self.start), str(self.end))
         if not key in pinger_telemetry:
             self.logger.info('Querying %s...', self.desc)
-            all_events = get_s3_events(self.s3conn, self.bucket_name, self.path_prefix, "log", self.start, self.end, logger=self.logger)
+            if self.isT3:
+                all_events = get_pinger_events(self.s3conn, self.bucket_name, None, None, self.start, self.end, '', logger=self.logger)
+            else:
+                all_events = get_s3_events(self.s3conn, self.bucket_name, self.path_prefix, "log", self.start, self.end, logger=self.logger)
             pinger_telemetry[key] = sorted([ev for ev in all_events if self.start <= ev['timestamp'] < self.end], key=lambda x: x['timestamp'])
         else:
             self.logger.info('Pulling results from cache for %s', self.desc)
