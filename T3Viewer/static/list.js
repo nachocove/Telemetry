@@ -331,7 +331,7 @@ function refreshEvents() {
             case 'ERROR': {
                 if (event.module != 'pinger-backend') {
                     row = getRowWithCommonFields(i, event, 2);
-                    addFieldToRow(row, 'thread_id', 'THREADID: ' + event.thread_id);
+                    addFieldToRow(row, 'thread_id', event.thread_id);
                     table.appendChild(row)
                     row = getRow(event);
                     var message = event.message.replace(/\n/g, "<br/>");

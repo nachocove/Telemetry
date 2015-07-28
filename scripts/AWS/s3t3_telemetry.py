@@ -76,9 +76,9 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
         logger.debug("Found %d PINGER events. not matched %s", len(events), nm)
     return events
 
-def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_class, search, logger=None, event_type=None):
-    logger.info("Getting events of class %s for userid %s deviceid %s from %s to %s with search='%s' for event_type %s" %
-                (event_class, userid, deviceid, after, before, search, event_type))
+def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_class, search, threadid=0, logger=None, event_type=None):
+    logger.info("Getting events of class %s for userid %s deviceid %s from %s to %s with search='%s' for threadid=%d for event_type %s" %
+                (event_class, userid, deviceid, after, before, search, threadid, event_type))
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)
     if userid:
@@ -119,6 +119,9 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_
                         ev = json.loads(line)
                         if event_type and 'event_type' in ev and ev['event_type'] != event_type:
                             continue
+                        if threadid > 0:
+                            if 'thread_id' not in ev or ev['thread_id'] != threadid:
+                                continue
                         timestamp = UtcDateTime(ev['timestamp'])
                         if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
                             nm+=1

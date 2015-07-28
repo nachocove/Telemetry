@@ -176,7 +176,8 @@ def parse_paste_data(junk):
                                 'Launch Time': 'timestamp',
                                 'span': 'span',
                                 'email': 'email',
-                                'search': 'search'
+                                'search': 'search',
+                                'threadid' : 'threadid'
                                })
     if 'timestamp' in dict_:
         if dict_['timestamp'] == 'now':
@@ -197,6 +198,10 @@ def process_report(request, project, form, loc, logger):
         kwargs['deviceid'] = loc['deviceid']
     if 'search' in loc:
         kwargs['search'] = loc['search']
+    if 'threadid' in loc:
+        kwargs['threadid'] = loc['threadid']
+    else:
+        kwargs['threadid'] = 0
     if 'event_class' in loc:
         kwargs['event_class'] = loc['event_class']
     else:
@@ -361,7 +366,7 @@ def json_formatter(obj):
         except Exception as e:
             raise TypeError, 'Object of type %s with value of %s not converted to string: %s' % (type(obj), repr(obj), e)
 
-def ctrl_url(userid, deviceid, event_class, search, time, span, project):
+def ctrl_url(userid, deviceid, event_class, search, threadid, time, span, project):
     kwargs = {'timestamp': time,
                 'span': span,
                 'project': project}
@@ -375,6 +380,7 @@ def ctrl_url(userid, deviceid, event_class, search, time, span, project):
         kwargs['event_class'] = 'ALL'
     if search != '':
         kwargs['search'] = search
+    kwargs['threadid'] = threadid
     return reverse(entry_page, kwargs=kwargs)
 
 def calc_spread_from_center(center, span=default_span):
@@ -402,15 +408,16 @@ def calc_spread(after, before, span=default_span, center=None):
 
 @nachotoken_required
 @nacho_cache
-def entry_page(request, project='', userid='', deviceid='', event_class='ALL', search='', timestamp='', span=str(default_span)):
+def entry_page(request, project='', userid='', deviceid='', event_class='ALL', search='', threadid=0, timestamp='', span=str(default_span)):
     logger = logging.getLogger('telemetry').getChild('entry_page')
-    logger.info('userid=%s, deviceid=%s, event_class=%s search=%s timestamp=%s, span=%s', userid, deviceid, event_class, search, timestamp, span)
+    logger.info('userid=%s, deviceid=%s, event_class=%s search=%s threadid=%s timestamp=%s, span=%s', userid, deviceid, event_class, search, threadid, timestamp, span)
     span = int(span)
     userid = str(userid)
     deviceid = str(deviceid)
+    threadid = int(threadid)
     if timestamp.strip() == 'now':
         center = _iso_z_format(datetime.utcnow())
-        response =  HttpResponseRedirect(ctrl_url(userid, deviceid, event_class, search, center, span, project))
+        response =  HttpResponseRedirect(ctrl_url(userid, deviceid, event_class, search, threadid, center, span, project))
         from django.utils.cache import add_never_cache_headers
         add_never_cache_headers(response)
         return response
@@ -420,7 +427,7 @@ def entry_page(request, project='', userid='', deviceid='', event_class='ALL', s
     after = center - spread
     before = center + spread
 
-    context = entry_page_base(project, userid, deviceid, event_class, search, after, before, request.GET, logger)
+    context = entry_page_base(project, userid, deviceid, event_class, search, threadid, after, before, request.GET, logger)
 
     iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=span, center=center)
 
@@ -428,19 +435,19 @@ def entry_page(request, project='', userid='', deviceid='', event_class='ALL', s
     context['buttons'] = []
     zoom_in_span = max(1, span/2)
     context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
-                               'url': ctrl_url(userid, deviceid, event_class, search, iso_center, zoom_in_span, project),
+                               'url': ctrl_url(userid, deviceid, event_class, search, threadid, iso_center, zoom_in_span, project),
                                })
     context['buttons'].append({'text': 'Zoom out (%d min)' % (span*2),
-                               'url': ctrl_url(userid, deviceid, event_class, search, iso_center, span*2, project),
+                               'url': ctrl_url(userid, deviceid, event_class, search, threadid, iso_center, span*2, project),
                                })
     context['buttons'].append({'text': 'Go back %d min' % span,
-                               'url': ctrl_url(userid, deviceid, event_class, search, iso_go_earlier, span, project),
+                               'url': ctrl_url(userid, deviceid, event_class, search, threadid, iso_go_earlier, span, project),
                                })
     context['buttons'].append({'text': 'Go forward %d min' % span,
-                               'url': ctrl_url(userid, deviceid, event_class, search, iso_go_later, span, project),
+                               'url': ctrl_url(userid, deviceid, event_class, search, threadid, iso_go_later, span, project),
                                })
     context['buttons'].append({'text': 'Go to now',
-                               'url': ctrl_url(userid, deviceid, event_class, search, 'now', span, project),
+                               'url': ctrl_url(userid, deviceid, event_class, search, threadid, 'now', span, project),
                                })
     context['body_args'] = 'onload=refresh()'
     return render_to_response('entry_page.html', context,
@@ -448,24 +455,24 @@ def entry_page(request, project='', userid='', deviceid='', event_class='ALL', s
 
 @nachotoken_required
 @nacho_cache
-def entry_page_by_timestamps(request, project, userid='', deviceid='', event_class='ALL', search='', after='', before=''):
+def entry_page_by_timestamps(request, project, userid='', deviceid='', event_class='ALL', search='', threadid=0, after='', before=''):
     logger = logging.getLogger('telemetry').getChild('entry_page')
-    logger.info('userid=%s, deviceid=%s, event_class=%s, search=%s, after=%s, before=%s', userid, deviceid, event_class, search, after, before)
-    context = entry_page_base(project, userid, deviceid, event_class, search, after, before, request.GET, logger)
+    logger.info('userid=%s, deviceid=%s, event_class=%s, search=%s, threadid=%s, after=%s, before=%s', userid, deviceid, event_class, search, threadid, after, before)
+    context = entry_page_base(project, userid, deviceid, event_class, search, threadid, after, before, request.GET, logger)
     iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=default_span, center=None)
     context['buttons'] = []
     zoom_in_span = max(1, default_span/2)
     context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
-                               'url': ctrl_url(userid, deviceid, event_class, search, iso_center, zoom_in_span, project),
+                               'url': ctrl_url(userid, deviceid, event_class, search, threadid, iso_center, zoom_in_span, project),
                                })
     context['buttons'].append({'text': 'Zoom out (%d min)' % (default_span*2),
-                               'url': ctrl_url(userid, deviceid, event_class, search, iso_center, default_span*2, project),
+                               'url': ctrl_url(userid, deviceid, event_class, search, threadid, iso_center, default_span*2, project),
                                })
     context['buttons'].append({'text': 'Go back %d min' % default_span,
-                               'url': ctrl_url(userid, deviceid, event_class, search, iso_go_earlier, default_span, project),
+                               'url': ctrl_url(userid, deviceid, event_class, search, threadid, iso_go_earlier, default_span, project),
                                })
     context['buttons'].append({'text': 'Go forward %d min' % default_span,
-                               'url': ctrl_url(userid, deviceid, event_class, search, iso_go_later, default_span, project),
+                               'url': ctrl_url(userid, deviceid, event_class, search, threadid, iso_go_later, default_span, project),
                                })
     context['body_args'] = 'onload=refresh()'
     return render_to_response('entry_page.html', context,
@@ -487,7 +494,7 @@ def get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
         events.append(ev)
     return events
 
-def get_t3_events(project, userid, deviceid, event_class, search, after, before):
+def get_t3_events(project, userid, deviceid, event_class, search, threadid, after, before):
     logger = logging.getLogger('telemetry').getChild('client_telemetry')
     conn = _aws_s3_connection(project)
     event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
@@ -498,14 +505,14 @@ def get_t3_events(project, userid, deviceid, event_class, search, after, before)
                some_events = get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
             else:
                 bucket_name = projects_cfg.get(project, 'client_t3_%s_bucket' % T3_EVENT_CLASS_FILE_PREFIXES[ev_class])
-                some_events = get_client_events(conn, bucket_name, userid, deviceid, after, before, ev_class, search, logger=logger)
+                some_events = get_client_events(conn, bucket_name, userid, deviceid, after, before, ev_class, search, threadid, logger=logger)
             all_events.extend(some_events)
     else:
         if event_class == 'PINGER':
             all_events = get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
         else:
             bucket_name = projects_cfg.get(project, 'client_t3_%s_bucket' % T3_EVENT_CLASS_FILE_PREFIXES[event_class])
-            all_events = get_client_events(conn, bucket_name, userid, deviceid, after, before, event_class, search, logger=logger)
+            all_events = get_client_events(conn, bucket_name, userid, deviceid, after, before, event_class, search, threadid, logger=logger)
     all_events = sorted(all_events, key=lambda x: x['timestamp'])
     return all_events
 
@@ -515,7 +522,7 @@ def get_last_device_info_event(project, userid, deviceid, after, before):
     bucket_name = projects_cfg.get(project, 'client_t3_device_info_bucket')
     return get_latest_device_info_event(conn, bucket_name, userid, deviceid, after, before, logger=logger)
 
-def entry_page_base(project, userid, deviceid, event_class, search, after, before, params, logger):
+def entry_page_base(project, userid, deviceid, event_class, search, threadid, after, before, params, logger):
     event_list = []
     userid_list = []
     if userid != '' or deviceid != '':
@@ -528,7 +535,7 @@ def entry_page_base(project, userid, deviceid, event_class, search, after, befor
     if deviceid == '' and userid != '' and last_device_info_event:
         deviceid = last_device_info_event['device_id']
         logger.info("getting Device ID %s from last device info" % deviceid)
-    event_list = get_t3_events(project, userid, deviceid, event_class, search, UtcDateTime(str(after)), UtcDateTime(str(before)))
+    event_list = get_t3_events(project, userid, deviceid, event_class, search, threadid, UtcDateTime(str(after)), UtcDateTime(str(before)))
 
     # Save some global parameters for summary table
     params = dict()
