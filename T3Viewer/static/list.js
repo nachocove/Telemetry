@@ -631,3 +631,47 @@ function updateDate() {
         stopValue.innerHTML = dateTimeLocal(params.stop);
     }
 }
+
+function dumpData() {
+   var jsdata = "";
+    for (var i = 0; i < events.length; i++) {
+       jsdata += JSON.stringify(events[i]) + "\n";
+    }
+    return jsdata;
+}
+
+function dumpEventsString() {
+   var data = "";
+    for (var i = 0; i < events.length; i++) {
+       var line = "";
+       line += dateTimeUtc(events[i].timestamp) + "  ";
+       line += events[i].thread_id + ":";
+       line += events[i].module + ":";
+       line += events[i].event_type + "  ";
+       line += events[i].message;
+       data += line.replace(/\n/g, "  ") + "\n";
+    }
+    return data;
+}
+function downloadWithLocation() {
+    window.location='data:application/octet-stream;base64,' + btoa(dumpData());
+}
+
+function download(filename, text) {
+    var pom = document.createElement('a');
+    pom.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+    pom.setAttribute('download', filename);
+
+    if (document.createEvent) {
+        var event = document.createEvent('MouseEvents');
+        event.initEvent('click', true, true);
+        pom.dispatchEvent(event);
+    }
+    else {
+        pom.click();
+    }
+}
+
+function downloadWithHtml5() {
+    download("data.json", dumpEventsString());
+}
