@@ -673,5 +673,5 @@ function download(filename, text) {
 }
 
 function downloadWithHtml5() {
-    download("data.json", dumpEventsString());
+    download("data.txt", dumpEventsString());
 }
