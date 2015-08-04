@@ -11,6 +11,8 @@ from logtrace import LogTrace
 from analytics.token import TokenList, WhiteSpaceTokenizer
 from analytics.cluster import Clusterer
 from misc.threadpool import *
+from AWS.s3t3_telemetry import get_client_events, get_latest_device_info_event
+from AWS.events import LogEvent, DeviceInfoEvent
 
 
 class MonitorLogTraceThread(ThreadPoolThread):
@@ -36,8 +38,8 @@ class MonitorLogTraceThread(ThreadPoolThread):
 
 
 class MonitorLog(Monitor):
-    def __init__(self, event_type=None, msg=None, rate_msg=None, *args, **kwargs):
-        Monitor.__init__(self, *args, **kwargs)
+    def __init__(self, event_type=None, msg=None, rate_msg=None, isT3=False, log_t3_bucket=None, device_info_t3_bucket=None, s3conn=None, *args, **kwargs):
+        super(MonitorLog, self).__init__(*args, **kwargs)
         self.event_type = event_type
         self.events = list()  # events returned from the query
         self.report_ = dict()  # an analysis structure derived from raw events
@@ -46,24 +48,52 @@ class MonitorLog(Monitor):
         self.event_count = 0
         self.traces = list()  # list of event lists for every log event
         self.trace_enabled = False
+        self.isT3 = isT3
+        self.s3conn = s3conn
+        self.log_t3_bucket = log_t3_bucket
+        self.device_info_t3_bucket = device_info_t3_bucket
 
     def _query(self):
-        query = Query()
-        query.add('event_type', SelectorEqual(self.event_type))
-        query.add_range('uploaded_at', self.start, self.end)
-
-        self.events, self.event_count = self.query_all(query)
+        if self.isT3:
+            raw_events = get_client_events(self.s3conn, self.log_t3_bucket, userid='', deviceid='',
+                                           after=self.start, before=self.end,  event_class='LOG',
+                                           event_type=self.event_type, search='', logger=self.logger)
+            self.events = []
+            for ev in raw_events:
+                log_event = LogEvent(self.conn, id_=ev['id'], client=ev['client'], timestamp=ev['timestamp'],
+                             uploaded_at=ev['uploaded_at'], event_type=ev['event_type'], thread_id=ev['thread_id'],
+                                 message=ev['message'])
+                self.events.append(log_event)
+                self.event_count = len(self.events)
+        else:
+            query = Query()
+            query.add('event_type', SelectorEqual(self.event_type))
+            query.add_range('uploaded_at', self.start, self.end)
+            self.events, self.event_count = self.query_all(query)
 
     # The cache is keyed on the client_id+endtime. It contains exactly one (the closest to end) device-info entry
     _client_cache = {}
     def _get_device_info(self, client_id, end):
         key = "%s-%s" % (client_id, end)
         if key not in self._client_cache:
-            query = Query()
-            query.add('client', SelectorEqual(client_id))
-            query.add('timestamp', SelectorLessThan(end))
-            clients = sorted(Query.users(query, self.conn), key=lambda x: x['timestamp'])
-            self._client_cache[key] = clients[-1] if clients else None
+            if self.isT3:
+                di_event = None
+                ev = get_latest_device_info_event(self.s3conn,
+                                    self.device_info_t3_bucket, userid='', deviceid=client_id,
+                                    after=self.start, before=self.end, logger=self.logger)
+                if ev:
+                    di_event = DeviceInfoEvent(self.conn, id_=ev['id'], client=ev['client'], timestamp=ev['timestamp'],
+                                    uploaded_at=ev['uploaded_at'], device_model=ev['device_model'], os_type=ev['os_type'],
+                                    os_version=ev['os_version'], build_version=ev['build_version'],
+                                    build_number=ev['build_number'], device_id=ev['device_id'],
+                                    fresh_install=ev['fresh_install'])
+                self._client_cache[key] = di_event
+            else:
+                query = Query()
+                query.add('client', SelectorEqual(client_id))
+                query.add('timestamp', SelectorLessThan(end))
+                clients = sorted(Query.users(query, self.conn), key=lambda x: x['timestamp'])
+                self._client_cache[key] = clients[-1] if clients else None
         return self._client_cache[key]
 
     def _classify(self):
@@ -175,9 +205,14 @@ class MonitorLog(Monitor):
     def attachment(self):
         if len(self.events) == 0:
             return None
-        ef = event_formatter.RecordStyleEventFormatter(prefix=self.prefix)
+        if self.isT3:
+            host="http://localhost:8081/"
+        else:
+            host="http://localhost:8000/"
+        ef = event_formatter.RecordStyleEventFormatter(prefix=self.prefix, isT3=self.isT3, host=host)
         raw_log_prefix = '%s_%s' % (self.desc, self.end.file_suffix())
-        raw_log_path = raw_log_prefix + '.txt'
+
+        raw_log_path = os.path.join(self.attachment_dir, raw_log_prefix + '.txt')
         with open(raw_log_path, 'w') as raw_log:
             for event in self.events:
                 # Find the latest device-info record that is before the current log-entry's timestamp
@@ -195,15 +230,16 @@ class MonitorLog(Monitor):
                             event[k] = client[k]
 
                 print >>raw_log, ef.format(event).encode('utf-8')
-        zipped_log_path = raw_log_prefix + '.zip'
+
+        zipped_log_path = os.path.join(self.attachment_dir, raw_log_prefix + '.zip')
         zipped_file = zipfile.ZipFile(zipped_log_path, 'w', zipfile.ZIP_DEFLATED)
         zipped_file.write(raw_log_path)
         os.unlink(raw_log_path)
-
-        for trace in self.traces:
-            trace_path = trace.write_file()
-            zipped_file.write(trace_path)
-            os.unlink(trace_path)
+        if self.traces:
+            for trace in self.traces:
+                trace_path = trace.write_file()
+                zipped_file.write(trace_path)
+                os.unlink(trace_path)
         zipped_file.close()
         return zipped_log_path
 
@@ -215,7 +251,6 @@ class MonitorErrors(MonitorLog):
         kwargs.setdefault('msg', 'Error count')
         kwargs.setdefault('rate_msg', 'ERROR rate')
         MonitorLog.__init__(self, *args, **kwargs)
-        self.trace_enabled = True
 
 
 class MonitorWarnings(MonitorLog):

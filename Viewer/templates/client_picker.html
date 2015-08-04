@@ -6,6 +6,7 @@
     <thead>
     <tr>
         <th>Client ID</th>
+        <th>Email</th>
         <th>First Seen</th>
         <th>Last Seen</th>
     </tr>
@@ -14,6 +15,7 @@
 {% for client in clients %}
        <tr>
            <td><a href="{{client.url}}" target="_blank">{{ client.client}}</a></td>
+           <td>{{ client.email }}</td>
            <td>{{ client.first }}</td>
            <td>{{ client.timestamp }}</td>
        </tr>

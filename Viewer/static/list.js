@@ -100,6 +100,13 @@ function getRowWithCommonFields (id, event, num_rows) {
     id_cell = getCell(event.id, num_rows)
     id_cell.className += " id_cell"
     tr.appendChild(id_cell);
+
+    if (show_client == 1) {
+        console.log(event);
+        tr.appendChild(getCell(event.client, num_rows));
+    }
+
+    tr.appendChild(getCell(event.module.replace('_', ' '), num_rows));
     return tr;
 }
 
@@ -109,7 +116,7 @@ function getPre(html) {
 
 function addFieldToRow(row, field, value) {
     row.appendChild(getCell(field));
-    valueCell = getCell(value);
+    var valueCell = getCell(value);
     row.appendChild(valueCell);
     return valueCell;
 }
@@ -131,7 +138,8 @@ function previewString(s) {
     if (s.length <= N) {
         return s;
     }
-    return htmlUnescape(s.slice(0, N)) + '...';
+    var i = s.indexOf("\n")
+    return htmlUnescape(s.slice(0, Math.min(i, N))) + '...';
 }
 
 function isElementInViewport(e) {
@@ -159,7 +167,7 @@ function beautifyBase64(b64) {
 function refreshSummary() {
     var table = document.getElementById('table_summary');
 
-    var tr = document.createElement('tr');;
+    var tr = document.createElement('tr');
     var field = getCell(START_TIME_UTC);
     var value = getCell(dateTimeUtc(params.start));
     field.id = START_FIELD_ID;
@@ -177,7 +185,9 @@ function refreshSummary() {
     tr.appendChild(value);
     table.appendChild(tr);
 
-    addSummaryRow(table, 'Client', params.client);
+    if (params.hasOwnProperty('client')) {
+        addSummaryRow(table, 'Client', params.client);
+    }
     if (params.hasOwnProperty('device_id')) {
         addSummaryRow(table, 'Device ID', params.device_id);
     }
@@ -227,6 +237,18 @@ function createTitleBar() {
     eventType.innerHTML = 'Event Type';
     tr.appendChild(eventType);
 
+    if (show_client == 1) {
+        var client = document.createElement('th');
+        client.className = 'cell';
+        client.innerHTML = 'Client';
+        tr.appendChild(client);
+    }
+
+    var module = document.createElement('th');
+    module.className = 'cell';
+    module.innerHTML = 'Module';
+    tr.appendChild(module);
+
     var field = document.createElement('th');
     field.className = 'cell id_cell';
     field.innerHTML = 'Telemetry ID';
@@ -258,18 +280,25 @@ function refreshEvents() {
             case 'INFO':
             case 'WARN':
             case 'ERROR': {
-                row = getRowWithCommonFields(i, event, 2);
-                addFieldToRow(row, 'thread_id', event.thread_id);
-                table.appendChild(row)
-                row = getRow(event);
-                addFieldToRow(row, 'message', event.message);
+                if (event.module != 'pinger-backend') {
+                    row = getRowWithCommonFields(i, event, 2);
+                    addFieldToRow(row, 'thread_id', event.thread_id);
+                    table.appendChild(row)
+                    row = getRow(event);
+                    var message = event.message.replace(/\n/g, "<br/>");
+                    addFieldToRow(row, 'message', message);
+                } else {
+                    row = getRowWithCommonFields(i, event, 1);
+                    addFieldToRow(row, 'message', event.message);
+                    table.appendChild(row)
+                }
                 break;
             }
             case 'WBXML_REQUEST':
             case 'WBXML_RESPONSE': {
                 row = getRowWithCommonFields(i, event, 1);
                 row.appendChild(getCell('wbxml'));
-                valueCell = getCell(beautifyBase64(event.wbxml_base64));
+                var valueCell = getCell(beautifyBase64(event.wbxml_base64));
                 valueCell.id = i;
                 valueCell.title = previewString(event.wbxml);
                 valueCell.onclick = function() {
@@ -382,18 +411,23 @@ function refreshEvents() {
             }
             case 'SUPPORT': {
                 try {
-                    json = JSON.parse(event.support);
+                    var json = JSON.parse(event.support);
                     var keys = Object.keys(json);
-                    var isFirst = true;
-                    for (var j = 0; j < keys.length; j++) {
-                        if (isFirst) {
-                            row = getRowWithCommonFields(i, event, keys.length);
-                            isFirst = false;
-                        } else {
-                            table.appendChild(row);
-                            row = getRow(event);
+                    if (keys.length == 0) {
+                        row = getRowWithCommonFields(i, event, 1);
+                        addFieldToRow(row, 'support', event.support);
+                    } else {
+                        var isFirst = true;
+                        for (var j = 0; j < keys.length; j++) {
+                            if (isFirst) {
+                                row = getRowWithCommonFields(i, event, keys.length);
+                                isFirst = false;
+                            } else {
+                                table.appendChild(row);
+                                row = getRow(event);
+                            }
+                            addFieldToRow(row, keys[j], json[keys[j]]);
                         }
-                        addFieldToRow(row, keys[j], json[keys[j]]);
                     }
                 }
                 catch (ex) {
@@ -439,8 +473,12 @@ function updateDate() {
         var dateCell = document.getElementById('date_' + i);
         var timeCell = document.getElementById('time_' + i);
         date = new Date(events[i].timestamp);
-        dateCell.innerHTML = isUtc ? dateUtc(date) : dateLocal(date);
-        timeCell.innerHTML = isUtc ? timeUtc(date) : timeLocal(date);
+        if (dateCell) {
+            dateCell.innerHTML = isUtc ? dateUtc(date) : dateLocal(date);
+        }
+        if (timeCell) {
+            timeCell.innerHTML = isUtc ? timeUtc(date) : timeLocal(date);
+        }
     }
 
     // Update summary table

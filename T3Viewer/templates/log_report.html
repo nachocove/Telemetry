@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Daily Log Report{% endblock %}
+{% block content %}
+<h2>Project: {{ general_config.project_name }}</h2>
+<br/>
+<b>Summary</b>
+<br/>
+<table border="1">
+       <tr>
+           <td><b>Start</b></td>
+           <td>{{ summary.start }}</td>
+       </tr>
+       <tr>
+           <td><b>End</b></td>
+           <td>{{ summary.end }}</td>
+       </tr>
+       <tr>
+           <td><b>Report Period</b></td>
+           <td>{{ summary.period }}</td>
+       </tr>
+    <tr>
+           <td><b>Event Count</b></td>
+           <td>{{ summary.event_count }}</td>
+       </tr>
+       <tr>
+           <td><b>Event Rate</b></td>
+           <td>{{ summary.event_rate |floatformat }}/hr</td>
+       </tr>
+       <tr>
+           <td><b>Error Count</b></td>
+           <td>{{ summary.ERROR }}</td>
+       </tr>
+       <tr>
+           <td><b>Error Rate</b></td>
+           <td>{{ summary.ERROR_rate |floatformat }}/hr</td>
+       </tr>
+        <tr>
+            <td><b>Warning Count</b></td>
+           <td>{{ summary.WARN }}</td>
+       </tr>
+       <tr>
+           <td><b>Warning Rate</b></td>
+           <td>{{ summary.WARN_rate |floatformat }}/hr</td>
+       </tr>
+</table>
+<br/>
+<b>Errors Clustered</b>
+<table border="1">
+    <tr>
+        <th class="cell">Count</th>
+        <th class="cell">Message</th>
+    </tr>
+{% for error in clustered_errors %}
+       <tr>
+           <td class="cell">{{ error.count }}</td>
+           <td class="cell">{{ error.message }}</td>
+       </tr>
+{% endfor %}
+</table>
+<br/>
+<b>Warnings Clustered</b>
+<table border="1">
+    <tr>
+        <th class="cell">Count</th>
+        <th class="cell">Message</th>
+    </tr>
+{% for warning in clustered_warnings %}
+       <tr>
+           <td class="cell">{{ warning.count }}</td>
+           <td class="cell">{{ warning.message }}</td>
+       </tr>
+{% endfor %}
+</table>
+<br/>
+<b>Errors Detail</b>
+<table border="1">
+    <tr>
+        <th class="cell">Event Type</th>
+        <th class="cell">User Id</th>
+        <th class="cell">Device Id</th>
+        <th class="cell">Timestamp</th>
+        <th class="cell">Message</th>
+    </tr>
+{% for error in errors %}
+       <tr>
+           <td class="cell"><a href="{{error.telemetry_link}}" target="_blank">{{ error.event_type }}</a></td>
+           <td class="cell"><a href="{{error.telemetry_link}}" target="_blank">{{ error.user_id }}</a></td>
+           <td class="cell"><a href="{{error.telemetry_link}}" target="_blank">{{ error.device_id }}</a></td>
+           <td class="cell"><a href="{{error.telemetry_link}}" target="_blank">{{ error.timestamp }}</a></td>
+           <td class="cell"><a href="{{error.telemetry_link}}" target="_blank">{{ error.message }}</a></td>
+       </tr>
+{% endfor %}
+</table>
+<br/>
+<b>Warnings Detail</b>
+<table border="1">
+    <tr>
+        <th class="cell">Event Type</th>
+        <th class="cell">User Id</th>
+        <th class="cell">Device Id</th>
+        <th class="cell">Timestamp</th>
+        <th class="cell">Message</th>
+    </tr>
+{% for warning in warnings %}
+       <tr>
+           <td class="cell"><a href="{{warning.telemetry_link}}" target="_blank">{{ warning.event_type }}</a></td>
+           <td class="cell"><a href="{{warning.telemetry_link}}" target="_blank">{{ warning.user_id }}</a></td>
+           <td class="cell"><a href="{{warning.telemetry_link}}" target="_blank">{{ warning.device_id }}</a></td>
+           <td class="cell"><a href="{{warning.telemetry_link}}" target="_blank">{{ warning.timestamp }}</a></td>
+           <td class="cell"><a href="{{warning.telemetry_link}}" target="_blank">{{ warning.message }}</a></td>
+       </tr>
+{% endfor %}
+</table>
+{% endblock %}

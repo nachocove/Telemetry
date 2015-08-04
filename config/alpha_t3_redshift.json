@@ -1,0 +1,89 @@
+{
+    "general_config": {
+        "project": "alpha",
+        "project_name": "Alpha",
+        "src_root": "/home/ec2-user/src/nacho/Telemetry"
+	},
+    "aws_config": {
+        "region_name": "us-west-2",
+        "zones": ["us-west-2a"],
+        "aws_access_key_id" : "AKIAJ2QWUH6FHXPPZUQA",
+        "aws_secret_access_key" : "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"
+    },
+    "s3_config": {
+        "device_info" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-device-info",
+          "t3_jsonpath": "json/nm_device_info_jsonpath.json"
+        },
+        "log" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-log",
+          "t3_jsonpath": "json/nm_log_jsonpath.json"
+        },
+        "protocol" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-protocol",
+          "t3_jsonpath": "json/nm_protocol_jsonpath.json"
+        },
+        "ui" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-ui",
+          "t3_jsonpath": "json/nm_ui_jsonpath.json"
+        },
+        "support" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-support",
+          "t3_jsonpath": "json/nm_support_jsonpath.json"
+        },
+        "counter" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-counter",
+          "t3_jsonpath": "json/nm_counter_jsonpath.json"
+        },
+        "statistics2" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-statistics2",
+          "t3_jsonpath": "json/nm_statistics2_jsonpath.json"
+        },
+        "distribution" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-distribution",
+          "t3_jsonpath": "json/nm_distribution_jsonpath.json"
+        },
+        "samples" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-samples",
+          "t3_jsonpath": "json/nm_samples_jsonpath.json"
+        },
+        "time_series" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-time-series",
+          "t3_jsonpath": "json/nm_time_series_jsonpath.json"
+        },
+        "plog" : {
+          "t3_bucket": "ceaa2f55-2e8b-4ccc-a2c4-495dcb95abc9-alpha-pinger",
+          "t3_jsonpath": "json/nm_plog_jsonpath.json"
+        }
+    },
+    "db_config": {
+        "dbname": "t3db",
+        "user":"nachocove",
+        "pwd":"",
+        "host":"t3-dw-instance.ccqihpfuufs8.us-west-2.redshift.amazonaws.com",
+        "port":"5439"
+    },
+    "db_sql": {
+        "device_info": "config/db/nm_device_info.sql",
+        "log": "config/db/nm_log.sql",
+        "plog": "config/db/nm_plog.sql",
+        "support": "config/db/nm_support.sql",
+        "protocol": "config/db/nm_protocol.sql",
+        "ui": "config/db/nm_ui.sql",
+        "counter": "config/db/nm_counter.sql",
+        "statistics2": "config/db/nm_statistics2.sql",
+        "samples": "config/db/nm_samples.sql",
+        "time_series": "config/db/nm_time_series.sql",
+        "distribution": "config/db/nm_distribution.sql"
+    },
+    "email_config": {
+        "smtp_server": "email-smtp.us-west-2.amazonaws.com",
+        "port":587,
+        "start_tls": true,
+        "tls": true,
+        "from_address":"janv@nachocove.com",
+        "username" : "",
+        "password" : "",
+        "recipients":"azimo@nachocove.com"
+    }
+}

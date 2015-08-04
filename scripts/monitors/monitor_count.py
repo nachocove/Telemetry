@@ -1,23 +1,31 @@
 import json
 import time
+from decimal import Decimal
 from AWS.query import Query
 from AWS.tables import TABLE_CLASSES
-from AWS.selectors import SelectorEqual, SelectorStartsWith
+from AWS.selectors import SelectorEqual
 from misc.html_elements import Table, TableRow, TableHeader, Bold, TableElement, Text, Paragraph
 from monitor_base import Monitor
 from misc.number_formatter import pretty_number
-
+from AWS.s3t3_telemetry import get_client_events
+from AWS.events import DeviceInfoEvent, SupportEvent
 
 class MonitorCount(Monitor):
-    def __init__(self, rate_desc=None, *args, **kwargs):
+    def __init__(self, rate_desc=None, isT3=False, log_t3_bucket=None, device_info_t3_bucket=None, support_t3_bucket=None, s3conn=None, *args, **kwargs):
         Monitor.__init__(self, *args, **kwargs)
         self.count = 0
         self.rate_desc = rate_desc
+        self.isT3 = isT3
+        self.s3conn = s3conn
+        self.log_t3_bucket = log_t3_bucket
+        self.device_info_t3_bucket = device_info_t3_bucket
+        self.support_t3_bucket = support_t3_bucket
 
         # Create the query
         self.query = Query()
         self.query.add_range('uploaded_at', self.start, self.end)
         self.query.count = True
+
 
     def run(self):
         # Derived class must provide its own implementation
@@ -42,9 +50,20 @@ class MonitorUsers(MonitorCount):
         kwargs.setdefault('desc', 'Active user count')
         MonitorCount.__init__(self, *args, **kwargs)
 
+    def get_active_device_count(self):
+        device_info_list = get_client_events(self.s3conn, self.device_info_t3_bucket, '', '', self.start,
+                                             self.end, 'DEVICEINFO', '', logger=self.logger)
+        clients = set()
+        for di in device_info_list:
+            clients.add(di['client'])
+        return len(clients)
+
     def run(self):
         self.logger.info('Querying %s...', self.desc)
-        self.count = Query.users(self.query, self.conn)
+        if self.isT3:
+            self.count = self.get_active_device_count()
+        else:
+            self.count = Query.users(self.query, self.conn)
 
     def report(self, summary, **kwargs):
         count_str = pretty_number(self.count)
@@ -181,88 +200,148 @@ class MonitorEmails(MonitorCount):
         kwargs.setdefault('rate_desc', 'New user rate')
         MonitorCount.__init__(self, *args, **kwargs)
         self.query.count = False
-        self.active_clients_this_period = set()
-        self.clients_that_did_autod = set()
-        self.email_addresses = set()
-        self.emails_per_domain = dict()
+        self.active_clients_this_period = dict()
+        self.new_clients_this_period = dict()
+        self.new_emails_per_domain = dict()
+        self.active_emails_per_domain = dict()
         self.debug_timing = False
+        self.new_count = 0
+        self.active_count = 0
+
+    def _get_active_clients_this_period(self):
+        clients = dict()
+        if self.isT3:
+            raw_events = get_client_events(self.s3conn, self.device_info_t3_bucket, userid='', deviceid='',
+                                           after=self.start, before=self.end,  event_class='DEVICEINFO',
+                                            search='', logger=self.logger)
+            for ev in raw_events:
+                di_event = DeviceInfoEvent(self.conn, id_=ev['id'], client=ev['client'], timestamp=ev['timestamp'],
+                                    uploaded_at=ev['uploaded_at'], device_model=ev['device_model'], os_type=ev['os_type'],
+                                    os_version=ev['os_version'], build_version=ev['build_version'],
+                                    build_number=ev['build_number'], device_id=ev['device_id'],
+                                    fresh_install=ev['fresh_install'])
+                if ev['client'] not in clients or clients[ev['client']]['timestamp'] < ev['timestamp']:
+                    clients[ev['client']] = ev
+        else:
+            query = Query()
+            query.add_range('timestamp', self.start, self.end)
+            t1 = time.time()
+            results = Query.users(query, self.conn)
+            t2 = time.time()
+            if self.debug_timing: self.logger.debug("TIME active_clients_this_period %s: results %d %s", (t2-t1), len(results), query)
+            for x in results:
+                if x['client'] not in clients or clients[x['client']]['timestamp'] < x['timestamp']:
+                    clients[x['client']] = x
+        return clients
+
+    def _get_support_events_for_clients(self, clients):
+        assert isinstance(clients, list)
+        results = []
+        for client_id in clients:
+            if self.isT3:
+                self.events = get_client_events(self.s3conn, self.support_t3_bucket, userid='', deviceid=client_id,
+                            after=self.start, before=self.end, event_class='SUPPORT', search='', logger=self.logger)
+                self.requests = []
+                for ev in self.events:
+                    support_event = SupportEvent(self.s3conn, id_=ev['id'], client=ev['client'], timestamp=ev['timestamp'],
+                                    uploaded_at=ev['uploaded_at'], event_type=ev['event_type'], support = ev['support'])
+                    results.append(support_event)
+            else:
+                query = Query()
+                query.add('event_type', SelectorEqual('SUPPORT'))
+                query.add('client', SelectorEqual(client_id))
+                query.add_range('timestamp', self.start, self.end)
+                t1 = time.time()
+                r = Query.events(query, self.conn)
+                t2 = time.time()
+                if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
+                if r:
+                    results.extend(r)
+        return results
+
+    def _summarize_emails_addresses(self, events):
+        email_addresses = dict()
+        for event in events:
+            try:
+                email = json.loads(event.get('support', '{}')).get('sha256_email_address', '')
+                if email:
+                    if email not in email_addresses or email_addresses[email]['timestamp'] < event['timestamp']:
+                        email_addresses[email] = event
+            except ValueError:
+                # bad json
+                continue
+        return email_addresses
+
+    def _summarize_emails_per_domain(self, emails):
+        emails_per_domain = dict()
+        for email in emails.keys():
+            userhash, domain = email.split('@')
+            if domain not in emails_per_domain:
+                emails_per_domain[domain] = dict()
+            emails_per_domain[domain][email] = emails[email]
+        return emails_per_domain
 
     def run(self):
         self.logger.info('Querying %s...', self.desc)
         # find all users that ran the client (i.e. inserted a device_info row) in the given timeframe
         # NOTE This is looking at timestamp (when the log was created) and NOT when it was uploaded
-        query = Query()
-        query.add_range('timestamp', self.start, self.end)
-        t1 = time.time()
-        results = Query.users(query, self.conn)
-        t2 = time.time()
-        if self.debug_timing: self.logger.debug("TIME active_clients_this_period %s: results %d %s", (t2-t1), len(results), query)
-        for x in results:
-            self.active_clients_this_period.add(x['client'])
+        self.active_clients_this_period = self._get_active_clients_this_period()
+        self.new_clients_this_period = {x: y for x,y in self.active_clients_this_period.iteritems() if y['fresh_install'] == Decimal(1)}
 
         # Using the client and timestamp range, see which of the active users ran auto-d at all
-        results = []
-        for client_id in self.active_clients_this_period:
-            query = Query()
-            query.add_range('timestamp', self.start, self.end)
-            query.add('client', SelectorEqual(client_id))
-            query.add('message', SelectorStartsWith('AUTOD'))
-            t1 = time.time()
-            r = Query.events(query, self.conn)
-            t2 = time.time()
-            if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
-            results.extend(r)
+        results = self._get_support_events_for_clients(self.new_clients_this_period.keys())
+        new_email_addresses = self._summarize_emails_addresses(results)
+        self.new_emails_per_domain = self._summarize_emails_per_domain(new_email_addresses)
+        self.new_count = len(new_email_addresses)
+        self.logger.debug('Found %d new emails: %s', self.new_count, new_email_addresses.keys())
 
-        for event in results:
-            self.clients_that_did_autod.add(event['client'])
-        results = []
-        for client_id in self.clients_that_did_autod:
-            query = Query()
-            query.add('event_type', SelectorEqual('SUPPORT'))
-            query.add('client', SelectorEqual(client_id))
-            query.add_range('timestamp', self.start, self.end)
-            t1 = time.time()
-            r = Query.events(query, self.conn)
-            t2 = time.time()
-            if self.debug_timing: self.logger.debug("TIME %s: results %d %s", (t2-t1), len(r), query)
-            results.extend(r)
+        results = self._get_support_events_for_clients(self.active_clients_this_period.keys())
+        active_emails = self._summarize_emails_addresses(results)
+        self.active_emails_per_domain = self._summarize_emails_per_domain(active_emails)
+        self.active_count = len(active_emails)
+        self.logger.debug('Found %d active emails: %s', self.active_count, active_emails.keys())
 
-        for event in results:
-            try:
-                email = json.loads(event.get('support', '{}')).get('sha256_email_address', '')
-                if email:
-                    self.email_addresses.add(email)
-            except ValueError:
-                # bad json
-                continue
-        self.count = len(self.email_addresses)
-        self.logger.debug('Found %d emails: %s', self.count, self.email_addresses)
-        for email in self.email_addresses:
-            userhash, domain = email.split('@')
-            if domain not in self.emails_per_domain:
-                self.emails_per_domain[domain] = []
-            self.emails_per_domain[domain].append(email)
+    def _report_emails(self, email_dict, title, subtitle):
+        paragraph_elements = []
+        paragraph_elements.append(Bold(title))
+        email_domain_table = Table()
+        email_domain_table.add_row(TableRow([TableHeader(Bold('Domain')),
+                                             TableHeader(Bold('# clients')),
+                                             ]))
+        for domain in sorted(email_dict.keys()):
+            email_domain_table.add_row(TableRow([TableElement(Text(domain)),
+                                                 TableElement(Text(pretty_number(len(email_dict[domain]))), align='right'),
+                                                 ]))
+        paragraph_elements.append(email_domain_table)
+
+        for domain in sorted(email_dict.keys()):
+            per_domain_table = Table()
+            per_domain_table.add_row(TableRow([TableHeader(Bold('Email')),
+                                               TableHeader(Bold('Last Seen')),
+                                               ]))
+            for email in email_dict[domain]:
+                per_domain_table.add_row(TableRow([TableElement(Text(email)),
+                                                   TableElement(Text(str(email_dict[domain][email]['timestamp']))),
+                                                   ]))
+            paragraph_elements.append(Bold("%s for domain %s" % (subtitle, domain)))
+            paragraph_elements.append(per_domain_table)
+        return paragraph_elements
 
     def report(self, summary, **kwargs):
-        rate = Monitor.compute_rate(self.count, self.start, self.end, 'hr')
-        count_str = pretty_number(self.count)
-        self.logger.info('%s: %s', self.desc, count_str)
-        self.logger.info('%s: %s', self.rate_desc, rate)
-        summary.add_entry(self.desc, count_str)
+        summary.add_entry(self.desc, pretty_number(self.new_count))
+        rate = Monitor.compute_rate(self.new_count, self.start, self.end, 'hr')
+        if rate is not None:
+            summary.add_entry("New user rate", rate)
 
-        if self.rate_desc and rate is not None:
-            summary.add_entry(self.rate_desc, rate)
-        table = Table()
-        table.add_row(TableRow([TableHeader(Bold('Domain')),
-                                TableHeader(Bold('# clients')),
-                                ]))
-        for domain in sorted(self.emails_per_domain.keys()):
-            table.add_row(TableRow([TableElement(Text(domain)),
-                                    TableElement(Text(pretty_number(len(self.emails_per_domain[domain]))), align='right'),
-                                    ]))
+        summary.add_entry("Active emails", pretty_number(self.active_count))
+        rate = Monitor.compute_rate(self.active_count, self.start, self.end, 'hr')
+        if rate is not None:
+            summary.add_entry("Active emails rate", rate)
 
-        title = self.title()
-        paragraph = Paragraph([Bold(title), table])
+        paragraph_elements = []
+        paragraph_elements.extend(self._report_emails(self.new_emails_per_domain, self.title(), "New Emails"))
+        paragraph_elements.extend(self._report_emails(self.active_emails_per_domain, "Active Emails", "Active Emails"))
+        paragraph = Paragraph(paragraph_elements)
         return paragraph
 
     def attachment(self):
@@ -277,6 +356,11 @@ class MonitorEvents(MonitorCount):
         kwargs.setdefault('rate_desc', 'Event rate')
         MonitorCount.__init__(self, *args, **kwargs)
 
+    def get_event_count(self):
+        event_list = get_client_events(self.s3conn, self.log_t3_bucket, '', '', self.start,
+                                             self.end, 'LOG', '', logger=self.logger)
+        return len(event_list)
+
     def run(self):
         self.logger.info('Querying %s...', self.desc)
         # We cannot just issue a query with a range on uploaded_at because it
@@ -284,11 +368,14 @@ class MonitorEvents(MonitorCount):
         # a query for event_type + uploaded_at range which results in a indexed query
         # for each event type and finally combine the count
         self.count = 0
-        for table in TABLE_CLASSES:
-            for event_type in table.EVENT_TYPES:
-                query = Query()
-                query.add('event_type', SelectorEqual(event_type))
-                query.add_range('uploaded_at', self.start, self.end)
-                query.count = True
-                count = Query.events(query, self.conn)
-                self.count += count
+        if self.isT3:
+            self.count = self.get_event_count()
+        else:
+            for table in TABLE_CLASSES:
+                for event_type in table.EVENT_TYPES:
+                    query = Query()
+                    query.add('event_type', SelectorEqual(event_type))
+                    query.add_range('uploaded_at', self.start, self.end)
+                    query.count = True
+                    count = Query.events(query, self.conn)
+                    self.count += count

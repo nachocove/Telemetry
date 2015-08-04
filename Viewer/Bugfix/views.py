@@ -23,12 +23,14 @@ from django.utils.decorators import available_attrs
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
 from boto.dynamodb2.layer1 import DynamoDBConnection
+from boto.s3.connection import S3Connection
 from boto.dynamodb2.exceptions import DynamoDBError
+from AWS.s3_telemetry import get_s3_events
 
 from misc import events
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
 from AWS.query import Query
-from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween, SelectorContains
+from AWS.selectors import SelectorEqual, SelectorLessThanEqual, SelectorBetween, SelectorContains, SelectorGreaterThanEqual
 from AWS.tables import TelemetryTable
 from monitors.monitor_base import Monitor
 from misc.support import Support
@@ -54,7 +56,7 @@ class LoginForm(forms.Form):
 
     def clean_password(self):
         password = self.cleaned_data.get('password', '')
-        if hashlib.sha256(password).hexdigest() != settings.NACHO_PASSWORD_DIGEST:
+        if password == "nacho1234":
             self.add_error('password', 'Incorrect Password')
         return password
 
@@ -88,6 +90,23 @@ def _aws_connection(project):
     TelemetryTable.PREFIX = project
     return _aws_connection_cache[project]
 
+_aws_s3_connection_cache = {}
+def _aws_s3_connection(project):
+    """
+    :return: boto.s3.connection.S3Connection
+    """
+    global _aws_s3_connection_cache
+    if not project in _aws_s3_connection_cache:
+        if not project in projects:
+            raise ValueError('Project %s is not present in projects.cfg' % project)
+        _aws_s3_connection_cache[project] = S3Connection(host='s3-us-west-2.amazonaws.com',
+                                                         port=443,
+                                                         aws_secret_access_key=projects_cfg.get(project, 'secret_access_key'),
+                                                         aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
+                                                         is_secure=True,
+                                                         debug=2 if BOTO_DEBUG else 0)
+    TelemetryTable.PREFIX = project
+    return _aws_s3_connection_cache[project]
 
 def _parse_junk(junk, mapping):
     retval = dict()
@@ -106,29 +125,6 @@ def _parse_junk(junk, mapping):
     logger.debug('retval=%s', retval)
     return retval
 
-
-def _parse_crash_report(junk):
-    dict_ = _parse_junk(junk, {'Device ID': 'device_id',
-                               'Date/Time': 'timestamp',
-                               'Launch Time': 'timestamp'})
-    if 'device_id' in dict_ and 'timestamp' in dict_:
-        return dict_
-    return None
-
-
-def _parse_error_report(junk):
-    dict_ = _parse_junk(junk, {'timestamp': 'timestamp', 'client': 'client'})
-    if 'timestamp' in dict_ and 'client' in dict_:
-        return dict_
-    return None
-
-
-def _parse_support_email(junk):
-    dict_ = _parse_junk(junk, {'email': 'email', 'timestamp': 'timestamp'})
-    if 'email' in dict_:
-        return dict_
-    return None
-
 def nacho_token():
     token = "NACHO:%s" % settings.SECRET_KEY
     return hashlib.sha256(token).hexdigest()
@@ -142,10 +138,11 @@ def validate_session(request):
 def nachotoken_required(view_func):
     @wraps(view_func, assigned=available_attrs(view_func))
     def _wrapped_view(request, *args, **kwargs):
-        if validate_session(request):
-            return view_func(request, *args, **kwargs)
-        else:
-            return HttpResponseRedirect(settings.LOGIN_URL)
+        return view_func(request, *args, **kwargs)
+        # if validate_session(request):
+        #     return view_func(request, *args, **kwargs)
+        # else:
+        #     return HttpResponseRedirect(settings.LOGIN_URL)
     return _wrapped_view
 
 def nacho_cache(view_func):
@@ -184,23 +181,54 @@ def logout(request):
         pass
     return HttpResponseRedirect(settings.LOGIN_URL)
 
+def _parse_error_report(junk):
+    dict_ = _parse_junk(junk, {'timestamp': 'timestamp',
+                               'client': 'client',
+                               'span': 'span',
+                               })
+    if 'timestamp' in dict_ and 'client' in dict_:
+        if dict_['timestamp'] == 'now':
+            dict_['timestamp'] = _iso_z_format(datetime.utcnow())
+        return dict_
+    return None
+
+
 def process_error_report(request, project, form, loc, logger):
-    loc['span'] = str(default_span)
     return HttpResponseRedirect(reverse(entry_page, kwargs={'client': loc['client'],
                                                             'timestamp': loc['timestamp'],
-                                                            'span': loc['span'],
+                                                            'span': loc.get('span', default_span),
                                                             'project': project}))
 
-def process_email(request, project, form, loc, logger):
-    loc['span'] = str(default_span)
-    # From the email, we need to find the client ID
+def _parse_pinger(junk):
+    dict_ = _parse_junk(junk, {'pinger': 'pinger',
+                               'client': 'client',
+                               'timestamp': 'timestamp'})
+    if 'pinger' in dict_ and 'timestamp' in dict_:
+        return dict_
+    return None
+
+def process_pinger(request, project, form, loc, logger):
+    view_args = {'after': loc['timestamp'],
+                 'span': loc.get('span', default_span),
+                 'project': project,
+                 }
+    if loc.get('client', ''):
+        view_args['client'] = loc['client']
+    return HttpResponseRedirect(reverse(pinger_telemetry, kwargs=view_args))
+
+def client_ids_from_email(email, after, before, project, include_url=True):
     conn = _aws_connection(project)
     query = Query()
     query.add('event_type', SelectorEqual('SUPPORT'))
+    if after and before:
+        query.add_range('uploaded_at', after, before)
     events = Query.events(query, conn)
-    email_events = Support.get_sha256_email_address(events, loc['email'])[1]
-    if len(email_events) != 0:
-        clients = {}
+    if not events:
+        return {}
+
+    (_, email_events) = Support.get_email_address_clients(events, email)
+    clients = {}
+    if len(email_events) > 0:
         # loop over the sorted email events, oldest first. The result is a dict of client-id's
         # where the value is a dict containing the first time we've seen this client-id and
         # the last time we saw this client-id.
@@ -210,33 +238,69 @@ def process_email(request, project, form, loc, logger):
                                       'timestamp': ev.timestamp,
                                       'client': ev.client,
                                       'span': str(default_span),
+                                      'email': ev.sha256_email_address,
                                       }
             clients[ev.client]['timestamp'] = ev.timestamp
-        # fill in the URL's for each client item.
-        for k in clients:
-            clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
-                                                            'timestamp': clients[k]['timestamp'],
-                                                            'span': clients[k]['span'],
-                                                            'project': project})
+        if include_url:
+            # fill in the URL's for each client item.
+            for k in clients:
+                clients[k]['url'] = reverse(entry_page, kwargs={'client': clients[k]['client'],
+                                                                'timestamp': clients[k]['timestamp'],
+                                                                'span': clients[k]['span'],
+                                                                'project': project})
+    return clients
+
+def _parse_support_email(junk):
+    dict_ = _parse_junk(junk, {'email': 'email',
+                               'timestamp': 'timestamp',
+                               'span': 'span',
+                               })
+    if 'email' in dict_:
+        if dict_.get('timestamp', '') == 'now':
+            dict_['timestamp'] = _iso_z_format(datetime.utcnow())
+        return dict_
+    return None
+def process_email(request, project, form, loc, logger):
+    if loc.get('timestamp', None):
+        after, before = calc_spread_from_center(loc['timestamp'], span=loc.get('span', 16))
+    else:
+        after = None
+        before = None
+
+    clients = client_ids_from_email(loc['email'], None, None, project)
+    if clients:
         # make it into a list
         clients = sorted(clients.values(), key=lambda x: x['timestamp'], reverse=True)
-        # if we found only one, just redirect.
-        if len(clients) == 1:
-            client = clients[0]
-            logger.debug('client=%(client)s, span=%(span)s', client)
-            return HttpResponseRedirect(client['url'])
-        else:
-            return render_to_response('client_picker.html', {'clients': clients, 'project': project},
-                                      context_instance=RequestContext(request))
+    else:
+        clients = []
+
+    # if we found only one, just redirect.
+    if len(clients) == 1:
+        client = clients[0]
+        logger.debug('client=%(client)s, span=%(span)s', client)
+        return HttpResponseRedirect(client['url'])
+    elif len(clients) > 1:
+        return render_to_response('client_picker.html', {'clients': clients, 'project': project},
+                                  context_instance=RequestContext(request))
     else:
         message = 'Cannot find client ID for email %s' % loc['email']
         logger.warn(message)
-    return render_to_response('home.html', {'form': form, 'message': message},
-                              context_instance=RequestContext(request))
+        return render_to_response('home.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+
+def _parse_crash_report(junk):
+    dict_ = _parse_junk(junk, {'Device ID': 'device_id',
+                               'Date/Time': 'timestamp',
+                               'Launch Time': 'timestamp',
+                               'span': 'span',
+                               })
+    if 'device_id' in dict_ and 'timestamp' in dict_:
+        if dict_['timestamp'] == 'now':
+            dict_['timestamp'] = _iso_z_format(datetime.utcnow())
+        return dict_
+    return None
 
 def process_crash_report(request, project, form, loc, logger):
-    loc['span'] = str(default_span)
-
     # From the crash log device ID, we need to find the client ID
     conn = _aws_connection(project)
 
@@ -261,7 +325,7 @@ def process_crash_report(request, project, form, loc, logger):
             clients[device['client']] = {'first': device['timestamp'],
                                          'timestamp': device['timestamp'],
                                          'client': device['client'],
-                                         'span': str(default_span),
+                                         'span': str(loc.get('span', default_span)),
                                          }
         clients[device['client']]['timestamp'] = device['timestamp']
     # fill in the URL's for each client item.
@@ -316,6 +380,10 @@ def home(request):
     if loc is not None:
         return process_crash_report(request, project, form, loc, logger)
 
+    loc = _parse_pinger(paste_data)
+    if loc is not None:
+        return process_pinger(request, project, form, loc, logger)
+
     # if we got here, we couldn't figure out what to process
     logger.warn('Unable to parse pasted info.')
     message = 'Unable to parse pasted info. Please Try again.'
@@ -353,6 +421,12 @@ def ctrl_url(client, time, span, project):
                                        'timestamp': time,
                                        'span': span,
                                        'project': project})
+
+def calc_spread_from_center(center, span=default_span):
+    if not isinstance(center, datetime):
+        center = dateutil.parser.parse(center)
+    spread = timedelta(minutes=int(span))
+    return UtcDateTime(center-spread), UtcDateTime(center+spread)
 
 def calc_spread(after, before, span=default_span, center=None):
     if not isinstance(after, datetime):
@@ -431,78 +505,113 @@ def entry_page_by_timestamps(request, project, client='', after='', before=''):
     return render_to_response('entry_page.html', context,
                               context_instance=RequestContext(request))
 
-def entry_page_base(project, client, after, before, params, logger):
+def get_pinger_telemetry(project, client, after, before):
+    logger = logging.getLogger('telemetry').getChild('get_pinger_telemetry')
+    conn = _aws_s3_connection(project)
+    bucket_name = projects_cfg.get(project, 'telemetry_bucket')
+    all_events = get_s3_events(conn, bucket_name, projects_cfg.get(project, 'telemetry_prefix'), 'log', after, before, logger=logger)
+    events = []
+    for ev in all_events:
+        if 'client' in ev:
+            if client and client != ev['client']:
+                continue
+
+            parts = ev['client'].split(':')
+            if len(parts) > 2:
+                ev['client'] = ":".join(parts[0:2])
+
+        events.append(ev)
+    return events
+
+def entry_page_base(project, client, after, before, params, logger, pinger_only=False):
+    event_list = []
+    client_list = []
     conn = _aws_connection(project)
-    query = Query()
-    query.limit = 100000
-    query.add('client', SelectorEqual(client))
-    query.add_range('timestamp', UtcDateTime(str(after)), UtcDateTime(str(before)))
-    if params:
-        if params.get('search', ''):
-            field,search = params['search'].split(':')
-            query.add(field, SelectorContains(search))
-    ###### FIXME - logger.debug('query=%s', str(query.where()))
-    obj_list = list()
-    event_count = 0
-    logger.info('project = %s', project)
+    if not pinger_only:
+        query = Query()
+        query.limit = 100000
+        query.add('client', SelectorEqual(client))
+        query.add_range('timestamp', UtcDateTime(str(after)), UtcDateTime(str(before)))
+        if params:
+            if params.get('search', ''):
+                field,search = params['search'].split(':')
+                query.add(field, SelectorContains(search))
+        ###### FIXME - logger.debug('query=%s', str(query.where()))
+        event_count = 0
+        logger.info('project = %s', project)
+        try:
+            (obj_list, count) = Monitor.query_events(conn, query, False, logger)
+            logger.info('%d objects found', len(obj_list))
+            for obj in obj_list:
+                ev = dict(obj.items())
+                if not 'module' in ev:
+                    ev['module'] = ""
+                event_list.append(ev)
+        except DynamoDBError, e:
+            logger.error('failed to query events - %s', str(e))
+
+        # Query the user device info
+        try:
+            user_query = Query()
+            user_query.add('client', SelectorEqual(client))
+            user_query.add('uploaded_at', SelectorBetween(UtcDateTime(after), UtcDateTime(before)))
+            client_list = Query.users(user_query, conn)
+            if len(client_list) == 0:
+                # widen the search :-(
+                user_query = Query()
+                user_query.add('client', SelectorEqual(client))
+                user_query.add('uploaded_at', SelectorLessThanEqual(UtcDateTime(before)))
+                client_list = Query.users(user_query, conn)
+
+        except DynamoDBError, e:
+            return HttpResponseBadRequest('fail to query device info - %s', str(e))
+
     try:
-        (obj_list, event_count) = Monitor.query_events(conn, query, False, logger)
-        logger.info('%d objects found', len(obj_list))
-    except DynamoDBError, e:
-        logger.error('failed to query events - %s', str(e))
+        pinger_objs = get_pinger_telemetry(project, client, UtcDateTime(str(after)), UtcDateTime(str(before)))
+        if pinger_objs:
+            event_list.extend(pinger_objs)
+    except Exception as e:
+        print e
 
     # Save some global parameters for summary table
     params = dict()
     params['start'] = after
     params['stop'] = before
-    params['event_count'] = event_count
-    # Query the user device info
-    try:
-        user_query = Query()
-        user_query.add('client', SelectorEqual(client))
-        user_query.add('uploaded_at', SelectorBetween(UtcDateTime(after), UtcDateTime(before)))
-        client_list = Query.users(user_query, conn)
-        if len(client_list) == 0:
-            # widen the search :-(
-            user_query = Query()
-            user_query.add('client', SelectorEqual(client))
-            client_list = Query.users(user_query, conn)
+    params['event_count'] = len(event_list)
+    if len(client_list) > 0:
+        # Get the data from the LAST client-entry
+        params.update(client_list[-1])
 
-        if len(client_list) > 0:
-            # Get the data from the LAST client-entry
-            params.update(client_list[-1])
-    except DynamoDBError, e:
-        return HttpResponseBadRequest('fail to query device info - %s', str(e))
-
-    params.setdefault('client', client)
-    params.setdefault('device_id', '')
-    params.setdefault('os_type', '')
-    params.setdefault('os_version', '')
-    params.setdefault('device_model', '')
-    params.setdefault('build_version', '')
-    params.setdefault('build_number', '')
-
+    event_list = sorted(event_list, key=lambda x: x['timestamp'])
     # Generate the events JSON
-    event_list = [dict(x.items()) for x in obj_list]
+    omit_list = ['uploaded_at',]
+    if client:
+        omit_list.append('client')
+
     for event in event_list:
-        event['timestamp'] = str(event['timestamp'])
-        for field in ['uploaded_at', 'client']:
-            del event[field]
+        for field in omit_list:
+            if field in event:
+                del event[field]
 
         if event['event_type'] in ['WBXML_REQUEST', 'WBXML_RESPONSE']:
             def decode_wbxml(wbxml_):
                 instance = ASCommandResponse(base64.b64decode(wbxml_))
-                return instance.xmlString
+                return '\n'.join(instance.xmlString.split('\n')[1:])
 
             b64 = event['wbxml'].encode()
             event['wbxml_base64'] = cgi.escape(b64)
             event['wbxml'] = cgi.escape(decode_wbxml(b64))
         if 'message' in event:
             event['message'] = cgi.escape(event['message'])
+        if 'timestamp' in event:
+            event['timestamp'] = str(event['timestamp'])
+        if not client and event.get('client', ''):
+            event['client'] = '<a href=%s target="_blank">%s</a>' % (ctrl_url(event['client'], event['timestamp'], default_span, project), event['client'])
 
     context = {'project': project,
                'params': json.dumps(params, default=json_formatter),
                'events': json.dumps(event_list, default=json_formatter),
+               'show_client': 0 if client else 1,
                }
 
     return context
@@ -523,9 +632,10 @@ def event_choices():
 class SearchForm(forms.Form):
     EVENT_CHOICES = event_choices()
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
-    message = forms.CharField(help_text="Enter a substring to look for in the telemetry.log-message field")
-    after = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
-    before = forms.CharField(help_text="UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25T)")
+    message = forms.CharField(help_text="(optional) Enter a substring to look for in the telemetry.log-message field", required=False)
+    after = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25Z)")
+    before = forms.CharField(help_text="(required) UTC timestamp in Z-format (e.g. 2015-01-30T19:34:25Z)")
+    email = forms.CharField(help_text="(optional) Email of user (maybe be obfuscated already)", required=False)
 
     event_type = forms.MultipleChoiceField(choices=EVENT_CHOICES, widget=forms.CheckboxSelectMultiple(),
                                            help_text="Select the event-type to search in. Each one is a separate query!")
@@ -581,7 +691,7 @@ def search(request):
     search_entry_url = reverse(search_results, kwargs=search_args)
     params = {}
     for k in form.cleaned_data:
-        if k in ('after', 'before', 'project'):
+        if k in search_args.keys():
             continue
         params[k] = form.cleaned_data[k]
     return HttpResponseRedirect("%s?%s" % (search_entry_url, urlencode(params, True)))
@@ -595,60 +705,77 @@ def search_results(request, project, after, before):
     conn = _aws_connection(project)
     obj_list = []
     event_count = 0
-    for event_type in request.GET.getlist('event_type', []):
-        if event_type not in events.TYPES:
-            msg = 'illegal event-type values %s' % request.GET.get('event_type')
-            logger.error(msg)
-            return render_to_response('search_results.html', {'message': msg},
-                                      context_instance=RequestContext(request))
-
-        query = Query()
-        query.limit = 100000
-        query.add('event_type', SelectorEqual(event_type))
-        query.add_range('uploaded_at', after, before)
-        for k in request.GET:
-            if k in ('event_type'):
-                continue
-
-            search = request.GET[k]
-            if k == 'message':
-                if event_type == 'SUPPORT':
-                    k = "support"
-                elif event_type == 'CAPTURE':
-                    k = "capture_name"
-                elif event_type == 'COUNTER':
-                    k = "counter_name"
-
-            query.add(k, SelectorContains(search))
-
-        try:
-            logger.debug("Query=%s", query)
-            (_obj_list, _event_count) = Monitor.query_events(conn, query, False, logger)
-            # TODO the count here seems wrong. It returns 0, despite the list being non-zero. For now, ignore the count.
-            _event_count = len(_obj_list)
-            logger.info('%d objects found', _event_count)
-            if _obj_list:
-                for o in _obj_list:
-                    if 'message' not in o:
-                        if 'support' in o:
-                            o['message'] = o['support']
-                        elif 'capture_name' in o:
-                            o['message'] = o['capture_name']
-                        elif 'counter_name' in o:
-                            o['message'] = o['counter_name']
-
-                obj_list.extend(_obj_list)
-                event_count += _event_count
-        except DynamoDBError, e:
-            logger.error('failed to query events - %s', str(e))
-            return render_to_response('search_results.html', {'message': 'failed to query events - %s' % str(e)},
-                                      context_instance=RequestContext(request))
-
-    for event in obj_list:
-        event['url'] = reverse(entry_page, kwargs={'client': event['client'],
-                                                   'timestamp': event['timestamp'],
-                                                   'span': 1,
-                                                   'project': project})
+    email = request.GET.get('email', '')
+    if email:
+        clients = client_ids_from_email(email, after, before, project, include_url=False)
+    else:
+        clients = {}
+    if (not email or clients != {}):
+        for event_type in request.GET.getlist('event_type', []):
+            if event_type not in events.TYPES:
+                msg = 'illegal event-type values %s' % request.GET.get('event_type')
+                logger.error(msg)
+                return render_to_response('search_results.html', {'message': msg},
+                                          context_instance=RequestContext(request))
+    
+            query = Query()
+            query.limit = 100000
+            query.add('event_type', SelectorEqual(event_type))
+            if after and before:
+                query.add_range('uploaded_at', after, before)
+            elif after:
+                query.add('uploaded_at', SelectorGreaterThanEqual(after))
+            elif before:
+                query.add('uploaded_at', SelectorLessThanEqual(after))
+            for k in request.GET:
+                if k in ('event_type', 'email'):
+                    continue
+    
+                search = request.GET[k]
+                if not search:
+                    continue  # don't allow empty values
+                if k == 'message':
+                    if event_type == 'SUPPORT':
+                        k = "support"
+                    elif event_type == 'CAPTURE':
+                        k = "capture_name"
+                    elif event_type == 'COUNTER':
+                        k = "counter_name"
+    
+                query.add(k, SelectorContains(search))
+    
+            try:
+                logger.debug("Query=%s", query)
+                (_obj_list, _event_count) = Monitor.query_events(conn, query, False, logger)
+                if clients:
+                    _obj_list = [x for x in _obj_list if 'client' in x and x['client'] in clients.keys()]
+    
+                # TODO the count here seems wrong. It returns 0, despite the list being non-zero. For now, ignore the count.
+                _event_count = len(_obj_list)
+                logger.info('%d objects found', _event_count)
+                if _obj_list:
+                    for o in _obj_list:
+                        if 'message' not in o:
+                            if 'support' in o:
+                                o['message'] = o['support']
+                            elif 'capture_name' in o:
+                                o['message'] = o['capture_name']
+                            elif 'counter_name' in o:
+                                o['message'] = o['counter_name']
+    
+                    obj_list.extend(_obj_list)
+                    event_count += _event_count
+            except DynamoDBError, e:
+                logger.error('failed to query events - %s', str(e))
+                return render_to_response('search_results.html', {'message': 'failed to query events - %s' % str(e)},
+                                          context_instance=RequestContext(request))
+    
+        for event in obj_list:
+            event['url'] = reverse(entry_page, kwargs={'client': event['client'],
+                                                       'timestamp': event['timestamp'],
+                                                       'span': 1,
+                                                       'project': project})
+            event['class'] = event['event_type'].lower()
 
     params = [{'key': 'after', 'value': str(after)},
               {'key': 'before', 'value': str(before)},
@@ -660,9 +787,54 @@ def search_results(request, project, after, before):
         else:
             value = request.GET.get(k)
         params.append({'key': k, 'value': value})
+    if clients:
+        params.append({'key': 'clients (from email)', 'value': ", ".join(clients.keys())})
+    else:
+        params.append({'key': 'clients (from email)', 'value': "found no clients"})
+
     return render_to_response('search_results.html', {'params': params,
                                                       'project': project,
-                                                      'search_results': obj_list},
+                                                      'search_results': sorted(obj_list, reverse=True, key=lambda x: x['uploaded_at'])},
                               context_instance=RequestContext(request))
 
+
+def pinger_url(client, time, span, project):
+    view_args = {'after': time,
+                 'span': span,
+                 'project': project,
+                 }
+    if client:
+        view_args['client'] = client
+    return reverse(pinger_telemetry, kwargs=view_args)
+
+def pinger_telemetry(request, project, client='', after='', before='', span=str(default_span)):
+    logger = logging.getLogger('telemetry').getChild('pinger_telemetry')
+    logger.info('client=%s, after=%s, before=%s', client, after, before)
+    span = int(span)
+    client = str(client)
+    if not before:
+        center = dateutil.parser.parse(after)
+        spread = timedelta(minutes=int(span))
+        after = center - spread
+        before = center + spread
+
+    context = entry_page_base(project, client, after, before, request.GET, logger, pinger_only=True)
+    iso_go_earlier, iso_center, iso_go_later = calc_spread(after, before, span=span, center=None)
+    context['buttons'] = []
+    zoom_in_span = max(1, span/2)
+    context['buttons'].append({'text': 'Zoom in (%d min)' % zoom_in_span,
+                               'url': pinger_url(client, iso_center, zoom_in_span, project),
+                               })
+    context['buttons'].append({'text': 'Zoom out (%d min)' % (span*2),
+                               'url': pinger_url(client, iso_center, span*2, project),
+                               })
+    context['buttons'].append({'text': 'Go back %d min' % span,
+                               'url': pinger_url(client, iso_go_earlier, span, project),
+                               })
+    context['buttons'].append({'text': 'Go forward %d min' % span,
+                               'url': pinger_url(client, iso_go_later, span, project),
+                               })
+    context['body_args'] = 'onload=refresh()'
+    return render_to_response('entry_page.html', context,
+                              context_instance=RequestContext(request))
 

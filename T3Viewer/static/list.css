@@ -1,0 +1,79 @@
+h2 {
+    color: dark-grey;
+    font-family: Arial, Helvetica, sans-serif;
+    text-indent: 30px;
+}
+h3 {
+    color: dark-grey;
+    font-family: Arial, Helvetica, sans-serif;
+    text-indent: 30px;
+}
+.table {
+    border-collapse: collapse;
+    border: 1px solid black;
+}
+
+.cell {
+    border: 1px solid black;
+    padding: 2px;
+    align: left;
+    vertical-align: top;
+    word-wrap: break-word;
+}
+
+.button_table {
+    border-collapse: collapse;
+    border: 1px solid black;
+}
+
+.button_cell {
+    background-color: blue;
+    padding: 5px;
+}
+
+.button_text {
+    color: white;
+}
+
+.debug {
+}
+
+.info {
+}
+
+.warn {
+    background-color: #ffff99;
+}
+
+.error {
+    background-color: pink;
+}
+
+.wbxml {
+    background-color: #99ddff;
+}
+
+.imap {
+    background-color: #99ddff;
+}
+
+.ui {
+    background-color: lightgreen;
+}
+
+.counter {
+    background-color: #eeffff;
+}
+
+.capture {
+    background-color: #eeffff;
+}
+
+.support {
+    background-color: #ff6633;
+    color: white;
+}
+
+.id_cell {
+    display:none;
+}

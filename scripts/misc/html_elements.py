@@ -105,7 +105,10 @@ class Element:
         else:
             val += self.content.encode('utf-8')
         val += self.end_tag()
-        return val
+        if isinstance(val, unicode):
+            return val.encode('utf-8')
+        else:
+            return val
 
     def plain_text(self):
         """
@@ -119,7 +122,10 @@ class Element:
             val = self.content.plain_text()
         else:
             val += self.content.encode('utf-8')
-        return val
+        if isinstance(val, unicode):
+            return val.encode('utf-8')
+        else:
+            return val
 
     def start_tag(self):
         """
@@ -212,7 +218,7 @@ class Link(Text):
         Text.assert_text(content)
         Text.__init__(self, content)
         self.tag = 'a'
-        self.attrs['href'] = link
+        self.attrs['href'] = str(link)
 
     def plain_text(self):
         return Text.plain_text(self) + ' (%s)' % self.attrs['href']
@@ -256,7 +262,6 @@ class OrderedList(Element):
 
 class ListItem(Element):
     def __init__(self, content):
-        Text.assert_text(content)
         Element.__init__(self, 'li', content)
         # The item value for ordered list.
         self.header = ''
@@ -398,7 +403,6 @@ class TableHeader(Element):
 
 class TableElement(Element):
     def __init__(self, content, **attrs):
-        Text.assert_text(content)
         Element.__init__(self, 'td', content)
         self.width = 0
         self.attrs = attrs

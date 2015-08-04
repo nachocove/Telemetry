@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from boto.dynamodb2.exceptions import DynamoDBError
 import time
@@ -5,6 +6,7 @@ from AWS.query import Query
 from AWS.connection import Connection
 from misc.html_elements import *
 from misc.number_formatter import pretty_number
+from misc.utc_datetime import UtcDateTime
 
 
 class Summary(Table):
@@ -26,7 +28,7 @@ class Summary(Table):
         self.color_list.advance()
 
 
-class Monitor:
+class Monitor(object):
     """
     A monitor is a module that examines telemetry events of a particular
     nature and reports information (if any). For example, an error
@@ -44,13 +46,14 @@ class Monitor:
     The user specifies the list of monitors to run in the command line. This
     script then invokes run(), report() and attachment() for each monitor.
     """
-    def __init__(self, conn, desc, prefix=None, start=None, end=None):
+    def __init__(self, conn, desc, prefix=None, start=None, end=None, attachment_dir=None):
         self.conn = conn
         self.desc = desc
         self.start = start
         self.end = end
         self.logger = logging.getLogger('monitor')
         self.prefix = prefix
+        self.attachment_dir = attachment_dir
 
     def run(self):
         """
@@ -144,3 +147,17 @@ class Monitor:
         else:
             raise Exception('retries (%d) exhausted' % max_retries)
         return retval
+
+
+def get_client_telemetry_link(prefix, client, timestamp, span=2, host="http://localhost:8000/", isT3=False):
+    if isinstance(timestamp, datetime):
+        timestamp = UtcDateTime(timestamp)
+    if isT3:
+        return '%sbugfix/%s/logs/ALL/%s/%s/%d/' % (host, prefix, client, str(timestamp), span)
+    else:
+        return '%sbugfix/%s/logs/%s/%s/%d/' % (host, prefix, client, str(timestamp), span)
+
+def get_pinger_telemetry_link(prefix, timestamp, span=2, host="http://localhost:8000/"):
+    if isinstance(timestamp, datetime):
+        timestamp = UtcDateTime(timestamp)
+    return '%spinger/%s/logs/%s/%d/' % (host, prefix, str(timestamp), span)

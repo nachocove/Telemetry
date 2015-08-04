@@ -30,27 +30,32 @@ class EmailServer:
 
 
 class Email:
-    def __init__(self, debug=False):
-        self.subject = ''
-        self.content = None
+    def __init__(self, email_server=None, debug=False):
+        self.debug = debug
+        self.email_server = email_server
         self.from_address = None
         self.to_addresses = []
+        self.reset()
+
+    def reset(self):
+        from misc.html_elements import Html
+        self.subject = ''
+        self.content = Html()
         # A list of file paths of attachments
         self.attachments = []
-        self.debug = debug
 
     def to_addresses_str(self):
         return ','.join(self.to_addresses)
 
-    def send(self, server):
+    def send(self):
         if isinstance(self.content, str):
             # Text only email
             email_ = email.mime.text.MIMEText(self.content)
         else:
             # HTML email with plain text fallback
             email_ = email.mime.multipart.MIMEMultipart('alternative')
-            plain_email = email.mime.text.MIMEText(self.content.plain_text(), 'plain')
-            html_email = email.mime.text.MIMEText(self.content.html(), 'html')
+            plain_email = email.mime.text.MIMEText(self.content.plain_text(), 'plain', _charset='utf-8')
+            html_email = email.mime.text.MIMEText(self.content.html(), 'html', _charset='utf-8')
             email_.attach(plain_email)
             email_.attach(html_email)
 
@@ -75,8 +80,8 @@ class Email:
         email_['To'] = self.to_addresses_str()
         email_['Subject'] = self.subject
 
-        if not self.debug:
-            server.send(self.from_address, self.to_addresses, email_.as_string())
+        if not self.debug and self.email_server:
+            self.email_server.send(self.from_address, self.to_addresses, email_.as_string())
         else:
             print "From: %(from)s\nTo: %(to)s\n\n%(email)s" %{'from': self.from_address, 'to': self.to_addresses_str(),
                                                               'email': email_.as_string()}

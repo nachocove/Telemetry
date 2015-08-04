@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Daily Log Report{% endblock %}
+{% block content %}
+<span class="search" style="float:left;margin:10px;display: inline-block">
+    <form action="{% url 'log-report-form' %}" method="post">{% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Submit" />
+    </form>
+</span>
+<div class="help" style="margin:10px;display: inline-block">
+    <br/>
+    <b>Overview</b><br>
+    This form allows you to load the database with the telemetry data from S3. <br>
+    The data is uploaded to a set of temporary tables prefixed with the prefix you specify. <br>
+    If the tables don't exist, they will be created. <br>
+    If the tables exist, they will be loaded with the data for the specified period.<br>
+    Keep in mind that RedhShift doesn't enforce primary key or uniqueness constraints. <br>
+    If you run the same upload twice, the data will be uploaded twice.<br>
+    The period can specified as a range of days.<br>
+    You can choose to upload data for all event classes or for a specific event class.<br>
+    The current form only allows you to upload a max of a month of data. This limitation is to restrict inadvertent data load.<br>
+	<br/>
+</div>
+{% endblock %}
