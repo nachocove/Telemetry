@@ -67,7 +67,6 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                                 continue
                             ev['device_id'] = ev['device']
                             ev['user_id'] = ev['client']
-                            ev['thread_id'] = ""
                             ev['timestamp'] = timestamp
                             ev['uploaded_at'] = uploaded_at_ts
                             events.append(ev)
