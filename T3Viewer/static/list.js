@@ -112,8 +112,13 @@ function getRowWithCommonFields (id, event, num_rows) {
     if (show_device_id == 1) {
         tr.appendChild(getCell(event.device_id, num_rows));
     }
-
     tr.appendChild(getCell(event.module.replace('_', ' '), num_rows));
+    if (event.hasOwnProperty('thread_id'))  {
+        tr.appendChild(getCell('TID-' + event.thread_id, num_rows));
+    }
+    else {
+            tr.appendChild(getCell('', num_rows));
+    }
     return tr;
 }
 
@@ -263,6 +268,11 @@ function createTitleBar() {
     module.innerHTML = 'Module';
     tr.appendChild(module);
 
+    var thread_id = document.createElement('th');
+    thread_id.className = 'cell';
+    thread_id.innerHTML = 'ThreadID';
+    tr.appendChild(thread_id);
+
     var field = document.createElement('th');
     field.className = 'cell id_cell';
     field.innerHTML = 'Telemetry ID';
@@ -330,12 +340,10 @@ function refreshEvents() {
             case 'WARN':
             case 'ERROR': {
                 if (event.module != 'pinger-backend') {
-                    row = getRowWithCommonFields(i, event, 2);
-                    addFieldToRow(row, 'thread_id', 'THREADID: ' + event.thread_id);
-                    table.appendChild(row)
-                    row = getRow(event);
+                    row = getRowWithCommonFields(i, event, 1);
                     var message = event.message.replace(/\n/g, "<br/>");
                     addFieldToRow(row, 'message', message);
+                    table.appendChild(row)
                 } else {
                     row = getRowWithCommonFields(i, event, 1);
                     addFieldToRow(row, 'message', event.message);
