@@ -690,5 +690,5 @@ function downloadWithLocation() {
 }
 
 function downloadWithHtml5() {
-    download("data.json", dumpEventsString());
+    download("telemetry-data.txt", dumpEventsString());
 }
