@@ -291,6 +291,12 @@ function createTitleBar() {
     return tr;
 }
 
+Object.prototype.notIn = function() {
+    for(var i=0; i<arguments[0].length; i++)
+       if(arguments[0][i] == this) return false;
+    return true;
+}
+
 function refreshEvents() {
     var table = document.getElementById('table_events');
     if (0 < events.length) {
@@ -345,9 +351,34 @@ function refreshEvents() {
                     addFieldToRow(row, 'message', message);
                     table.appendChild(row)
                 } else {
-                    row = getRowWithCommonFields(i, event, 1);
-                    addFieldToRow(row, 'message', event.message);
-                    table.appendChild(row);
+                    //row = getRowWithCommonFields(i, event, 1);
+                    //addFieldToRow(row, 'message', event.message);
+                    //table.appendChild(row);
+                    var json = event;
+                    var keys = Object.keys(json);
+                    if (keys.length == 8) {
+                        row = getRowWithCommonFields(i, event, 1);
+                        addFieldToRow(row, 'message', event.message);
+                        table.appendChild(row);
+                    } else {
+                        var isFirst = true;
+                        for (var j = 0; j < keys.length; j++) {
+                            var key = keys[j]
+                            var dontShowKeys = ['pinger', 'user_id', 'id',
+                            'module', 'event_type', 'timestamp', 'device_id'];
+                            if (key.notIn(dontShowKeys)) {
+                                if (isFirst) {
+                                    row = getRowWithCommonFields(i, event, keys.length-dontShowKeys.length);
+                                    isFirst = false;
+                                } else {
+                                    table.appendChild(row);
+                                    row = getRow(event);
+                                }
+                                addFieldToRow(row, keys[j], json[keys[j]]);
+                            } else {
+                            }
+                        }
+                    }
                 }
                 break;
             }

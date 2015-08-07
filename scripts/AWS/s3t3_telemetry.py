@@ -67,10 +67,12 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                                 continue
                             if 'device' in ev:
                                 ev['device_id'] = ev['device']
+                                del ev['device']
                             else:
                                 ev['device_id'] = ""
                             if 'client' in ev:
                                 ev['user_id'] = ev['client']
+                                del ev['client']
                             else:
                                 ev['user_id'] = ""
                             ev['timestamp'] = timestamp
