@@ -59,14 +59,20 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                         else:
                             sm = None
                         if search == '' or sm is not None:
-                            if userid and ev['client'] != userid:
+                            if userid and 'client' in ev and ev['client'] != userid:
                                 nm+=1
                                 continue
-                            if deviceid and ev['device'] != deviceid:
+                            if deviceid and 'device' in ev and ev['device'] != deviceid:
                                 nm+=1
                                 continue
-                            ev['device_id'] = ev['device']
-                            ev['user_id'] = ev['client']
+                            if 'device' in ev:
+                                ev['device_id'] = ev['device']
+                            else:
+                                ev['device_id'] = ""
+                            if 'client' in ev:
+                                ev['user_id'] = ev['client']
+                            else:
+                                ev['user_id'] = ""
                             ev['timestamp'] = timestamp
                             ev['uploaded_at'] = uploaded_at_ts
                             events.append(ev)
