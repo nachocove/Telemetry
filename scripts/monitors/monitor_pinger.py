@@ -47,7 +47,7 @@ class MonitorPinger(Monitor):
                                     TableHeader(Bold('%s telemetry' % self.prefix.capitalize())),
                                     ]))
             for ev in self.events:
-                if ev['client']:
+                if 'client' in ev and ev['client']:
                     link = get_client_telemetry_link(self.prefix, ev['client'], ev['timestamp'])
                 else:
                     link = get_pinger_telemetry_link(self.prefix, ev['timestamp'])
