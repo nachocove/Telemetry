@@ -656,15 +656,104 @@ var decodeHtmlEntity = function(str) {
   });
 };
 
+if (typeof String.prototype.startsWith != 'function') {
+  String.prototype.startsWith = function (str){
+    return this.slice(0, str.length) == str;
+  };
+}
+
 function dumpEventsString() {
    var data = "";
     for (var i = 0; i < events.length; i++) {
        var line = "";
-       line += dateTimeUtc(events[i].timestamp) + "  ";
-       line += events[i].thread_id + ":";
-       line += events[i].module + ":";
-       line += events[i].event_type + "  ";
-       line += events[i].message;
+       line += events[i].timestamp + "\t";
+       if (typeof events[i].thread_id == "undefined") {
+         line += "0:";
+       } else {
+         line += events[i].thread_id + ":";
+       }
+       line += events[i].event_type + ":";
+       line += events[i].module + "\t";
+       switch (events[i].event_type) {
+        case 'UI': {
+            var ui = "";
+            ui += 'ui_type='+events[i].ui_type + " ";
+            ui += 'ui_object='+events[i].ui_object + " ";
+            if (events[i].hasOwnProperty('ui_string')) {
+                ui += "ui_string="+events[i].ui_string + " ";
+            }
+            if (events[i].hasOwnProperty('ui_integer')) {
+                ui += "ui_integer="+events[i].ui_integer + " ";
+            }
+            line += ui;
+            break;
+        }
+
+        case 'SUPPORT':
+            line += events[i].support;
+            break;
+
+        case 'WBXML_REQUEST':
+        case 'WBXML_RESPONSE':
+            line += events[i].wbxml;
+            break;
+
+        case 'DEVICEINFO': {
+            var keys = Object.keys(events[i]);
+            if (keys.length > 0) {
+                for (var j = 0; j < keys.length; j++) {
+                    line += keys[j] + "=" + events[i][keys[j]] + " ";
+                }
+            }
+            break;
+        }
+
+        case 'COUNTER': {
+            var keys = Object.keys(events[i]);
+            for (var j = 0 ; j < keys.length; j++) {
+                if (keys[j].startsWith('counter_')) {
+                    line += keys[j] + "=" + events[i][keys[j]] + " ";
+                }
+            }
+            line += "count=" + events[i].count;
+            break;
+        }
+
+        case 'SAMPLES': {
+            var keys = Object.keys(events[i]);
+            for (var j = 0 ; j < keys.length; j++) {
+                if (keys[j].startsWith('sample_')) {
+                    line += keys[j] + "=" + events[i][keys[j]] + " ";
+                }
+            }
+            break;
+        }
+
+        case 'TIME_SERIES': {
+            var keys = Object.keys(events[i]);
+            for (var j = 0 ; j < keys.length; j++) {
+                if (keys[j].startsWith('time_series_')) {
+                    line += keys[j] + "=" + events[i][keys[j]] + " ";
+                }
+            }
+            break;
+        }
+
+        case 'STATISTICS2':
+            line += "stat2_name=" + events[i].stat2_name;
+            line += "count=" + events[i].count;
+            line += "min=" + events[i].min;
+            line += "max=" + events[i].max;
+            line += "sum=" + events[i].sum;
+            line += "sum2=" + events[i].sum2;
+            break;
+
+        default:
+           if (typeof events[i].message == "undefined") {
+             console.log(events[i]);
+           }
+           line += events[i].message;
+       }
        data += line.replace(/\n/g, "  ") + "\n";
     }
     return decodeHtmlEntity(data);
