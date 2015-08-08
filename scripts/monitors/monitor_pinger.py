@@ -22,6 +22,10 @@ class MonitorPinger(Monitor):
         self.path_prefix = path_prefix
         self.isT3 = isT3
         self.events = []
+        if self.isT3:
+            self.host="http://localhost:8081/"
+        else:
+            self.host="http://localhost:8000/"
 
     def run(self):
         global pinger_telemetry
@@ -48,9 +52,9 @@ class MonitorPinger(Monitor):
                                     ]))
             for ev in self.events:
                 if 'client' in ev and ev['client']:
-                    link = get_client_telemetry_link(self.prefix, ev['client'], ev['timestamp'])
+                    link = get_client_telemetry_link(self.prefix, ev['client'], ev['timestamp'], host=self.host, isT3=self.isT3)
                 else:
-                    link = get_pinger_telemetry_link(self.prefix, ev['timestamp'])
+                    link = get_pinger_telemetry_link(self.prefix, ev['timestamp'], host=self.host, isT3=self.isT3)
                 row = TableRow([TableElement(Text(str(ev['timestamp']))),
                                 TableElement(Text(ev['message'])),
                                 TableElement(Link('Telemetry', link)),
@@ -189,9 +193,9 @@ class MonitorPingerPushMessages(MonitorPinger):
                                 ]))
         for ev in events:
             if ev['client']:
-                link = get_client_telemetry_link(self.prefix, ev['client'], ev['timestamp'])
+                link = get_client_telemetry_link(self.prefix, ev['client'], ev['timestamp'], host=self.host, isT3=self.isT3)
             else:
-                link = get_pinger_telemetry_link(self.prefix, ev['timestamp'])
+                link = get_pinger_telemetry_link(self.prefix, ev['timestamp'], host=self.host, isT3=self.isT3)
             row = TableRow([TableElement(Text(str(ev['timestamp']))),
                             TableElement(Text(ev['client'])),
                             TableElement(Text(ev['session'])),
@@ -247,10 +251,9 @@ class MonitorPingerPushMessages(MonitorPinger):
                 for device in self.push_missed_by_client[client]:
                     for ev in self.push_missed_by_client[client][device]:
                         if ev['client']:
-                            link = get_client_telemetry_link(self.prefix, client, ev['timestamp'])
+                            link = get_client_telemetry_link(self.prefix, client, ev['timestamp'], host=self.host, isT3=self.isT3)
                         else:
-                            link = get_pinger_telemetry_link(self.prefix, ev['timestamp'])
-
+                            link = get_pinger_telemetry_link(self.prefix, ev['timestamp'], host=self.host, isT3=self.isT3)
                         telemetry_items.append(ListItem([Text(device),
                                                          UnorderedList([ListItem(Text("Session %s" % ev['session'])),
                                                                         ListItem(Text("%s:%s" % (ev['device'], ev['context']))),
@@ -333,9 +336,9 @@ class MonitorClientPingerIssues(MonitorPinger):
                                     ]))
             for ev in self.events:
                 if ev['client']:
-                    link = get_client_telemetry_link(self.prefix, ev['client'], ev['timestamp'])
+                    link = get_client_telemetry_link(self.prefix, ev['client'], ev['timestamp'], host=self.host, isT3=self.isT3)
                 else:
-                    link = get_pinger_telemetry_link(self.prefix, ev['timestamp'])
+                    link = get_pinger_telemetry_link(self.prefix, ev['timestamp'], host=self.host, isT3=self.isT3)
                 row = TableRow([TableElement(Text(str(ev['timestamp']))),
                                 TableElement(Text(ev['event_type'])),
                                 TableElement(Text(ev['client'])),
