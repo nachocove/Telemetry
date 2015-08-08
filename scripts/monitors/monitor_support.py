@@ -70,7 +70,7 @@ class MonitorSupport(Monitor):
                 host="http://localhost:8000/"
             telemetry_link = get_client_telemetry_link(self.prefix, request.client, request.timestamp, host=host, isT3=self.isT3)
             if self.freshdesk_api:
-                freshdesk_id = self.freshdesk_api.create_ticket("%s NachoMail Support Request" % self.prefix.capitalize(),
+                freshdesk_id = self.freshdesk_api.create_ticket(self.freshdesk_title(request.message),
                                                                 request.message,
                                                                 request.contact_info,
                                                                 priority=self.freshdesk['priority'],
@@ -107,6 +107,13 @@ class MonitorSupport(Monitor):
         title = self.title()
         paragraph = Paragraph([Bold(title), table])
         return paragraph
+
+    freshdesk_title_len = 70
+    def freshdesk_title(self, message):
+        title = "%s: %s" % (self.prefix.capitalize(), message[0:self.freshdesk_title_len])
+        if len(message) > self.freshdesk_title_len:
+            title += "..."
+        return title
 
     def attachment(self):
         return None
