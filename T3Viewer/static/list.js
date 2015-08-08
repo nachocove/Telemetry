@@ -740,12 +740,12 @@ function dumpEventsString() {
         }
 
         case 'STATISTICS2':
-            line += "stat2_name=" + events[i].stat2_name;
-            line += "count=" + events[i].count;
-            line += "min=" + events[i].min;
-            line += "max=" + events[i].max;
-            line += "sum=" + events[i].sum;
-            line += "sum2=" + events[i].sum2;
+            line += "stat2_name=" + events[i].stat2_name + " ";
+            line += "count=" + events[i].count + " ";
+            line += "min=" + events[i].min + " ";
+            line += "max=" + events[i].max + " ";
+            line += "sum=" + events[i].sum + " ";
+            line += "sum2=" + events[i].sum2 + " ";
             break;
 
         default:
