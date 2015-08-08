@@ -671,13 +671,21 @@ function updateDate() {
     }
 }
 
-function dumpData() {
-   var jsdata = "";
-    for (var i = 0; i < events.length; i++) {
-       jsdata += JSON.stringify(events[i]) + "\n";
+// encode(decode) html text into html entity
+var decodeHtmlEntity = function(str) {
+  var result = str.replace(/&#(\d+);/g, function(match, dec) {
+    return String.fromCharCode(dec);
+  });
+  return str.replace(/&(\w+);/g, function (match, dec) {
+    switch (dec) {
+     case "lt": return "<";
+     case "gt": return ">";
+     case "amp": return "&";
+     case "quot": return '"';
+     default: return dec;
     }
-    return jsdata;
-}
+  });
+};
 
 function dumpEventsString() {
    var data = "";
@@ -690,10 +698,7 @@ function dumpEventsString() {
        line += events[i].message;
        data += line.replace(/\n/g, "  ") + "\n";
     }
-    return data;
-}
-function downloadWithLocation() {
-    window.location='data:application/octet-stream;base64,' + btoa(dumpData());
+    return decodeHtmlEntity(data);
 }
 
 function download(filename, text) {
@@ -711,6 +716,10 @@ function download(filename, text) {
     }
 }
 
+function downloadWithLocation() {
+    window.location='data:application/octet-stream;base64,' + btoa(dumpData());
+}
+
 function downloadWithHtml5() {
-    download("data.json", dumpEventsString());
+    download("telemetry-data.txt", dumpEventsString());
 }
