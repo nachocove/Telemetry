@@ -72,15 +72,13 @@ class DBDeleteForm(forms.Form):
     def clean_from_date(self):
         from_date = self.cleaned_data.get('from_date', '')
         if from_date.replace(tzinfo=None) > datetime.now():
-            self.add_error('from_date', 'Date/Time in future')
-            raise ValidationError(_('Date/Time in future: %(from_date)s'))
+            raise ValidationError(_('Date/Time in future: %s' % from_date))
         return from_date
 
     def clean_to_date(self):
         to_date = self.cleaned_data.get('to_date', '')
         if to_date.replace(tzinfo=None) > datetime.now():
-            self.add_error('to_date', 'Date/Time in future')
-            raise ValidationError(_('Date/Time in future: %(to_date)s'))
+            raise ValidationError(_('Date/Time in future: %s' % to_date))
         return to_date
 
     def clean_project(self):
@@ -96,6 +94,8 @@ class DBDeleteForm(forms.Form):
         cleaned_data = super(DBDeleteForm, self).clean()
         from_date = cleaned_data.get("from_date")
         to_date = cleaned_data.get("to_date")
+        if to_date == None or from_date == None:
+            return
         if to_date < from_date:
             raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
         elif (to_date-from_date).days > 31:
@@ -120,15 +120,13 @@ class DBLoadForm(forms.Form):
     def clean_from_date(self):
         from_date = self.cleaned_data.get('from_date', '')
         if from_date > date.today():
-            self.add_error('from_date', 'Date in future')
-            raise ValidationError(_('Date in future: %(from_date)s'))
+            raise ValidationError(_('Date in future: %s' % from_date))
         return from_date
 
     def clean_to_date(self):
         to_date = self.cleaned_data.get('to_date', '')
         if to_date > date.today():
-            self.add_error('to_date', 'Date in future')
-            raise ValidationError(_('Date in future: %(to_date)s'))
+            raise ValidationError(_('Date in future: %s' % to_date))
         return to_date
 
     def clean_project(self):
@@ -144,6 +142,8 @@ class DBLoadForm(forms.Form):
         cleaned_data = super(DBLoadForm, self).clean()
         from_date = cleaned_data.get("from_date")
         to_date = cleaned_data.get("to_date")
+        if to_date == None or from_date == None:
+            return
         if to_date < from_date:
             raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
         elif (to_date-from_date).days > 31:
@@ -158,15 +158,13 @@ class DBReportForm(forms.Form):
     def clean_from_date(self):
         from_date = self.cleaned_data.get('from_date', '')
         if from_date.replace(tzinfo=None) > datetime.now():
-            self.add_error('from_date', 'Date/Time in future')
-            raise ValidationError(_('Date/Time in future: %(from_date)s'))
+            raise ValidationError(_('Date/Time in future: %s' % from_date ))
         return from_date
 
     def clean_to_date(self):
         to_date = self.cleaned_data.get('to_date', '')
         if to_date.replace(tzinfo=None) > datetime.now():
-            self.add_error('to_date', 'Date/Time in future')
-            raise ValidationError(_('Date/Time in future: %(to_date)s'))
+            raise ValidationError(_('Date/Time in future: %s' % to_date))
         return to_date
 
     def clean_project(self):
@@ -182,6 +180,8 @@ class DBReportForm(forms.Form):
         cleaned_data = super(DBReportForm, self).clean()
         from_date = cleaned_data.get("from_date")
         to_date = cleaned_data.get("to_date")
+        if to_date == None or from_date == None:
+            return
         if to_date < from_date:
             raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
         elif (to_date-from_date).days > 31:
