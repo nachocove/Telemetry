@@ -16,6 +16,10 @@ class SupportEvent:
         self.client = event['client']
         self.timestamp = str(event['timestamp'])
         self.params = json.loads(event['support'])
+        if 'key_name' in event:
+            self.key_name = event['key_name']
+        else:
+            self.key_name = ''
         if self.params is None:
             # There are some bad SUPPORT events in telemetry. They were
             # created during development / testing of the API.

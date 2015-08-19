@@ -203,8 +203,8 @@ def get_latest_device_info_event(conn, bucket_name, userid, deviceid, after, bef
         return None
 
 
-def get_trouble_ticket_events(conn, bucket_name, logger=None):
-    logger.info("Getting new trouble tickets")
+def get_trouble_ticket_events(conn, bucket_name, logger):
+    logger.info("Checking for new trouble tickets in %s", bucket_name)
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)
     events = []
@@ -213,11 +213,19 @@ def get_trouble_ticket_events(conn, bucket_name, logger=None):
         for line in file_content.splitlines():
             ev = json.loads(line)
             ev['event_type'] = 'SUPPORT'
+            ev['timestamp'] = UtcDateTime(ev['timestamp'])
             if 'module' not in ev:
                 ev['module'] = 'client'
                 ev['device_id'] = ev['client']
                 ev['user_id'] = ev['user']
+                ev['key_name'] = key.name
             events.append(ev)
-    if logger:
-        logger.debug("Found %d trouble tickets", len(events))
+    logger.info("Found %d trouble tickets", len(events))
     return events
+
+def delete_trouble_ticket(conn, bucket_name, key_name, logger):
+    logger.info("Deleting trouble ticket %s", key_name)
+    assert isinstance(conn, S3Connection)
+    bucket = conn.get_bucket(bucket_name)
+    key = bucket.delete_key(key_name)
+    return key
