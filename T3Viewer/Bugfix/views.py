@@ -23,7 +23,8 @@ from django.utils.decorators import available_attrs
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
 from boto.s3.connection import S3Connection
-from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES, get_pinger_events, get_latest_device_info_event
+from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES, get_pinger_events, \
+    get_latest_device_info_event, get_trouble_ticket_events
 from core.auth import nacho_cache, nachotoken_required
 
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
@@ -484,14 +485,19 @@ def get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
     some_events = get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search, logger=logger)
     events = []
     for ev in some_events:
-        # TODO - what's this for?
         if 'client' in ev:
             if userid and userid != ev['client']:
                 continue
+            # TODO - what's this for?
             parts = ev['client'].split(':')
             if len(parts) > 2:
                 ev['client'] = ":".join(parts[0:2])
         events.append(ev)
+    return events
+
+def get_trouble_tickets(project, conn, logger):
+    bucket_name = projects_cfg.get(project, 'client_t3_%s_bucket' % T3_EVENT_CLASS_FILE_PREFIXES['TROUBLETICKETS'])
+    events = get_trouble_ticket_events(conn, bucket_name, logger=logger)
     return events
 
 def get_t3_events(project, userid, deviceid, event_class, search, threadid, after, before):
@@ -510,6 +516,8 @@ def get_t3_events(project, userid, deviceid, event_class, search, threadid, afte
     else:
         if event_class == 'PINGER':
             all_events = get_pinger_telemetry(project, conn, userid, deviceid, after, before, search)
+        elif event_class == 'TROUBLETICKETS':
+            all_events = get_trouble_tickets(project, conn, logger=logger)
         else:
             bucket_name = projects_cfg.get(project, 'client_t3_%s_bucket' % T3_EVENT_CLASS_FILE_PREFIXES[event_class])
             all_events = get_client_events(conn, bucket_name, userid, deviceid, after, before, event_class, search, threadid, logger=logger)

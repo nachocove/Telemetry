@@ -20,6 +20,7 @@ T3_EVENT_CLASS_FILE_PREFIXES = {
          'TIMESERIES': 'time_series',
          'DEVICEINFO': 'device_info',
          'PINGER': 'plog',
+         'TROUBLETICKETS': 'trouble_tickets',
 }
 
 def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search, logger=None):
@@ -200,3 +201,23 @@ def get_latest_device_info_event(conn, bucket_name, userid, deviceid, after, bef
             if len(device_info_list) > 0:
                 return device_info_list[-1]
         return None
+
+
+def get_trouble_ticket_events(conn, bucket_name, logger=None):
+    logger.info("Getting new trouble tickets")
+    assert isinstance(conn, S3Connection)
+    bucket = conn.get_bucket(bucket_name)
+    events = []
+    for key in bucket.list():
+        file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
+        for line in file_content.splitlines():
+            ev = json.loads(line)
+            ev['event_type'] = 'SUPPORT'
+            if 'module' not in ev:
+                ev['module'] = 'client'
+                ev['device_id'] = ev['client']
+                ev['user_id'] = ev['user']
+            events.append(ev)
+    if logger:
+        logger.debug("Found %d trouble tickets", len(events))
+    return events

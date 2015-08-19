@@ -55,6 +55,10 @@
           "t3_bucket": "3ee8d7bb-43a6-4690-8297-8b4800611f36-dev-pinger",
           "t3_jsonpath": "json/nm_plog_jsonpath.json"
         }
+        "trouble_tickets" : {
+          "t3_bucket": "c6ae00d0-dev-t3-trouble-tickets",
+          "t3_jsonpath": "json/nm_trouble_tickets_jsonpath.json"
+        }
     },
     "db_config": {
         "dbname": "t3db",
