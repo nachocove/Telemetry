@@ -6,7 +6,7 @@ from misc.support import *
 from misc.number_formatter import pretty_number
 from misc.html_elements import *
 from monitors.monitor_base import get_client_telemetry_link
-from AWS.s3t3_telemetry import get_client_events
+from AWS.s3t3_telemetry import get_client_events, get_trouble_ticket_events, delete_trouble_ticket
 
 class MonitorSupport(Monitor):
     def __init__(self, freshdesk=None, isT3=False, bucket_name=None, s3conn=None, *args, **kwargs):
@@ -31,8 +31,11 @@ class MonitorSupport(Monitor):
     def run(self):
         self.logger.info('Querying %s...', self.desc)
         if self.isT3:
-            self.events = get_client_events(self.s3conn, self.bucket_name, userid='', deviceid='',
-                        after=self.start, before=self.end, event_class='SUPPORT', search='', logger=self.logger)
+            if  'trouble-tickets' in self.bucket_name: # new support scheme
+                self.events = get_trouble_ticket_events(self.s3conn, self.bucket_name, self.logger)
+            else:
+                self.events = get_client_events(self.s3conn, self.bucket_name, userid='', deviceid='',
+                            after=self.start, before=self.end, event_class='SUPPORT', search='', logger=self.logger)
             self.requests = []
             for event in self.events:
                 support_event = SupportEvent(event)
@@ -92,6 +95,8 @@ class MonitorSupport(Monitor):
                                              TableElement(Link("Telemetry", telemetry_link)),
                                              ]))
                 self.freshdesk_api.add_note(freshdesk_id, note_table.html(), private=True)
+                if self.isT3 and 'trouble-tickets' in self.bucket_name and request.key_name != '': # new support scheme
+                    delete_trouble_ticket(self.s3conn, self.bucket_name, request.key_name, self.logger)
             else:
                 freshdesk_link = Text("N/A")
 
