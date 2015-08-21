@@ -54,6 +54,10 @@
         "plog" : {
           "t3_bucket": "ceaa2f55-2e8b-4ccc-a2c4-495dcb95abc9-alpha-pinger",
           "t3_jsonpath": "json/nm_plog_jsonpath.json"
+        },
+        "trouble_tickets" : {
+          "t3_bucket": "d3daf3ef-alpha-t3-trouble-tickets",
+          "t3_jsonpath": "json/nm_trouble_tickets_jsonpath.json"
         }
     },
     "db_config": {
