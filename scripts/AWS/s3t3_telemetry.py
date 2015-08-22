@@ -32,7 +32,6 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
     #c6ae00d0-e259-4bfc-903d-5b6bc62cd651-dev-pinger
     #20150529/plog-20150529063152823.gz
     events = []
-    nm=0
     prev_file_uploaded_at_ts = None
     for date_prefix in get_T3_date_prefixes(after, before):
         get_prefix = date_prefix
@@ -46,14 +45,12 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                 uploaded_at = m.group('uploaded_at')
                 uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
                 uploaded_at_ts = UtcDateTime(uploaded_at_ts)
-                if file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
-                    logger.debug("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
+                if is_pinger_file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
                     file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
                     for line in file_content.splitlines():
                         ev = json.loads(line)
                         timestamp = UtcDateTime(ev['timestamp'])
                         if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
-                            nm+=1
                             continue
                         if search != '':
                             sm = search_regex.search(line)
@@ -61,10 +58,8 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                             sm = None
                         if search == '' or sm is not None:
                             if userid and 'client' in ev and ev['client'] != userid:
-                                nm+=1
                                 continue
                             if deviceid and 'device' in ev and ev['device'] != deviceid:
-                                nm+=1
                                 continue
                             if 'device' in ev:
                                 ev['device_id'] = ev['device']
@@ -81,7 +76,7 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                             events.append(ev)
                     prev_file_uploaded_at_ts = uploaded_at_ts
     if logger:
-        logger.debug("Found %d PINGER events. not matched %s", len(events), nm)
+        logger.debug("Found %d PINGER events.", len(events))
     return events
 
 def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_class, search, threadid=0, logger=None, event_type=None):
@@ -96,86 +91,114 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_
     else:
         client_prefix = ''
     events = []
-    nm=0
-    prev_file_uploaded_at_ts = None
+    prev_key = None
+    prev_key_uploaded_at_ts = None
+    first_in_date_range_file_processed = False
     for date_prefix in get_T3_date_prefixes(after, before):
         get_prefix = date_prefix + client_prefix
         logger.debug("get_prefix is %s" % get_prefix)
         userid_regex = '\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+'
         if not userid:
             if deviceid:
-                file_regex = re.compile(r'.*/(?P<user_id>%s)/%s/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (userid_regex, deviceid, T3_EVENT_CLASS_FILE_PREFIXES[event_class]))
+                file_regex = re.compile(r'.*/(?P<user_id>%s)/%s/NachoMail/%s-(?P<created_at>[0-9]+).gz' % (userid_regex, deviceid, T3_EVENT_CLASS_FILE_PREFIXES[event_class]))
             else:
-                file_regex = re.compile(r'.*/(?P<user_id>%s)/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % (userid_regex, T3_EVENT_CLASS_FILE_PREFIXES[event_class]))
+                file_regex = re.compile(r'.*/(?P<user_id>%s)/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<created_at>[0-9]+).gz' % (userid_regex, T3_EVENT_CLASS_FILE_PREFIXES[event_class]))
         else:
             if not deviceid:
-                file_regex = re.compile(r'.*/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[event_class])
+                file_regex = re.compile(r'.*/(?P<device_id>Ncho\w+)/NachoMail/%s-(?P<created_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[event_class])
             else:
-                file_regex = re.compile(r'.*%s-(?P<uploaded_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[event_class])
-
-        search_regex=re.compile(search)
+                file_regex = re.compile(r'.*%s-(?P<created_at>[0-9]+).gz' % T3_EVENT_CLASS_FILE_PREFIXES[event_class])
         for key in bucket.list(prefix=get_prefix):
             m = file_regex.match(key.key)
             if m is not None:
-                uploaded_at = m.group('uploaded_at')
-                uploaded_at_ts = datetime.strptime(uploaded_at, '%Y%m%d%H%M%S%f')
-                uploaded_at_ts = UtcDateTime(uploaded_at_ts)
-                if file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
-                    logger.debug("File uploaded at %s is between %s and %s", uploaded_at_ts, before, after)
-                    file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
-                    for line in file_content.splitlines():
-                        ev = json.loads(line)
-                        if event_type and 'event_type' in ev and ev['event_type'] != event_type:
-                            continue
-                        if threadid > 0:
-                            if 'thread_id' not in ev or ev['thread_id'] != threadid:
-                                continue
-                        timestamp = UtcDateTime(ev['timestamp'])
-                        if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
-                            nm+=1
-                            continue
-                        if search != '':
-                            sm = search_regex.search(line)
-                        else:
-                            sm = None
-                        if search == '' or sm is not None:
-                            ev['timestamp'] = timestamp
-                            if 'module' not in ev:
-                                ev['module'] = 'client'
-                            if deviceid == '':
-                                ev['device_id'] = m.group('device_id')
-                            else:
-                                ev['device_id'] = deviceid
-                            if userid == '':
-                                ev['user_id'] = m.group('user_id')
-                            else:
-                                ev['user_id'] = userid
-                            ev['uploaded_at'] = uploaded_at_ts
-                            if 'ui_integer' not in ev and 'ui_long' in ev:
-                                ev['ui_integer'] = ev['ui_long']
-                            if 'event_type' not in ev:
-                                ev['event_type'] = event_class
-                            # TODO move this out appropriately
-                            if 'counter_start' in ev:
-                                ev['counter_start'] = UtcDateTime(ev['counter_start'])
-                            if 'counter_end' in ev:
-                                ev['counter_end'] = UtcDateTime(ev['counter_end'])
-                            events.append(ev)
-                    prev_file_uploaded_at_ts = uploaded_at_ts
+                created_at = m.group('created_at')
+                created_at_ts = datetime.strptime(created_at, '%Y%m%d%H%M%S%f')
+                created_at_ts = UtcDateTime(created_at_ts)
+                uploaded_at = key.last_modified
+                uploaded_at_ts = UtcDateTime(uploaded_at)
+                if is_client_file_in_date_range(logger, created_at_ts, before, after):
+                    first_in_date_range_file_processed = True
+                    extract_events(events, key, event_type, threadid, after, before, deviceid,
+                                           userid, event_class, search, uploaded_at_ts, m)
+                else:
+                    # keep storing the prev key till the first in date range file is processed
+                    if not first_in_date_range_file_processed:
+                        logger.debug("File uploaded at %s is being kept as prev", uploaded_at_ts)
+                        prev_key = key
+                        prev_key_uploaded_at_ts = uploaded_at_ts
 
+        # process first file last - events are sorted later
+        if prev_key:
+            m = file_regex.match(prev_key.key)
+            logger.debug("File uploaded at %s should be processed", prev_key_uploaded_at_ts)
+            ev = extract_events(events, prev_key, event_type, threadid, after, before, deviceid,
+                                   userid, event_class, search, prev_key_uploaded_at_ts, m)
     if logger:
-        logger.debug("Found %d %s events. not matched %s", len(events), event_class, nm)
+        logger.debug("Found %d %s events.", len(events), event_class)
     return events
 
-def file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
+def extract_events(events, key, event_type, threadid, after, before, deviceid,
+                   userid, event_class, search, uploaded_at_ts, m):
+    file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
+    for line in file_content.splitlines():
+        ev = json.loads(line)
+        if event_type and 'event_type' in ev and ev['event_type'] != event_type:
+            continue
+        if threadid > 0:
+            if 'thread_id' not in ev or ev['thread_id'] != threadid:
+                continue
+        timestamp = UtcDateTime(ev['timestamp'])
+        if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
+            continue
+        if search != '':
+            search_regex=re.compile(search)
+            sm = search_regex.search(line)
+        else:
+            sm = None
+        if search == '' or sm is not None:
+            ev['timestamp'] = timestamp
+            if 'module' not in ev:
+                ev['module'] = 'client'
+            if deviceid == '':
+                ev['device_id'] = m.group('device_id')
+            else:
+                ev['device_id'] = deviceid
+            if userid == '':
+                ev['user_id'] = m.group('user_id')
+            else:
+                ev['user_id'] = userid
+            ev['uploaded_at'] = uploaded_at_ts
+            if 'ui_integer' not in ev and 'ui_long' in ev:
+                ev['ui_integer'] = ev['ui_long']
+            if 'event_type' not in ev:
+                ev['event_type'] = event_class
+            # TODO move this out appropriately
+            if 'counter_start' in ev:
+                ev['counter_start'] = UtcDateTime(ev['counter_start'])
+            if 'counter_end' in ev:
+                ev['counter_end'] = UtcDateTime(ev['counter_end'])
+            events.append(ev)
+
+def is_pinger_file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
     if uploaded_at_ts.datetime >= after.datetime and uploaded_at_ts.datetime < before.datetime:
+        logger.debug("File uploaded at %s is between start/end[%s - %s]", uploaded_at_ts, before, after)
         return True
     else:
         if prev_file_uploaded_at_ts and prev_file_uploaded_at_ts.datetime >= after.datetime and prev_file_uploaded_at_ts.datetime < before.datetime:
             logger.debug("Prev File uploaded at %s is between %s and %s. So the file at %s should also be included", prev_file_uploaded_at_ts, before, after, uploaded_at_ts)
             return True
+        elif not prev_file_uploaded_at_ts and uploaded_at_ts.datetime >= before.datetime:
+            logger.debug("File uploaded at %s is after %s. But there is no prev files yet, so the file should be included", uploaded_at_ts, before)
+            return True
         else:
             return False
+
+def is_client_file_in_date_range(logger, created_at_ts, before, after):
+    if created_at_ts.datetime >= after.datetime and created_at_ts.datetime < before.datetime:
+        logger.debug("File created at %s is between start/end[%s - %s]", created_at_ts, before, after)
+        return True
+    else:
+        return False
 
 def get_T3_date_prefixes(after, before):
     from datetime import timedelta
