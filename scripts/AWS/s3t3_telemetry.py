@@ -57,9 +57,9 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                         else:
                             sm = None
                         if search == '' or sm is not None:
-                            if userid and 'client' in ev and ev['client'] != userid:
+                            if userid and (('client' in ev and ev['client'] != userid) or ('client' not in ev)):
                                 continue
-                            if deviceid and 'device' in ev and ev['device'] != deviceid:
+                            if deviceid and (('device' in ev and ev['device'] != deviceid) or ('device' not in ev)):
                                 continue
                             if 'device' in ev:
                                 ev['device_id'] = ev['device']
