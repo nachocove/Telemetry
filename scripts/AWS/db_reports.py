@@ -143,7 +143,13 @@ def execute_sql(logger, project, config, sql_query):
         status= cursor.execute(sql_statement)
         num_fields = len(cursor.description)
         col_names = [i[0] for i in cursor.description]
-        rows = cursor.fetchall()
+        rows = []
+        for row in cursor:
+            lrow = list(row)
+            for i, col in enumerate(lrow):
+                if isinstance(col, datetime):
+                    lrow[i] = UtcDateTime(col)
+            rows.append(lrow)
     except Exception as err:
         error = err
         logger.error(err)
