@@ -1,0 +1,121 @@
+{
+  "aws_config": {
+    "region_name": "us-west-2",
+    "zones": ["us-west-2a"],
+    "policy_arn_prefix" : "arn:aws:iam::263277746520:policy/"
+  },
+  "iam_config": [
+    {
+      "name" : "DevClientT3WriteOnlyPolicy",
+      "policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Action": [
+              "s3:PutObject"
+            ],
+            "Resource": [
+              "arn:aws:s3:::c6ae00d0-dev-t3-device-info/*/${cognito-identity.amazonaws.com:sub}/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-log/*/${cognito-identity.amazonaws.com:sub}/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-protocol/*/${cognito-identity.amazonaws.com:sub}/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-ui/*/${cognito-identity.amazonaws.com:sub}/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-support/*/${cognito-identity.amazonaws.com:sub}/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-counter/*/${cognito-identity.amazonaws.com:sub}/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-statistics2/*/${cognito-identity.amazonaws.com:sub}/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-distribution/*/${cognito-identity.amazonaws.com:sub}/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-samples/*/${cognito-identity.amazonaws.com:sub}/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-time-series/*/${cognito-identity.amazonaws.com:sub}/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-trouble-tickets/${cognito-identity.amazonaws.com:sub}*"
+            ],
+            "Effect": "Allow"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DevT3ViewerClientDataReadOnlyPolicy",
+      "policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "Stmt1427734365000",
+            "Effect": "Allow",
+            "Action": [
+              "s3:Get*",
+              "s3:List*"
+            ],
+            "Resource": [
+              "arn:aws:s3:::c6ae00d0-dev-t3-device-info/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-log/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-protocol/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-ui/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-support/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-counter/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-statistics2/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-distribution/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-samples/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-time-series/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-trouble-tickets/*",
+              "arn:aws:s3:::c6ae00d0-dev-t3-device-info",
+              "arn:aws:s3:::c6ae00d0-dev-t3-log",
+              "arn:aws:s3:::c6ae00d0-dev-t3-protocol",
+              "arn:aws:s3:::c6ae00d0-dev-t3-ui",
+              "arn:aws:s3:::c6ae00d0-dev-t3-support",
+              "arn:aws:s3:::c6ae00d0-dev-t3-counter",
+              "arn:aws:s3:::c6ae00d0-dev-t3-statistics2",
+              "arn:aws:s3:::c6ae00d0-dev-t3-distribution",
+              "arn:aws:s3:::c6ae00d0-dev-t3-samples",
+              "arn:aws:s3:::c6ae00d0-dev-t3-time-series",
+              "arn:aws:s3:::c6ae00d0-dev-t3-trouble-tickets"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "DevTroubleTicketsPolicy",
+      "policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "Stmt1439941568000",
+            "Effect": "Allow",
+            "Action": [
+              "s3:DeleteObject",
+              "s3:GetObject",
+              "s3:ListBucket",
+              "s3:ListBucketVersions",
+              "s3:PutObject",
+              "s3:GetObjectVersion",
+              "s3:DeleteObjectVersion",
+              "s3:RestoreObject"
+            ],
+            "Resource": [
+              "arn:aws:s3:::c6ae00d0-dev-t3-trouble-tickets/*"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name" : "DevT3ViewerPingerDataReadOnlyPolicy",
+      "policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "Stmt1427734365000",
+            "Effect": "Allow",
+            "Action": [
+              "s3:Get*",
+              "s3:List*"
+            ],
+            "Resource": [
+              "arn:aws:s3:::3ee8d7bb-43a6-4690-8297-8b4800611f36-dev-pinger/*",
+              "arn:aws:s3:::3ee8d7bb-43a6-4690-8297-8b4800611f36-dev-pinger"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
