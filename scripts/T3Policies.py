@@ -23,12 +23,15 @@ def create_t3_iam_policies(region_name, policy_arn_prefix, iam_config):
     conn=boto.iam.connect_to_region(region_name)
     for policy_config in iam_config:
         policy_name = policy_config["name"]
-        policy_arn = policy_arn_prefix + policy_name
+        policy_arn = policy_arn_prefix + "/" + policy_name
         policy_json = json.dumps(policy_config["policy"], indent=4)
         try:
             policy = conn.get_policy(policy_arn)
-        except BotoServerError:
+        except BotoServerError as e:
             policy = None
+            if e.status != 404:
+                print "Error checking for policy existence (%s:%s)" % (e.status, e.reason)
+                continue
         if not policy:
             print "Creating policy (%s)" % policy_name
             conn.create_policy(policy_name, policy_json)

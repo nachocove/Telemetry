@@ -2,7 +2,7 @@
   "aws_config": {
     "region_name": "us-west-2",
     "zones": ["us-west-2a"],
-    "policy_arn_prefix" : "arn:aws:iam::263277746520:policy/"
+    "policy_arn_prefix" : "arn:aws:iam::263277746520:policy"
   },
   "iam_config": [
     {
