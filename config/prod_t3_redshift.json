@@ -52,7 +52,7 @@
           "t3_jsonpath": "json/nm_time_series_jsonpath.json"
         },
         "plog" : {
-          "t3_bucket": "e01c178d-d558-4b54-b11f-897af5700283-beta-pinger",
+          "t3_bucket": "9c7574a2-544f-447e-962b-3661a595f971-prod-pinger",
           "t3_jsonpath": "json/nm_plog_jsonpath.json"
         },
         "trouble_tickets" : {
