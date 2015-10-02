@@ -1,7 +1,7 @@
 {
     "general_config": {
-        "project": "beta",
-        "project_name": "Beta",
+        "project": "prod",
+        "project_name": "Prod",
         "src_root": "/home/ec2-user/src/nacho/Telemetry"
 	},
     "aws_config": {
