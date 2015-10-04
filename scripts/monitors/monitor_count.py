@@ -263,8 +263,9 @@ class MonitorEmails(MonitorCount):
         email_addresses = dict()
         for event in events:
             try:
-                email = event.get('client') + "-" + json.loads(event.get('support', '{}')).get('sha256_email_address', '')
+                email = json.loads(event.get('support', '{}')).get('sha256_email_address', '')
                 if email:
+                    email = event.get('client') + "-" + email
                     if email not in email_addresses or email_addresses[email]['timestamp'] < event['timestamp']:
                         email_addresses[email] = event
             except ValueError:
