@@ -96,7 +96,7 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_
     first_in_date_range_file_processed = False
     for date_prefix in get_T3_date_prefixes(after, before):
         get_prefix = date_prefix + client_prefix
-        logger.debug("get_prefix is %s" % get_prefix)
+        #logger.debug("get_prefix is %s" % get_prefix)
         userid_regex = '\w+-\w+-\d+:\w+-\w+-\w+-\w+-\w+'
         if not userid:
             if deviceid:
@@ -123,14 +123,14 @@ def get_client_events(conn, bucket_name, userid, deviceid, after, before, event_
                 else:
                     # keep storing the prev key till the first in date range file is processed
                     if not first_in_date_range_file_processed:
-                        logger.debug("File uploaded at %s is being kept as prev", uploaded_at_ts)
+                        #logger.debug("File uploaded at %s is being kept as prev", uploaded_at_ts)
                         prev_key = key
                         prev_key_uploaded_at_ts = uploaded_at_ts
 
         # process first file last - events are sorted later
         if prev_key:
             m = file_regex.match(prev_key.key)
-            logger.debug("File uploaded at %s should be processed", prev_key_uploaded_at_ts)
+            #logger.debug("File uploaded at %s should be processed", prev_key_uploaded_at_ts)
             ev = extract_events(events, prev_key, event_type, threadid, after, before, deviceid,
                                    userid, event_class, search, prev_key_uploaded_at_ts, m)
     if logger:
@@ -181,21 +181,21 @@ def extract_events(events, key, event_type, threadid, after, before, deviceid,
 
 def is_pinger_file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
     if uploaded_at_ts.datetime >= after.datetime and uploaded_at_ts.datetime < before.datetime:
-        logger.debug("File uploaded at %s is between start/end[%s - %s]", uploaded_at_ts, before, after)
+        #logger.debug("File uploaded at %s is between start/end[%s - %s]", uploaded_at_ts, after, before)
         return True
     else:
         if prev_file_uploaded_at_ts and prev_file_uploaded_at_ts.datetime >= after.datetime and prev_file_uploaded_at_ts.datetime < before.datetime:
-            logger.debug("Prev File uploaded at %s is between %s and %s. So the file at %s should also be included", prev_file_uploaded_at_ts, before, after, uploaded_at_ts)
+            #logger.debug("Prev File uploaded at %s is between %s and %s. So the file at %s should also be included", prev_file_uploaded_at_ts, before, after, uploaded_at_ts)
             return True
         elif not prev_file_uploaded_at_ts and uploaded_at_ts.datetime >= before.datetime:
-            logger.debug("File uploaded at %s is after %s. But there is no prev files yet, so the file should be included", uploaded_at_ts, before)
+            #logger.debug("File uploaded at %s is after %s. But there is no prev files yet, so the file should be included", uploaded_at_ts, before)
             return True
         else:
             return False
 
 def is_client_file_in_date_range(logger, created_at_ts, before, after):
     if created_at_ts.datetime >= after.datetime and created_at_ts.datetime < before.datetime:
-        logger.debug("File created at %s is between start/end[%s - %s]", created_at_ts, before, after)
+        #logger.debug("File created at %s is between start/end[%s - %s]", created_at_ts, before, after)
         return True
     else:
         return False
@@ -219,7 +219,7 @@ def get_latest_device_info_event(conn, bucket_name, userid, deviceid, after, bef
             before = UtcDateTime(str(after))
             from datetime import timedelta
             after = before.datetime - timedelta(days=1)
-            logger.debug("Check from %s to %s for device info", after, before)
+            #logger.debug("Check from %s to %s for device info", after, before)
             device_info_list = get_client_events(conn, bucket_name, userid, deviceid, UtcDateTime(str(after)), UtcDateTime(str(before)), 'DEVICEINFO', '', logger=logger)
             if len(device_info_list) > 0:
                 return device_info_list[-1]
