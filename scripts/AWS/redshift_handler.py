@@ -33,7 +33,8 @@ def create_db_conn(logger, db_config):
     conn=None
     try:
         conn=psycopg2.connect(dbname=db_config['dbname'], host=db_config['host'],
-                              port=db_config['port'], user=db_config['user'], password=db_config['pwd'])
+                              port=db_config['port'], user=db_config['user'], password=db_config['pwd'],
+                              sslmode='require')
     except Exception as err:
         logger.error(err)
     return conn
