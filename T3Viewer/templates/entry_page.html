@@ -11,6 +11,7 @@ var show_device_id = {{ show_device_id }};
 
 </script>
 <script type="text/javascript" src="/static/list.js"></script>
+<script type="text/javascript" src="/static/hilitor.js"></script>
 {% endblock %}
 {% block navbar %}
 {% endblock %}
@@ -24,6 +25,26 @@ var show_device_id = {{ show_device_id }};
     </tr>
 </table>
 <br/><br/>
+<!--
+<form>
+<p>Highlight keywords as you type: <input id="keywords" size="24" onblur="doHighlight();" onsubmit="return false;"></p>
+</form>
+<br/>
+<script type="text/javascript">
+
+  var myHilitor;
+
+  document.addEventListener("DOMContentLoaded", function() {
+    myHilitor = new Hilitor("table_events");
+    myHilitor.setMatchType("left");
+  }, false);
+
+  function doHighlight() {
+    myHilitor.apply(this.value);
+    return false;
+  };
+</script>
+-->
 <table id="table_summary" class="table"></table><br/>
 <table id="table_events" class="table"></table>
 <table>

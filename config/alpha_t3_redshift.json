@@ -63,7 +63,7 @@
     "db_config": {
         "dbname": "t3db",
         "user":"nachocove",
-        "pwd":"",
+        "pwd":"Nuk0naR0cks!",
         "host":"t3-dw-instance.ccqihpfuufs8.us-west-2.redshift.amazonaws.com",
         "port":"5439"
     },
