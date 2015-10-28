@@ -5,6 +5,8 @@
 # To install: pip install requests
 
 import json
+import re
+
 import requests
 
 
@@ -36,6 +38,12 @@ class FreshDesk(object):
     class FreshDeskException(Exception):
         pass
 
+    def validate_email(self, email):
+        if re.match(r'[^@]+@[^@]+\.[^@]+', email):
+            return True
+        else:
+            return False
+
     def create_ticket(self, subject, description, email, priority=1, status=STATUS_OPEN, cc_emails=None):
         """
 
@@ -56,6 +64,11 @@ class FreshDesk(object):
             raise Exception("Unknown cc_emails type: %s" % cc_emails)
 
         path = '/helpdesk/tickets.json'
+
+        if not self.validate_email(email):
+            description += "\n(Bad email address: %s)" % email
+            email = None
+
         payload = {
             'helpdesk_ticket': {
                 'subject': subject,
