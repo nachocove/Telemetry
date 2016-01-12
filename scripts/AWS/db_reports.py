@@ -1,25 +1,22 @@
-__author__ = 'azimo'
-import sys
-import time
 import traceback
-import boto
-import argparse
-import json
-from datetime import timedelta, datetime, date
-from pprint import pprint
-from boto.exception import S3ResponseError, EC2ResponseError, BotoServerError
+from datetime import timedelta, datetime
+
+from django.core.urlresolvers import reverse
+
 from AWS.redshift_handler import create_db_conn
+from Bugfix.views import entry_page
+from analytics.cluster import Clusterer
+from analytics.token import TokenList, WhiteSpaceTokenizer
 from misc.utc_datetime import UtcDateTime
 from monitors.monitor_base import get_client_telemetry_link
-from analytics.token import TokenList, WhiteSpaceTokenizer
-from analytics.cluster import Clusterer
+
 
 def parse_dates(args):
-    if not args.start and not args.end and args.period == "daily": # run yesterday's report
+    if not args.start and not args.end and args.period == "daily":  # run yesterday's report
         start = UtcDateTime(datetime.fromordinal((datetime.now() - timedelta(1)).toordinal()))
-        end = UtcDateTime(datetime.fromordinal((datetime.now()).toordinal())-timedelta(seconds=1))
+        end = UtcDateTime(datetime.fromordinal((datetime.now()).toordinal()) - timedelta(seconds=1))
     else:
-        if not args.start and args.period == "daily": # only support daily right now
+        if not args.start and args.period == "daily":  # only support daily right now
             start = UtcDateTime(datetime.fromordinal((UtcDateTime(args.end).datetime - timedelta(1)).toordinal()))
         else:
             start = UtcDateTime(args.start)
@@ -28,6 +25,7 @@ def parse_dates(args):
         else:
             end = UtcDateTime(args.end)
     return start, end
+
 
 def classify_log_events(events):
     # Cluster log messages
@@ -49,25 +47,27 @@ def classify_log_events(events):
         else:
             new_message = message
         ccount += len(cluster)
-        clustered_events.append({"count":len(cluster), "message":new_message})
+        clustered_events.append({"count": len(cluster), "message": new_message})
     clustered_events_sorted = sorted(clustered_events, key=lambda x: x['count'], reverse=True)
     return clustered_events_sorted
+
 
 def select(logger, cursor, sql_st):
     # need a connection with dbname=<username>_db
     try:
         # retrieving all tables in my search_path
-        x= cursor.execute(sql_st)
+        cursor.execute(sql_st)
     except Exception as err:
         logger.error(err)
     rows = cursor.fetchall()
     return rows
 
+
 def log_report(logger, project, config, start, end):
-    host="http://localhost:8081/"
-    summary = {'start':start, 'end':end}
+    host = "http://localhost:8081/"
+    summary = {'start': start, 'end': end}
     summary['period'] = str(end.datetime - start.datetime)
-    summary['total_hours'] = (end.datetime-start.datetime).days*24 + (end.datetime-start.datetime).seconds/3600
+    summary['total_hours'] = (end.datetime - start.datetime).days * 24 + (end.datetime - start.datetime).seconds / 3600
     startForRS = start.datetime.strftime('%Y-%m-%d %H:%M:%S')
     endForRS = end.datetime.strftime('%Y-%m-%d %H:%M:%S')
     error_list = []
@@ -78,7 +78,7 @@ def log_report(logger, project, config, start, end):
     cursor = conn.cursor()
     try:
         logger.info("Selecting error counts from logs...")
-        #TODO fix %s in SQL statements
+        # TODO fix %s in SQL statements
         sql_statement = "select event_type, user_id, device_id, timestamped, message from %s_nm_log " \
                         "where event_type='ERROR' and " \
                         "timestamped >= '%s' and timestamped <= '%s'" % (project, startForRS, endForRS)
@@ -86,8 +86,9 @@ def log_report(logger, project, config, start, end):
         rows = select(logger, cursor, sql_statement)
         for row in rows:
             telemetry_link = get_client_telemetry_link(project, row[2], row[3], host=host, isT3=True)
-            error_list.append({"event_type": row[0], "user_id": row[1], "device_id": row[2], "timestamp": UtcDateTime(row[3]),
-                                 "message": row[4], 'telemetry_link': telemetry_link})
+            error_list.append(
+                    {"event_type": row[0], "user_id": row[1], "device_id": row[2], "timestamp": UtcDateTime(row[3]),
+                     "message": row[4], 'telemetry_link': telemetry_link})
         logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
         logger.info("Selecting warning counts from logs...")
         sql_statement = "select event_type, user_id, device_id, timestamped, message from %s_nm_log " \
@@ -97,26 +98,27 @@ def log_report(logger, project, config, start, end):
         rows = select(logger, cursor, sql_statement)
         for row in rows:
             telemetry_link = get_client_telemetry_link(project, row[2], row[3], host=host, isT3=True)
-            warning_list.append({"event_type": row[0], "user_id": row[1], "device_id": row[2], "timestamp": UtcDateTime(row[3]),
-                                 "message": row[4], 'telemetry_link': telemetry_link})
+            warning_list.append(
+                    {"event_type": row[0], "user_id": row[1], "device_id": row[2], "timestamp": UtcDateTime(row[3]),
+                     "message": row[4], 'telemetry_link': telemetry_link})
         logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
         logger.info("Selecting total counts from logs...")
         sql_statement = "select distinct count(*), event_type from %s_nm_log " \
                         "where timestamped >= '%s' and timestamped <= '%s'" \
-                        "group by event_type order by count desc"% (project, startForRS, endForRS)
+                        "group by event_type order by count desc" % (project, startForRS, endForRS)
         logger.info(sql_statement)
         rows = select(logger, cursor, sql_statement)
         total_count = 0
         for row in rows:
             summary[row[1]] = row[0]
             if row[0] > 0:
-                summary[row[1] + '_rate'] = float(row[0])/summary['total_hours']
+                summary[row[1] + '_rate'] = float(row[0]) / summary['total_hours']
             else:
                 summary[row[1] + '_rate'] = 0
             total_count += row[0]
         summary['event_count'] = total_count
         if total_count > 0:
-            summary['event_rate'] = float(total_count)/summary['total_hours']
+            summary['event_rate'] = float(total_count) / summary['total_hours']
         else:
             summary['event_rate'] = 0
         logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
@@ -127,28 +129,49 @@ def log_report(logger, project, config, start, end):
     cursor.close()
     conn.close()
 
+
 def execute_sql(logger, project, config, sql_query):
     logger.info("Creating connection...")
     conn = create_db_conn(logger, config["db_config"])
     conn.autocommit = False
     cursor = conn.cursor()
     logger.info("Running custom sql query...")
-    #TODO fix %s in SQL statements
+    # TODO fix %s in SQL statements
     sql_statement = sql_query
     logger.info(sql_statement)
     rows = []
     col_names = ""
     error = ""
     try:
-        status= cursor.execute(sql_statement)
-        num_fields = len(cursor.description)
+        cursor.execute(sql_statement)
         col_names = [i[0] for i in cursor.description]
+        linkify_timestamped = 'device_id' in col_names and 'timestamped' in col_names
+        if linkify_timestamped:
+            device_id_col = col_names.index('device_id')
+            timestamped_col = col_names.index('timestamped')
+        else:
+            device_id_col = -1
+            timestamped_col = -1
+
         rows = []
         for row in cursor:
             lrow = list(row)
+
+            # replace all datetime fields with their UtcDateTime equivalent
             for i, col in enumerate(lrow):
                 if isinstance(col, datetime):
                     lrow[i] = UtcDateTime(col)
+
+            # do some post-processing on certain fields, if necessary
+            for i, col in enumerate(lrow):
+                if linkify_timestamped and i == timestamped_col:
+                    lrow[i] = "<a href='%s' target='_blank'>%s</a>" % (reverse(entry_page, kwargs={
+                        'event_class': 'ALL',
+                        'deviceid': lrow[device_id_col],
+                        'timestamp': lrow[timestamped_col],
+                        'span': 2,
+                        'project': project}), lrow[i])
+
             rows.append(lrow)
     except Exception as err:
         error = err

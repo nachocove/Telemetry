@@ -34,7 +34,7 @@ select count(*), event_type from azim_dev_nm_device_info group by event_type;</p
 {% for row in results %}
        <tr>
            {% for col in row %}
-           <td class="cell">{{ col }}</td>
+           <td class="cell">{{ col|safe }}</td>
            {% endfor %}
        </tr>
 {% endfor %}
