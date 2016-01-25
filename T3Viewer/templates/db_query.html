@@ -28,7 +28,7 @@ select count(*), event_type from azim_dev_nm_device_info group by event_type;</p
 <table>
     <tr>
         {% for col_name in col_names %}
-        <th class="cell">{{ col_name|title }}</th>
+        <th class="cell {{col_name}}">{{ col_name|title }}</th>
         {% endfor %}
     </tr>
 {% for row in results %}

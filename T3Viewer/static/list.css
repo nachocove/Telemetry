@@ -81,3 +81,7 @@ h3 {
 .id_cell {
     display:none;
 }
+
+.timestamped {
+    width:200px;
+}
