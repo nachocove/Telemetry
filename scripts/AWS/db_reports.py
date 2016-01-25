@@ -169,7 +169,7 @@ def execute_sql(logger, project, config, sql_query):
                         'event_class': 'ALL',
                         'deviceid': lrow[device_id_col],
                         'timestamp': lrow[timestamped_col],
-                        'span': 2,
+                        'span': 10,
                         'project': project}), lrow[i])
 
             rows.append(lrow)
