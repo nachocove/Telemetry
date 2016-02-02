@@ -104,7 +104,6 @@ def syncfail_report(logger, project, config, start, end, delta_value):
                 if prevTS == '':
                     prevTS = curTS
                 delta=UtcDateTime(curTS)-UtcDateTime(prevTS)
-                ### TODO: parameterize this value
                 if delta > delta_value:
                     telemetry_link = get_client_telemetry_link(project, device['device_id'], UtcDateTime(prevTS), host=host, isT3=True)
                     gap = {'startTS': UtcDateTime(prevTS), 'endTS': UtcDateTime(curTS), 'gap':delta, 'tele_link': telemetry_link}
