@@ -62,6 +62,69 @@ def select(logger, cursor, sql_st):
     rows = cursor.fetchall()
     return rows
 
+def syncfail_report(logger, project, config, start, end, delta_value):
+    host = "http://localhost:8081/"
+    summary = {'start': start, 'end': end}
+    summary['period'] = str(end.datetime - start.datetime)
+    summary['time_delta'] = delta_value
+    startForRS = start.datetime.strftime('%Y-%m-%d %H:%M:%S')
+    endForRS = end.datetime.strftime('%Y-%m-%d %H:%M:%S')
+    device_list = []
+    logger.info("Creating connection...")
+    conn = create_db_conn(logger, config["db_config"])
+    conn.autocommit = False
+    cursor = conn.cursor()
+    try:
+        logger.info("Selecting devices from logs...")
+        # TODO fix %s in SQL statements
+        sql_statement = "select distinct user_id, device_id from %s_nm_log " \
+                        "where timestamped >= '%s' and timestamped <= '%s' group by user_id, device_id" % (project, startForRS, endForRS)
+        logger.info(sql_statement)
+        rows = select(logger, cursor, sql_statement)
+        for row in rows:
+            device_list.append({"user_id": row[0], "device_id": row[1]})
+        logger.info("%s successful, Read %s rows", cursor.statusmessage, cursor.rowcount)
+        for device in device_list:
+            like_term = '%S=SyncW & E=Success%'
+            sql_statement = "select distinct timestamped from %s_nm_log " \
+                        "where timestamped >= '%s' and timestamped <= '%s'" \
+                        "and message like '%s' " \
+                        "and device_id='%s' group by timestamped order by timestamped" \
+            % (project, startForRS, endForRS, like_term, device['device_id'])
+            logger.info(sql_statement)
+            rows = select(logger, cursor, sql_statement)
+            curTS=''
+            prevTS=''
+            i=0
+            gaps = []
+            # check each gap
+            for row in rows:
+                i+=1
+                curTS = row[0]
+                if prevTS == '':
+                    prevTS = curTS
+                delta=UtcDateTime(curTS)-UtcDateTime(prevTS)
+                ### TODO: parameterize this value
+                if delta > delta_value:
+                    telemetry_link = get_client_telemetry_link(project, device['device_id'], UtcDateTime(prevTS), host=host, isT3=True)
+                    gap = {'startTS': UtcDateTime(prevTS), 'endTS': UtcDateTime(curTS), 'gap':delta, 'tele_link': telemetry_link}
+                    gaps.append(gap)
+                prevTS = curTS
+            # final check
+            delta = UtcDateTime(end)-UtcDateTime(prevTS)
+            if delta > delta_value:
+                telemetry_link = get_client_telemetry_link(project, device['device_id'], UtcDateTime(prevTS), host=host, isT3=True)
+                gap = {'startTS': UtcDateTime(prevTS), 'endTS': UtcDateTime(end), 'gap': delta, 'tele_link': telemetry_link}
+                gaps.append(gap)
+            device['gaps'] = gaps
+        gap_device_list = [x for x in device_list if x['gaps']]
+        summary['device_count'] = len(gap_device_list)
+        return summary, gap_device_list
+    except Exception as err:
+        logger.error(err)
+        logger.error(traceback.format_exc())
+    cursor.close()
+    conn.close()
 
 def log_report(logger, project, config, start, end):
     host = "http://localhost:8081/"
