@@ -4,7 +4,6 @@ from datetime import timedelta, datetime
 from django.core.urlresolvers import reverse
 
 from AWS.redshift_handler import create_db_conn
-from Bugfix.views import entry_page
 from analytics.cluster import Clusterer
 from analytics.token import TokenList, WhiteSpaceTokenizer
 from misc.utc_datetime import UtcDateTime
@@ -192,20 +191,20 @@ def log_report(logger, project, config, start, end):
     conn.close()
 
 
-def execute_sql(logger, project, config, sql_query):
+def execute_sql(logger, project, config, sql_query, link_page):
     logger.info("Creating connection...")
     conn = create_db_conn(logger, config["db_config"])
     conn.autocommit = False
     cursor = conn.cursor()
-    logger.info("Running custom sql query...")
     # TODO fix %s in SQL statements
     sql_statement = sql_query
-    logger.info(sql_statement)
+    logger.info("Running custom sql query: %s", sql_statement)
     rows = []
     col_names = ""
     error = ""
     try:
         cursor.execute(sql_statement)
+        logger.info("Custom query returned %d rows", cursor.rowcount)
         col_names = [i[0] for i in cursor.description]
         linkify_timestamped = 'device_id' in col_names and 'timestamped' in col_names
         if linkify_timestamped:
@@ -227,7 +226,7 @@ def execute_sql(logger, project, config, sql_query):
             # do some post-processing on certain fields, if necessary
             for i, col in enumerate(lrow):
                 if linkify_timestamped and i == timestamped_col:
-                    lrow[i] = "<a href='%s' target='_blank'>%s</a>" % (reverse(entry_page, kwargs={
+                    lrow[i] = "<a href='%s' target='_blank'>%s</a>" % (reverse(link_page, kwargs={
                         'event_class': 'ALL',
                         'deviceid': lrow[device_id_col],
                         'timestamp': lrow[timestamped_col],
@@ -235,6 +234,7 @@ def execute_sql(logger, project, config, sql_query):
                         'project': project}), lrow[i])
 
             rows.append(lrow)
+            logger.info("Processed %d rows", len(rows))
     except Exception as err:
         error = err
         logger.error(err)

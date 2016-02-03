@@ -2,6 +2,12 @@
 {% block title %}Redshift Database Deleter{% endblock %}
 {% block content %}
 <span class="search" style="float:left;margin:10px;display: inline-block">
+    Available prefixes:<br/>
+    <ul>
+        {% for prefix in prefixes %}
+        <li>{{prefix}}</li>
+        {% endfor %}
+    </ul>
     <form action="{% url 'db-delete' %}" method="post">{% csrf_token %}
     {{ form.as_p }}
     <input type="submit" value="Submit" />

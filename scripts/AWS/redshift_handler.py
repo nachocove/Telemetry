@@ -192,3 +192,19 @@ def create_tables(logger, project, config, event_class, table_prefix=None):
     except (BotoServerError, S3ResponseError, EC2ResponseError) as e:
         logger.error("Error :%s(%s):%s" % (e.error_code, e.status, e.message))
         logger.error(traceback.format_exc())
+
+def list_tables(logger, config):
+        logger.info("Listing tables...")
+        conn = create_db_conn(logger, config["db_config"])
+        conn.autocommit = False
+        cursor = conn.cursor()
+        sql_statement = "SELECT table_schema,table_name FROM information_schema.tables ORDER BY table_schema,table_name;"
+        try:
+            logger.info(sql_statement)
+            return select(logger, cursor, sql_statement)
+        except Exception as err:
+            logger.error(err)
+            logger.error(traceback.format_exc())
+            return None
+
+

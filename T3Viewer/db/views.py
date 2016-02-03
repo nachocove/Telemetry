@@ -1,34 +1,23 @@
-import base64
-from functools import wraps
-from gettext import gettext as _
-import hashlib
+import ConfigParser
+import json
+import logging
 import os
 from datetime import timedelta, datetime, date
-import logging
-import cgi
-import json
-import ConfigParser
-from urllib import urlencode
+from gettext import gettext as _
 
-import dateutil.parser
-from django.conf import settings
+from django import forms
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
-from django.http import HttpResponseBadRequest
-from django import forms
-from django.shortcuts import render, render_to_response
 from django.http import HttpResponseRedirect
+from django.shortcuts import render_to_response
 from django.template import RequestContext
-from django.utils.decorators import available_attrs
-from django.views.decorators.cache import cache_control
-from django.views.decorators.vary import vary_on_cookie
-from boto.dynamodb2.layer1 import DynamoDBConnection
-from boto.s3.connection import S3Connection
-from AWS.s3t3_telemetry import T3_EVENT_CLASS_FILE_PREFIXES
-from misc.utc_datetime import UtcDateTime
-from AWS.redshift_handler import delete_logs, upload_logs, create_tables
+
 from AWS.db_reports import log_report, execute_sql, classify_log_events, syncfail_report
-from core.auth import nacho_cache, nachotoken_required
+from AWS.redshift_handler import delete_logs, upload_logs, create_tables, list_tables
+from AWS.s3t3_telemetry import T3_EVENT_CLASS_FILE_PREFIXES
+from Bugfix.views import entry_page
+from core.auth import nachotoken_required
+from misc.utc_datetime import UtcDateTime
 
 # Get the list of project
 projects_cfg = ConfigParser.ConfigParser()
@@ -43,6 +32,8 @@ tmp_logger = logging.getLogger('telemetry')
 default_span = 1
 
 _t3_redshift_config_cache = {}
+
+
 # load json config
 def get_t3_redshift_config(project, file_name):
     global _t3_redshift_config_cache
@@ -52,6 +43,7 @@ def get_t3_redshift_config(project, file_name):
         with open(file_name) as data_file:
             _t3_redshift_config_cache[project] = json.load(data_file)
     return _t3_redshift_config_cache[project]
+
 
 class DBDeleteForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
@@ -98,8 +90,9 @@ class DBDeleteForm(forms.Form):
             return
         if to_date < from_date:
             raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
-        elif (to_date-from_date).days > 31:
+        elif (to_date - from_date).days > 31:
             raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
+
 
 class DBLoadForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
@@ -146,19 +139,20 @@ class DBLoadForm(forms.Form):
             return
         if to_date < from_date:
             raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
-        elif (to_date-from_date).days > 31:
+        elif (to_date - from_date).days > 31:
             raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
+
 
 class DBSyncFailReportForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
     from_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now() - timedelta(1)).toordinal()))
-    to_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now()).toordinal())-timedelta(seconds=1))
+    to_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now()).toordinal()) - timedelta(seconds=1))
     delta_value = forms.IntegerField(initial=3600, label="Time Delta (secs)")
 
     def clean_from_date(self):
         from_date = self.cleaned_data.get('from_date', '')
         if from_date.replace(tzinfo=None) > datetime.now():
-            raise ValidationError(_('Date/Time in future: %s' % from_date ))
+            raise ValidationError(_('Date/Time in future: %s' % from_date))
         return from_date
 
     def clean_to_date(self):
@@ -184,18 +178,19 @@ class DBSyncFailReportForm(forms.Form):
             return
         if to_date < from_date:
             raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
-        elif (to_date-from_date).days > 31:
+        elif (to_date - from_date).days > 31:
             raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
+
 
 class DBReportForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
     from_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now() - timedelta(1)).toordinal()))
-    to_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now()).toordinal())-timedelta(seconds=1))
+    to_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now()).toordinal()) - timedelta(seconds=1))
 
     def clean_from_date(self):
         from_date = self.cleaned_data.get('from_date', '')
         if from_date.replace(tzinfo=None) > datetime.now():
-            raise ValidationError(_('Date/Time in future: %s' % from_date ))
+            raise ValidationError(_('Date/Time in future: %s' % from_date))
         return from_date
 
     def clean_to_date(self):
@@ -221,8 +216,9 @@ class DBReportForm(forms.Form):
             return
         if to_date < from_date:
             raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
-        elif (to_date-from_date).days > 31:
+        elif (to_date - from_date).days > 31:
             raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
+
 
 class DBQueryForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
@@ -236,6 +232,7 @@ class DBQueryForm(forms.Form):
                                   code='unknown',
                                   params={'project': projects})
         return project
+
 
 # Create your views here.
 @nachotoken_required
@@ -270,44 +267,69 @@ def db_load(request):
     to_datetime = UtcDateTime(datetime.combine(to_date, datetime.min.time()))
     summary = {}
     summary["start"] = from_datetime
-    summary["end"] =  to_datetime
+    summary["end"] = to_datetime
     event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     if isinstance(event_classes, list):
         summary["event_classes"] = event_classes
         for ev_class in event_classes:
             if "table_name" in summary:
                 summary["table_name"] = summary["table_name"] + ", " + \
-                                    table_prefix + "_" + project + \
-                                    "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
+                                        table_prefix + "_" + project + \
+                                        "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
             else:
                 summary["table_name"] = table_prefix + "_" + project + \
-                                    "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
+                                        "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
     else:
         summary["event_classes"] = event_class
         summary["table_name"] = table_prefix + "_" + project + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
     status = create_tables(logger, project, t3_redshift_config, event_class, table_prefix)
-    upload_stats = upload_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime, table_prefix)
-    report_data = {'summary': summary, 'upload_stats': upload_stats, "general_config": t3_redshift_config["general_config"]}
+    upload_stats = upload_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime,
+                               table_prefix)
+    report_data = {'summary': summary, 'upload_stats': upload_stats,
+                   "general_config": t3_redshift_config["general_config"]}
     return render_to_response('upload_report.html', report_data,
                               context_instance=RequestContext(request))
+
+def deletable_table_prefixes(project):
+    logger = logging.getLogger('telemetry').getChild('DBDeleteForm')
+    t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
+    public_tables = [x for x in list_tables(logger, t3_redshift_config) if x[0] == 'public' and "_nm_" in x[1]]
+    choices_dict = {}
+    for table in public_tables:
+        prefix, rest = table[1].split('_nm_')
+        if prefix not in projects and prefix.endswith(project):
+            p = prefix.split("_"+project)[0]
+            choices_dict[p] = p
+    return choices_dict.keys()
+
+def deleteDefaultPage(request):
+    message = ''
+    form = DBDeleteForm()
+    proj = request.session.get('project', default_project)
+    form.fields['project'].initial = proj
+    return render_to_response('db_delete.html', {'form': form, 'message': message,
+                                                 'prefixes': deletable_table_prefixes(proj)},
+                              context_instance=RequestContext(request))
+
 
 @nachotoken_required
 def db_delete(request):
     logger = logging.getLogger('telemetry').getChild('db')
-    message = ''
     if request.method != 'POST':
-        form = DBDeleteForm()
-        form.fields['project'].initial = request.session.get('project', default_project)
-        return render_to_response('db_delete.html', {'form': form, 'message': message},
-                                  context_instance=RequestContext(request))
+        return deleteDefaultPage(request)
 
     form = DBDeleteForm(request.POST)
+    form.full_clean()
+
+    project = form.cleaned_data['project']
+    request.session['project'] = project
+
     if not form.is_valid():
         logger.warn('invalid form data')
-        return render_to_response('db_delete.html', {'form': form, 'message': message},
-                                  context_instance=RequestContext(request))
-    project = form.cleaned_data['project']
+        return deleteDefaultPage(request)
+
+    t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
     from_date = form.cleaned_data['from_date']
     to_date = form.cleaned_data['to_date']
     event_class = form.cleaned_data['event_class']
@@ -322,27 +344,28 @@ def db_delete(request):
     to_datetime = UtcDateTime(to_date)
     summary = {}
     summary["start"] = from_datetime
-    summary["end"] =  to_datetime
+    summary["end"] = to_datetime
     event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     if isinstance(event_classes, list):
         summary["event_classes"] = event_classes
         for ev_class in event_classes:
             if "table_name" in summary:
                 summary["table_name"] = summary["table_name"] + ", " + \
-                                    table_prefix + "_" + project + \
-                                    "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
+                                        table_prefix + "_" + project + \
+                                        "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
             else:
                 summary["table_name"] = table_prefix + "_" + project + \
-                                    "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
+                                        "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
     else:
         summary["event_classes"] = event_class
         summary["table_name"] = table_prefix + "_" + project + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
-    t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
-    delete_stats = delete_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime, table_prefix)
+    delete_stats = delete_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime,
+                               table_prefix)
     report_data = {'summary': summary, 'delete_stats': delete_stats,
-                   "general_config": t3_redshift_config["general_config"], 'message':message}
+                   "general_config": t3_redshift_config["general_config"], 'message': ''}
     return render_to_response('delete_report.html', report_data,
                               context_instance=RequestContext(request))
+
 
 @nachotoken_required
 def db_log_report_form(request):
@@ -361,12 +384,11 @@ def db_log_report_form(request):
         logger.warn('invalid form data')
         return render_to_response('log_form.html', {'form': form, 'message': message},
                                   context_instance=RequestContext(request))
-    kwargs={}
+    kwargs = {}
     kwargs['project'] = form.cleaned_data['project']
     kwargs['from_date'] = UtcDateTime(form.cleaned_data['from_date'])
     kwargs['to_date'] = UtcDateTime(form.cleaned_data['to_date'])
     return HttpResponseRedirect(reverse(db_log_report, kwargs=kwargs))
-
 
 
 @nachotoken_required
@@ -386,12 +408,13 @@ def db_syncfail_report_form(request):
         logger.warn('invalid form data')
         return render_to_response('syncfail_form.html', {'form': form, 'message': message},
                                   context_instance=RequestContext(request))
-    kwargs={}
+    kwargs = {}
     kwargs['project'] = form.cleaned_data['project']
     kwargs['from_date'] = UtcDateTime(form.cleaned_data['from_date'])
     kwargs['to_date'] = UtcDateTime(form.cleaned_data['to_date'])
     kwargs['delta_value'] = form.cleaned_data['delta_value']
     return HttpResponseRedirect(reverse(db_syncfail_report, kwargs=kwargs))
+
 
 def db_syncfail_report(request, project, from_date, to_date, delta_value):
     logger = logging.getLogger('telemetry').getChild('db')
@@ -403,16 +426,17 @@ def db_syncfail_report(request, project, from_date, to_date, delta_value):
     to_datetime = UtcDateTime(to_date)
     summary = {}
     summary["start"] = from_datetime
-    summary["end"] =  to_datetime
+    summary["end"] = to_datetime
 
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
     error_list = []
     warning_list = []
     summary, device_list = syncfail_report(logger, t3_redshift_config['general_config']['project'],
-                                                   t3_redshift_config, from_datetime, to_datetime, int(delta_value))
+                                           t3_redshift_config, from_datetime, to_datetime, int(delta_value))
     report_data = {'summary': summary, 'devices': device_list, 'general_config': t3_redshift_config["general_config"]}
     return render_to_response('syncfail_report.html', report_data,
                               context_instance=RequestContext(request))
+
 
 def db_log_report(request, project, from_date, to_date):
     logger = logging.getLogger('telemetry').getChild('db')
@@ -424,20 +448,21 @@ def db_log_report(request, project, from_date, to_date):
     to_datetime = UtcDateTime(to_date)
     summary = {}
     summary["start"] = from_datetime
-    summary["end"] =  to_datetime
+    summary["end"] = to_datetime
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
     error_list = []
     warning_list = []
     summary, error_list, warning_list = log_report(logger, t3_redshift_config['general_config']['project'],
                                                    t3_redshift_config, from_datetime, to_datetime)
-    clustered_error_list=classify_log_events(error_list)
-    clustered_warning_list=classify_log_events(warning_list)
+    clustered_error_list = classify_log_events(error_list)
+    clustered_warning_list = classify_log_events(warning_list)
     report_data = {'summary': summary, 'clustered_errors': clustered_error_list,
                    'clustered_warnings': clustered_warning_list,
                    'errors': error_list, 'warnings': warning_list,
                    "general_config": t3_redshift_config["general_config"]}
     return render_to_response('log_report.html', report_data,
                               context_instance=RequestContext(request))
+
 
 @nachotoken_required
 def db_help(request):
@@ -446,7 +471,8 @@ def db_help(request):
     # Used for reporting error in any POST.
     message = ''
     return render_to_response('help.html', {'message': message},
-                                  context_instance=RequestContext(request))
+                              context_instance=RequestContext(request))
+
 
 @nachotoken_required
 def db_query(request):
@@ -464,7 +490,8 @@ def db_query(request):
     sql_query = form.cleaned_data['sql_query']
     project = form.cleaned_data['project']
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
-    error, col_names, results = execute_sql(logger, project, t3_redshift_config, sql_query)
-    report_data = {'results': results, 'col_names': col_names, 'message':error, "general_config": t3_redshift_config["general_config"], 'form': form}
+    error, col_names, results = execute_sql(logger, project, t3_redshift_config, sql_query, entry_page)
+    report_data = {'results': results, 'col_names': col_names, 'message': error,
+                   "general_config": t3_redshift_config["general_config"], 'form': form}
     return render_to_response('db_query.html', report_data,
                               context_instance=RequestContext(request))
