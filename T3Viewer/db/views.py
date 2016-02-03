@@ -491,7 +491,7 @@ def db_query(request):
     project = form.cleaned_data['project']
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
     error, col_names, results = execute_sql(logger, project, t3_redshift_config, sql_query, entry_page)
-    report_data = {'results': results, 'col_names': col_names, 'message': error,
+    report_data = {'results': results, 'rowcount': len(results), 'col_names': col_names, 'message': error,
                    "general_config": t3_redshift_config["general_config"], 'form': form}
     return render_to_response('db_query.html', report_data,
                               context_instance=RequestContext(request))

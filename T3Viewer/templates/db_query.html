@@ -24,7 +24,7 @@ select count(*), event_type from azim_dev_nm_device_info group by event_type;</p
 <div style="clear:left">
 <br/>
 
-<b>Query Result</b>
+<b>Query Result: {{ rowcount }} Rows</b>
 <table>
     <tr>
         {% for col_name in col_names %}

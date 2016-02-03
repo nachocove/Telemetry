@@ -204,7 +204,8 @@ def execute_sql(logger, project, config, sql_query, link_page):
     error = ""
     try:
         cursor.execute(sql_statement)
-        logger.info("Custom query returned %d rows", cursor.rowcount)
+        rowcount = cursor.rowcount
+        logger.info("Custom query returned %d rows", rowcount)
         col_names = [i[0] for i in cursor.description]
         linkify_timestamped = 'device_id' in col_names and 'timestamped' in col_names
         if linkify_timestamped:
@@ -234,11 +235,13 @@ def execute_sql(logger, project, config, sql_query, link_page):
                         'project': project}), lrow[i])
 
             rows.append(lrow)
-            logger.info("Processed %d rows", len(rows))
+            if len(rows) % 1000 == 0:
+                logger.debug("Processed %3.1f%% of rows", (float(len(rows))/float(rowcount))*100.0)
     except Exception as err:
         error = err
         logger.error(err)
         logger.error(traceback.format_exc())
     cursor.close()
     conn.close()
+    logger.debug("Processed 100%% of rows (%d)", len(rows))
     return error, col_names, rows
