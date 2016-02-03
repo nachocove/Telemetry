@@ -1,13 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Index{% endblock %}
 {% block content %}
+T3 Telemetry <br/>
 <a href="{% url 'bugfix-home' %}">Search</a><br>
+<br/>
+Reports:<br/>
 <a href="{% url 'log-report-form' %}">Daily Log Report</a><br>
 <a href="{% url 'syncfail-report-form' %}">Daily Sync Gap Report</a><br>
+<br/>
+Redshift:<br/>
+<a href="{% url 'db-query' %}">Redshift Database Query</a><br>
 <a href="{% url 'db-help' %}">Database Overview</a><br>
 <a href="{% url 'db-load' %}">Redshift Database Loader</a><br>
-<a href="{% url 'db-query' %}">Redshift Database Query</a><br>
-<a href="{% url 'db-delete' %}">Redshift Database Deleter</a><br>
+<a href="{% url 'db-delete-logs' %}">Redshift Database Logs Deleter</a><br>
+<a href="{% url 'db-delete-tables' %}">Redshift Database Table Deleter</a><br>
 <br>
 <br>
 <b> Coming soon</b><br>

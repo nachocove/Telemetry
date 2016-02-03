@@ -23,6 +23,8 @@ from django.utils.decorators import available_attrs
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
 from boto.s3.connection import S3Connection
+
+from AWS.s3_telemetry import create_s3_conn
 from AWS.s3t3_telemetry import get_client_events,  T3_EVENT_CLASS_FILE_PREFIXES, get_pinger_events, \
     get_latest_device_info_event, get_trouble_ticket_events
 from core.auth import nacho_cache, nachotoken_required
@@ -105,12 +107,7 @@ def _aws_s3_connection(project):
     if not project in _aws_s3_connection_cache:
         if not project in projects:
             raise ValueError('Project %s is not present in projects.cfg' % project)
-        _aws_s3_connection_cache[project] = S3Connection(host='s3-us-west-2.amazonaws.com',
-                                                         port=443,
-                                                         aws_secret_access_key=projects_cfg.get(project, 'secret_access_key'),
-                                                         aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
-                                                         is_secure=True,
-                                                         debug=2 if BOTO_DEBUG else 0)
+        _aws_s3_connection_cache[project] = create_s3_conn(projects_cfg.get(project, 'access_key_id'), projects_cfg.get(project, 'secret_access_key'), debug=BOTO_DEBUG)
     return _aws_s3_connection_cache[project]
 
 def _parse_junk(junk, mapping):

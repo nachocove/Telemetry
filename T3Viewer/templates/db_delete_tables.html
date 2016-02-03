@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Redshift Database Table Deleter{% endblock %}
+{% block content %}
+<span class="search" style="float:left;margin:10px;display: inline-block">
+    Available prefixes:<br/>
+    <ul>
+        {% for prefix in prefixes %}
+        <li>{{prefix}}</li>
+        {% endfor %}
+    </ul>
+    <form action="{% url 'db-delete-tables' %}" method="post">{% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Submit" />
+    </form>
+</span>
+<div class="help" style="margin:10px;display: inline-block">
+    <br/>
+    <b>Overview</b><br>
+    This form allows you to delete the temporary tables that you have loaded using the Database Loader.<br>
+    Please ensure that you specify the right prefixes (ie. your table prefixes) when deleting tables.<br>
+    Given that this a shared resource, all tables are accessible to all.<br>
+	<br/>
+</div>
+{% endblock %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Redshift Database Deleter{% endblock %}
+{% block title %}Redshift Database Logs Deleter{% endblock %}
 {% block content %}
 <span class="search" style="float:left;margin:10px;display: inline-block">
     Available prefixes:<br/>
@@ -8,7 +8,7 @@
         <li>{{prefix}}</li>
         {% endfor %}
     </ul>
-    <form action="{% url 'db-delete' %}" method="post">{% csrf_token %}
+    <form action="{% url 'db-delete-logs' %}" method="post">{% csrf_token %}
     {{ form.as_p }}
     <input type="submit" value="Submit" />
     </form>

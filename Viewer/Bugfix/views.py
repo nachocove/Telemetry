@@ -25,7 +25,7 @@ from django.views.decorators.vary import vary_on_cookie
 from boto.dynamodb2.layer1 import DynamoDBConnection
 from boto.s3.connection import S3Connection
 from boto.dynamodb2.exceptions import DynamoDBError
-from AWS.s3_telemetry import get_s3_events
+from AWS.s3_telemetry import get_s3_events, create_s3_conn
 
 from misc import events
 from PyWBXMLDecoder.ASCommandResponse import ASCommandResponse
@@ -99,12 +99,7 @@ def _aws_s3_connection(project):
     if not project in _aws_s3_connection_cache:
         if not project in projects:
             raise ValueError('Project %s is not present in projects.cfg' % project)
-        _aws_s3_connection_cache[project] = S3Connection(host='s3-us-west-2.amazonaws.com',
-                                                         port=443,
-                                                         aws_secret_access_key=projects_cfg.get(project, 'secret_access_key'),
-                                                         aws_access_key_id=projects_cfg.get(project, 'access_key_id'),
-                                                         is_secure=True,
-                                                         debug=2 if BOTO_DEBUG else 0)
+        _aws_s3_connection_cache[project] = create_s3_conn(projects_cfg.get(project, 'access_key_id'), projects_cfg.get(project, 'secret_access_key'), debug=BOTO_DEBUG)
     TelemetryTable.PREFIX = project
     return _aws_s3_connection_cache[project]
 

@@ -13,7 +13,7 @@ from django.shortcuts import render_to_response
 from django.template import RequestContext
 
 from AWS.db_reports import log_report, execute_sql, classify_log_events, syncfail_report
-from AWS.redshift_handler import delete_logs, upload_logs, create_tables, list_tables
+from AWS.redshift_handler import delete_logs, upload_logs, create_tables, list_tables, delete_tables
 from AWS.s3t3_telemetry import T3_EVENT_CLASS_FILE_PREFIXES
 from Bugfix.views import entry_page
 from core.auth import nachotoken_required
@@ -45,10 +45,10 @@ def get_t3_redshift_config(project, file_name):
     return _t3_redshift_config_cache[project]
 
 
-class DBDeleteForm(forms.Form):
+class DBDeleteLogsForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
-    from_date = forms.DateTimeField(initial=datetime.now())
-    to_date = forms.DateTimeField(initial=datetime.now())
+    from_date = forms.DateTimeField(initial=datetime.now(), required=False)
+    to_date = forms.DateTimeField(initial=datetime.now(), required=False)
     event_class = forms.ChoiceField(choices=[(x, x.capitalize()) for x in sorted(T3_EVENT_CLASS_FILE_PREFIXES)])
     table_prefix = forms.CharField(widget=forms.TextInput, required=True)
 
@@ -63,14 +63,16 @@ class DBDeleteForm(forms.Form):
 
     def clean_from_date(self):
         from_date = self.cleaned_data.get('from_date', '')
-        if from_date.replace(tzinfo=None) > datetime.now():
-            raise ValidationError(_('Date/Time in future: %s' % from_date))
+        if from_date:
+            if from_date.replace(tzinfo=None) > datetime.now():
+                raise ValidationError(_('Date/Time in future: %s' % from_date))
         return from_date
 
     def clean_to_date(self):
         to_date = self.cleaned_data.get('to_date', '')
-        if to_date.replace(tzinfo=None) > datetime.now():
-            raise ValidationError(_('Date/Time in future: %s' % to_date))
+        if to_date:
+            if to_date.replace(tzinfo=None) > datetime.now():
+                raise ValidationError(_('Date/Time in future: %s' % to_date))
         return to_date
 
     def clean_project(self):
@@ -83,7 +85,7 @@ class DBDeleteForm(forms.Form):
         return project
 
     def clean(self):
-        cleaned_data = super(DBDeleteForm, self).clean()
+        cleaned_data = super(DBDeleteLogsForm, self).clean()
         from_date = cleaned_data.get("from_date")
         to_date = cleaned_data.get("to_date")
         if to_date == None or from_date == None:
@@ -292,7 +294,7 @@ def db_load(request):
                               context_instance=RequestContext(request))
 
 def deletable_table_prefixes(project):
-    logger = logging.getLogger('telemetry').getChild('DBDeleteForm')
+    logger = logging.getLogger('telemetry').getChild('DBDeleteLogsForm')
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
     public_tables = [x for x in list_tables(logger, t3_redshift_config) if x[0] == 'public' and "_nm_" in x[1]]
     choices_dict = {}
@@ -303,23 +305,23 @@ def deletable_table_prefixes(project):
             choices_dict[p] = p
     return choices_dict.keys()
 
-def deleteDefaultPage(request):
+def deleteLogsDefaultPage(request):
     message = ''
-    form = DBDeleteForm()
+    form = DBDeleteLogsForm()
     proj = request.session.get('project', default_project)
     form.fields['project'].initial = proj
-    return render_to_response('db_delete.html', {'form': form, 'message': message,
+    return render_to_response('db_delete_logs.html', {'form': form, 'message': message,
                                                  'prefixes': deletable_table_prefixes(proj)},
                               context_instance=RequestContext(request))
 
 
 @nachotoken_required
-def db_delete(request):
+def db_delete_logs(request):
     logger = logging.getLogger('telemetry').getChild('db')
     if request.method != 'POST':
-        return deleteDefaultPage(request)
+        return deleteLogsDefaultPage(request)
 
-    form = DBDeleteForm(request.POST)
+    form = DBDeleteLogsForm(request.POST)
     form.full_clean()
 
     project = form.cleaned_data['project']
@@ -327,7 +329,7 @@ def db_delete(request):
 
     if not form.is_valid():
         logger.warn('invalid form data')
-        return deleteDefaultPage(request)
+        return deleteLogsDefaultPage(request)
 
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
     from_date = form.cleaned_data['from_date']
@@ -340,8 +342,8 @@ def db_delete(request):
 
     request.session['project'] = project
     request.session['event_class'] = event_class
-    from_datetime = UtcDateTime(from_date)
-    to_datetime = UtcDateTime(to_date)
+    from_datetime = UtcDateTime(from_date) if from_date else None
+    to_datetime = UtcDateTime(to_date) if to_date else None
     summary = {}
     summary["start"] = from_datetime
     summary["end"] = to_datetime
@@ -359,12 +361,68 @@ def db_delete(request):
     else:
         summary["event_classes"] = event_class
         summary["table_name"] = table_prefix + "_" + project + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
-    delete_stats = delete_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime,
-                               table_prefix)
+    delete_stats = delete_logs(logger, project, t3_redshift_config, event_class, table_prefix, from_datetime, to_datetime)
     report_data = {'summary': summary, 'delete_stats': delete_stats,
                    "general_config": t3_redshift_config["general_config"], 'message': ''}
     return render_to_response('delete_report.html', report_data,
                               context_instance=RequestContext(request))
+
+class DBDeleteTableForm(forms.Form):
+    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
+    event_class = forms.ChoiceField(choices=[(x, x.capitalize()) for x in sorted(T3_EVENT_CLASS_FILE_PREFIXES)])
+    table_prefix = forms.CharField(widget=forms.TextInput, required=True)
+
+    def clean_event_class(self):
+        event_class = self.cleaned_data.get('event_class', '')
+        if event_class not in T3_EVENT_CLASS_FILE_PREFIXES.keys():
+            self.add_error('event_class', 'Unknown Event Class')
+            raise ValidationError(_('Unknown Event Class: %(event_class)s'),
+                                  code='unknown',
+                                  params={'event_class': T3_EVENT_CLASS_FILE_PREFIXES.keys()})
+        return event_class
+
+    def clean_project(self):
+        project = self.cleaned_data.get('project', '')
+        if project not in projects:
+            self.add_error('project', 'Unknown Project')
+            raise ValidationError(_('Unknown Project: %(project)s'),
+                                  code='unknown',
+                                  params={'project': projects})
+        return project
+
+def deleteTablesDefaultPage(request):
+    message = ''
+    form = DBDeleteTableForm()
+    proj = request.session.get('project', default_project)
+    form.fields['project'].initial = proj
+    return render_to_response('db_delete_tables.html', {'form': form, 'message': message,
+                                                        'prefixes': deletable_table_prefixes(proj)},
+                              context_instance=RequestContext(request))
+
+
+@nachotoken_required
+def db_delete_tables(request):
+    logger = logging.getLogger('telemetry').getChild('db')
+    if request.method != 'POST':
+        return deleteTablesDefaultPage(request)
+
+    form = DBDeleteTableForm(request.POST)
+    form.full_clean()
+
+    project = form.cleaned_data['project']
+    request.session['project'] = project
+
+    if not form.is_valid():
+        logger.warn('invalid form data')
+        return deleteTablesDefaultPage(request)
+
+    t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
+    table_prefix = form.cleaned_data['table_prefix']
+    logger.debug("Deleting tables from the database Project:%s, Table Prefix:%s", project, table_prefix)
+
+    request.session['project'] = project
+    delete_tables(logger, project, t3_redshift_config, table_prefix)
+    return deleteTablesDefaultPage(request)
 
 
 @nachotoken_required
