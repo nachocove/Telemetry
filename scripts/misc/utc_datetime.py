@@ -117,8 +117,20 @@ class UtcDateTime:
         """
         Return the elapsed time in seconds (with millisecond resolution).
         """
-        delta = self.datetime - other.datetime
+        if isinstance(other, datetime.timedelta):
+            return UtcDateTime(self.datetime-other)
+
+        if isinstance(other, datetime.datetime):
+            delta = self.datetime - other
+        elif isinstance(other, UtcDateTime):
+            delta = self.datetime - other.datetime
+        else:
+            raise ValueError("unhandled type %s" % other.__class__)
+
         return (float(delta.days) * 86400.0) + float(delta.seconds) + (float(delta.microseconds) / 1.e6)
+
+    def __add__(self, other):
+        return UtcDateTime(self.datetime+other)
 
     def file_suffix(self):
         return str(self).replace(':', '_').replace('-', '_').replace('.', '_')

@@ -6,6 +6,14 @@ import zlib
 from boto.s3.connection import S3Connection
 from misc.utc_datetime import UtcDateTime
 
+def create_s3_conn(aws_access_key_id, aws_secret_access_key, host='s3-us-west-2.amazonaws.com', port=443, debug=False):
+    return S3Connection(host=host,
+                        port=port,
+                        aws_secret_access_key=aws_secret_access_key,
+                        aws_access_key_id=aws_access_key_id,
+                        is_secure=True,
+                        debug=2 if debug else 0)
+
 def get_s3_events(conn, bucket_name, prefix, event_prefix, after, before, logger=None):
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)

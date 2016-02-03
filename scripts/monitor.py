@@ -10,6 +10,8 @@ from boto.ec2 import cloudwatch
 import sys
 import shutil
 from boto.s3.connection import S3Connection
+
+from AWS.s3_telemetry import create_s3_conn
 from FreshDesk.config import FreshdeskConfig
 
 try:
@@ -410,11 +412,8 @@ def run_reports(options, email, logger):
             try:
                 if 'aws_isT3' in options and options.aws_isT3:
                     kwargs['isT3'] = options.aws_isT3
-                    kwargs['s3conn'] = S3Connection(host='s3-us-west-2.amazonaws.com',
-                                                   port=443,
-                                                   aws_secret_access_key=options.aws_secret_access_key,
-                                                   aws_access_key_id=options.aws_access_key_id,
-                                                   is_secure=True)
+
+                    kwargs['s3conn'] = create_s3_conn(options.aws_access_key_id, options.aws_secret_access_key)
                     if monitor_name not in ['support', 'pinger']:
                         kwargs['log_t3_bucket'] = options.aws_log_t3_bucket
                         kwargs['device_info_t3_bucket'] = options.aws_device_info_t3_bucket
@@ -450,11 +449,8 @@ def run_reports(options, email, logger):
         elif monitor_name.startswith('pinger'):
             if 'aws_isT3' in options and options.aws_isT3:
                 kwargs['isT3'] = options.aws_isT3
-            kwargs['s3conn'] = S3Connection(host='s3-us-west-2.amazonaws.com',
-                            port=443,
-                            aws_secret_access_key=options.aws_secret_access_key,
-                            aws_access_key_id=options.aws_access_key_id,
-                            is_secure=True)
+
+            kwargs['s3conn'] = create_s3_conn(options.aws_access_key_id, options.aws_secret_access_key)
             kwargs['bucket_name'] = options.aws_telemetry_bucket
             kwargs['path_prefix'] = options.aws_telemetry_prefix
             if monitor_name == 'pinger-push':

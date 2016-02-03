@@ -1,3 +1,5 @@
+from AWS.s3_telemetry import create_s3_conn
+
 __author__ = 'azimo'
 import sys
 import time
@@ -26,7 +28,7 @@ from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 from django.utils.html import strip_tags
 from AWS.s3t3_telemetry import T3_EVENT_CLASS_FILE_PREFIXES, get_T3_date_prefixes
-from AWS.redshift_handler import delete_logs, upload_logs, create_tables
+from AWS.redshift_handler import upload_logs, create_tables
 import os
 from AWS.db_reports import parse_dates
 
@@ -46,12 +48,7 @@ def get_user_device_prefixes(logger, config, startdt_prefix):
     aws_config = config["aws_config"]
     s3_config = config["s3_config"]
     prefixes =[]
-    conn = S3Connection(host='s3-us-west-2.amazonaws.com',
-                                                         port=443,
-                                                         aws_secret_access_key=aws_config["aws_secret_access_key"],
-                                                         aws_access_key_id=aws_config["aws_access_key_id"],
-                                                         is_secure=True,
-                                                         debug=0)
+    conn = create_s3_conn(aws_config["aws_access_key_id"], aws_config["aws_secret_access_key"])
     bucket_name = s3_config["client_t3_log_bucket"]
     bucket = conn.get_bucket(bucket_name)
     from boto.s3 import prefix
