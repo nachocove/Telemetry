@@ -143,7 +143,7 @@ def upload_logs(logger, project, config, event_class, start, end, table_prefix=N
                                       s3_config[event_class_name]["t3_bucket"],
                                       s3_config[event_class_name]["t3_jsonpath"])
                 try:
-                    logger.info(sql_statement)
+                    #logger.info(sql_statement)
                     cursor.execute(sql_statement)
                     logger.info("STATUS MESSAGE:%s",
                                 cursor.statusmessage)  # we dont get back a row count, no errors means we are good
