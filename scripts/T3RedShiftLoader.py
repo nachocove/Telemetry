@@ -155,11 +155,13 @@ def main():
     config = args.config
     start, end = parse_dates(args)
 
+    project = config['general_config']['project']
+
     if not args.logdir:
         args.logdir = './log'
     if not os.path.exists(args.logdir):
         os.makedirs(args.logdir)
-    log_filename = 't3_redshift_loader%s-%s.%s.log' % (start.datetime.strftime('%Y%m%d'), end.datetime.strftime('%Y%m%d'), UtcDateTime(datetime.now()))
+    log_filename = 't3_redshift_loader-%s-%s-%s.%s.log' % (project, start.datetime.strftime('%Y%m%d'), end.datetime.strftime('%Y%m%d'), UtcDateTime(datetime.now()))
     log_file = os.path.abspath(os.path.join(args.logdir, log_filename))
     logging_format = '%(asctime)s.%(msecs)03d  %(levelname)-8s %(message)s'
     logger = logging.getLogger()
@@ -194,7 +196,6 @@ def main():
     summary = {}
     summary["start"] = start
     summary["end"] = end
-    project = config['general_config']['project']
     event_classes = T3_EVENT_CLASS_FILE_PREFIXES[args.event_class]
     if isinstance(event_classes, list):
         summary["event_classes"] = event_classes
