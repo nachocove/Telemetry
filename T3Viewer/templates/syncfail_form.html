@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Daily Log Report{% endblock %}
+{% block title %}Daily Sync Gap Report{% endblock %}
 {% block content %}
 <span class="search" style="float:left;margin:10px;display: inline-block">
-    <form action="{% url 'log-report-form' %}" method="post">{% csrf_token %}
+    <form action="{% url 'syncfail-report-form' %}" method="post">{% csrf_token %}
     {{ form.as_p }}
     <input type="submit" value="Submit" />
     </form>
@@ -10,6 +10,7 @@
 <div class="help" style="margin:10px;display: inline-block">
     <br/>
     <b>Overview</b><br>
-    This form allows you to run the Daily Log report against the RedShift DB.<br>
+    This form allows you to run the Daily Sync Gap Report against the RedShift DB.<br>
+    The sync gap time delta defaults to 3600 seconds (1 hr). <br>
 </div>
 {% endblock %}

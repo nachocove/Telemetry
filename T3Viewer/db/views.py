@@ -27,7 +27,7 @@ from boto.s3.connection import S3Connection
 from AWS.s3t3_telemetry import T3_EVENT_CLASS_FILE_PREFIXES
 from misc.utc_datetime import UtcDateTime
 from AWS.redshift_handler import delete_logs, upload_logs, create_tables
-from AWS.db_reports import log_report, execute_sql, classify_log_events
+from AWS.db_reports import log_report, execute_sql, classify_log_events, syncfail_report
 from core.auth import nacho_cache, nachotoken_required
 
 # Get the list of project
@@ -149,6 +149,43 @@ class DBLoadForm(forms.Form):
         elif (to_date-from_date).days > 31:
             raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
 
+class DBSyncFailReportForm(forms.Form):
+    project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
+    from_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now() - timedelta(1)).toordinal()))
+    to_date = forms.DateTimeField(initial=datetime.fromordinal((datetime.now()).toordinal())-timedelta(seconds=1))
+    delta_value = forms.IntegerField(initial=3600, label="Time Delta (secs)")
+
+    def clean_from_date(self):
+        from_date = self.cleaned_data.get('from_date', '')
+        if from_date.replace(tzinfo=None) > datetime.now():
+            raise ValidationError(_('Date/Time in future: %s' % from_date ))
+        return from_date
+
+    def clean_to_date(self):
+        to_date = self.cleaned_data.get('to_date', '')
+        if to_date.replace(tzinfo=None) > datetime.now():
+            raise ValidationError(_('Date/Time in future: %s' % to_date))
+        return to_date
+
+    def clean_project(self):
+        project = self.cleaned_data.get('project', '')
+        if project not in projects:
+            self.add_error('project', 'Unknown Project')
+            raise ValidationError(_('Unknown Project: %(project)s'),
+                                  code='unknown',
+                                  params={'project': projects})
+        return project
+
+    def clean(self):
+        cleaned_data = super(DBSyncFailReportForm, self).clean()
+        from_date = cleaned_data.get("from_date")
+        to_date = cleaned_data.get("to_date")
+        if to_date == None or from_date == None:
+            return
+        if to_date < from_date:
+            raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
+        elif (to_date-from_date).days > 31:
+            raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
 
 class DBReportForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
@@ -329,6 +366,53 @@ def db_log_report_form(request):
     kwargs['from_date'] = UtcDateTime(form.cleaned_data['from_date'])
     kwargs['to_date'] = UtcDateTime(form.cleaned_data['to_date'])
     return HttpResponseRedirect(reverse(db_log_report, kwargs=kwargs))
+
+
+
+@nachotoken_required
+def db_syncfail_report_form(request):
+    logger = logging.getLogger('telemetry').getChild('db')
+    # Any message set in 'message' will be displayed as a red error message.
+    # Used for reporting error in any POST.
+    message = ''
+    if request.method != 'POST':
+        form = DBSyncFailReportForm()
+        form.fields['project'].initial = request.session.get('project', default_project)
+        return render_to_response('syncfail_form.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+
+    form = DBSyncFailReportForm(request.POST)
+    if not form.is_valid():
+        logger.warn('invalid form data')
+        return render_to_response('syncfail_form.html', {'form': form, 'message': message},
+                                  context_instance=RequestContext(request))
+    kwargs={}
+    kwargs['project'] = form.cleaned_data['project']
+    kwargs['from_date'] = UtcDateTime(form.cleaned_data['from_date'])
+    kwargs['to_date'] = UtcDateTime(form.cleaned_data['to_date'])
+    kwargs['delta_value'] = form.cleaned_data['delta_value']
+    return HttpResponseRedirect(reverse(db_syncfail_report, kwargs=kwargs))
+
+def db_syncfail_report(request, project, from_date, to_date, delta_value):
+    logger = logging.getLogger('telemetry').getChild('db')
+    logger.debug("Running syncfail report for Project:%s, "
+                 "From Date:%s, To Date:%s, Time Delta Value:%d",
+                 project, from_date, to_date, int(delta_value))
+    request.session['project'] = project
+    from_datetime = UtcDateTime(from_date)
+    to_datetime = UtcDateTime(to_date)
+    summary = {}
+    summary["start"] = from_datetime
+    summary["end"] =  to_datetime
+
+    t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
+    error_list = []
+    warning_list = []
+    summary, device_list = syncfail_report(logger, t3_redshift_config['general_config']['project'],
+                                                   t3_redshift_config, from_datetime, to_datetime, int(delta_value))
+    report_data = {'summary': summary, 'devices': device_list, 'general_config': t3_redshift_config["general_config"]}
+    return render_to_response('syncfail_report.html', report_data,
+                              context_instance=RequestContext(request))
 
 def db_log_report(request, project, from_date, to_date):
     logger = logging.getLogger('telemetry').getChild('db')
