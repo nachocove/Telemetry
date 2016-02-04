@@ -36,8 +36,7 @@ def delete_logs(logger, project, config, event_class, start, end, table_prefix):
     if table_prefix:
         table_prefix_for_sql = table_prefix + '_' + project + '_'
     else:
-        logger.info("No table prefix specified. Not deleting from main tables...")
-        return None
+        table_prefix_for_sql = project + '_'
     try:
         logger.info("Creating connection...")
         conn = create_db_conn(logger, config["db_config"])

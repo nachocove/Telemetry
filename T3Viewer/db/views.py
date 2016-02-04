@@ -101,7 +101,9 @@ class DBLoadForm(forms.Form):
     from_date = forms.DateField(initial=date.today())
     to_date = forms.DateField(initial=date.today())
     event_class = forms.ChoiceField(choices=[(x, x.capitalize()) for x in sorted(T3_EVENT_CLASS_FILE_PREFIXES)])
-    table_prefix = forms.CharField(widget=forms.TextInput, required=True)
+    table_prefix = forms.CharField(widget=forms.TextInput, required=False)
+    reload_data = forms.BooleanField(required=True, help_text="Delete the data in the given timespan before upload to avoid duplication.")
+    base_table = forms.BooleanField(required=True, help_text="Use the base project table, instead of a prefix.")
 
     def clean_event_class(self):
         event_class = self.cleaned_data.get('event_class', '')
@@ -143,6 +145,8 @@ class DBLoadForm(forms.Form):
             raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
         elif (to_date - from_date).days > 31:
             raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
+        if not cleaned_data.get('table_prefix', None) and not cleaned_data.get('base_table', False):
+            raise forms.ValidationError("Must select either 'Base Table' or give a table prefix")
 
 
 class DBSyncFailReportForm(forms.Form):
@@ -267,31 +271,36 @@ def db_load(request):
     request.session['event_class'] = event_class
     from_datetime = UtcDateTime(datetime.combine(from_date, datetime.min.time()))
     to_datetime = UtcDateTime(datetime.combine(to_date, datetime.min.time()))
+    reload_data = form.cleaned_data['reload_data']
     summary = {}
     summary["start"] = from_datetime
     summary["end"] = to_datetime
     event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+    if table_prefix:
+        table_name_prefix = "%s_%s" % (table_prefix, project)
+    else:
+        table_name_prefix = "%s" % project
     if isinstance(event_classes, list):
         summary["event_classes"] = event_classes
         for ev_class in event_classes:
             if "table_name" in summary:
-                summary["table_name"] = summary["table_name"] + ", " + \
-                                        table_prefix + "_" + project + \
-                                        "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
-            else:
-                summary["table_name"] = table_prefix + "_" + project + \
-                                        "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
+                summary["table_name"] += ", "
+            summary["table_name"] = table_name_prefix + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[ev_class]
     else:
         summary["event_classes"] = event_class
-        summary["table_name"] = table_prefix + "_" + project + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
+        summary["table_name"] = table_name_prefix + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
     t3_redshift_config = get_t3_redshift_config(project, projects_cfg.get(project, 'report_config_file'))
-    status = create_tables(logger, project, t3_redshift_config, event_class, table_prefix)
+    if table_prefix:
+        create_tables(logger, project, t3_redshift_config, event_class, table_prefix)
+    if reload_data:
+        delete_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime, table_prefix)
     upload_stats = upload_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime,
                                table_prefix)
     report_data = {'summary': summary, 'upload_stats': upload_stats,
                    "general_config": t3_redshift_config["general_config"]}
     return render_to_response('upload_report.html', report_data,
                               context_instance=RequestContext(request))
+
 
 def deletable_table_prefixes(project):
     logger = logging.getLogger('telemetry').getChild('DBDeleteLogsForm')
@@ -301,9 +310,10 @@ def deletable_table_prefixes(project):
     for table in public_tables:
         prefix, rest = table[1].split('_nm_')
         if prefix not in projects and prefix.endswith(project):
-            p = prefix.split("_"+project)[0]
+            p = prefix.split("_" + project)[0]
             choices_dict[p] = p
     return choices_dict.keys()
+
 
 def deleteLogsDefaultPage(request):
     message = ''
@@ -311,7 +321,7 @@ def deleteLogsDefaultPage(request):
     proj = request.session.get('project', default_project)
     form.fields['project'].initial = proj
     return render_to_response('db_delete_logs.html', {'form': form, 'message': message,
-                                                 'prefixes': deletable_table_prefixes(proj)},
+                                                      'prefixes': deletable_table_prefixes(proj)},
                               context_instance=RequestContext(request))
 
 
@@ -361,11 +371,13 @@ def db_delete_logs(request):
     else:
         summary["event_classes"] = event_class
         summary["table_name"] = table_prefix + "_" + project + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
-    delete_stats = delete_logs(logger, project, t3_redshift_config, event_class, table_prefix, from_datetime, to_datetime)
+    delete_stats = delete_logs(logger, project, t3_redshift_config, event_class, table_prefix, from_datetime,
+                               to_datetime)
     report_data = {'summary': summary, 'delete_stats': delete_stats,
                    "general_config": t3_redshift_config["general_config"], 'message': ''}
     return render_to_response('delete_report.html', report_data,
                               context_instance=RequestContext(request))
+
 
 class DBDeleteTableForm(forms.Form):
     project = forms.ChoiceField(choices=[(x, x.capitalize()) for x in projects])
@@ -389,6 +401,7 @@ class DBDeleteTableForm(forms.Form):
                                   code='unknown',
                                   params={'project': projects})
         return project
+
 
 def deleteTablesDefaultPage(request):
     message = ''
