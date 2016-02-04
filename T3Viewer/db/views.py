@@ -102,8 +102,8 @@ class DBLoadForm(forms.Form):
     to_date = forms.DateField(initial=date.today())
     event_class = forms.ChoiceField(choices=[(x, x.capitalize()) for x in sorted(T3_EVENT_CLASS_FILE_PREFIXES)])
     table_prefix = forms.CharField(widget=forms.TextInput, required=False)
-    reload_data = forms.BooleanField(required=True, help_text="Delete the data in the given timespan before upload to avoid duplication.")
-    base_table = forms.BooleanField(required=True, help_text="Use the base project table, instead of a prefix.")
+    reload_data = forms.BooleanField(required=False, help_text="Delete the data in the given timespan before upload to avoid duplication.")
+    base_table = forms.BooleanField(required=False, help_text="Use the base project table, instead of a prefix.")
 
     def clean_event_class(self):
         event_class = self.cleaned_data.get('event_class', '')
