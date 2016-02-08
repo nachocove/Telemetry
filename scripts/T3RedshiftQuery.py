@@ -3,6 +3,8 @@ import argparse
 import json
 import logging
 
+import sys
+
 from AWS.db_reports import parse_dates, select
 from AWS.redshift_handler import create_db_conn
 
@@ -29,17 +31,18 @@ def main():
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
 
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stdout)
     logger.addHandler(handler)
 
-    logger.info("Creating connection...")
+    logger.debug("Creating connection...")
     conn = create_db_conn(logger, config["db_config"])
     conn.autocommit = False
     cursor = conn.cursor()
     logger.debug("Query: \"%s\"", args.query)
     rows = select(logger, cursor, args.query)
     if rows:
-        print "\n".join([",".join(x) for x in rows])
+        for row in rows:
+            logger.info(",".join([str(x) for x in row]))
 
     exit()
 
