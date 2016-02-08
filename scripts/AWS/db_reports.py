@@ -58,6 +58,7 @@ def select(logger, cursor, sql_st):
         cursor.execute(sql_st)
     except Exception as err:
         logger.error(err)
+        return None
     rows = cursor.fetchall()
     return rows
 
