@@ -48,7 +48,11 @@ def get_pinger_events(conn, bucket_name, userid, deviceid, after, before, search
                 if is_pinger_file_in_date_range(logger, uploaded_at_ts, before, after, prev_file_uploaded_at_ts):
                     file_content = zlib.decompress(key.get_contents_as_string(), 16+zlib.MAX_WBITS)
                     for line in file_content.splitlines():
-                        ev = json.loads(line.replace('\\', '\\\\')) # make sure to escape whacky backslashes
+                        try:
+                            ev = json.loads(line)
+                        except ValueError:
+                            ev = json.loads(line.replace('\\', '\\\\')) # try again, this time escaping whacky backslashes
+
                         timestamp = UtcDateTime(ev['timestamp'])
                         if not (timestamp.datetime >= after.datetime and timestamp.datetime < before.datetime):
                             continue
