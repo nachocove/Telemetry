@@ -18,12 +18,11 @@ sql2_where_options = ["message like 'fd%%%(guid)s%%'",
 def json_config(file_name):
     with open(file_name) as data_file:
         json_data = json.load(data_file)
-    #pprint(json_data)
     return json_data
 
 
 def main():
-    parser = argparse.ArgumentParser(description='T3 RedShift Loader')
+    parser = argparse.ArgumentParser(description='Dup FD query')
     parser.add_argument('--config', required=True, type=json_config, metavar = "config_file",
                    help='the config(json) file for the deployment', )
     parser.add_argument('-d', '--debug',
@@ -61,7 +60,10 @@ def main():
     if args.device:
         sql1_where_options.append("device_id='%(device)s'")
 
-    q = (sql1 % " and ".join(sql1_where_options)) % {'after': args.after, 'before': args.before, 'device': args.device, 'substring': args.fdpathss}
+    q = (sql1 % " and ".join(sql1_where_options)) % {'after': args.after,
+                                                     'before': args.before,
+                                                     'device': args.device,
+                                                     'substring': args.fdpathss}
     logger.debug("Query: \"%s\"", q)
     dup_guids = {}
     rows = select(logger, cursor, q)
@@ -74,7 +76,10 @@ def main():
             dups = {}
             guid = row[0].split('/')[-1].split("wbxml")[0]
             device = row[1]
-            q = (sql2 % " and ".join(sql2_where_options)) % {'after': args.after, 'before': args.before, 'guid': guid, 'device': device}
+            q = (sql2 % " and ".join(sql2_where_options)) % {'after': args.after,
+                                                             'before': args.before,
+                                                             'guid': guid,
+                                                             'device': device}
             logger.debug("   Query: \"%s\"", q)
             fd_rows = select(logger, cursor1, q)
             for fdrow in fd_rows:
