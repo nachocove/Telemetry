@@ -102,7 +102,13 @@ def main():
                     result.append(match.group('result'))
             took = finished-started
             if args.all_results or "Success" not in result or took > timedelta(seconds=args.seconds):
-                logger.info("%s: Download took: %s, results: %s", device, (finished-started), ",".join(result))
+                d = {'device': device,
+                     'took': took,
+                     'started': started,
+                     'finished': finished,
+                     'results': ",".join(result),
+                     }
+                logger.info("%(device)s: Download took: %(took)s (started %(started)s, finished %(finished)s), results: %(results)s" % d)
 
     exit(0)
 
