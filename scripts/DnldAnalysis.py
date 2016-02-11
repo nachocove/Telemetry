@@ -107,8 +107,9 @@ def main():
                      'started': started,
                      'finished': finished,
                      'results': ",".join(result),
+                     'guid': guid,
                      }
-                logger.info("%(device)s: Download took: %(took)s (started %(started)s, finished %(finished)s), results: %(results)s" % d)
+                logger.info("%(device)s: Download %(guid)s took: %(took)s (started %(started)s, finished %(finished)s), results: %(results)s" % d)
 
     exit(0)
 
