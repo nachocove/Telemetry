@@ -31,6 +31,10 @@ def main():
                         help='Debug',
                         action='store_true',
                         default=False)
+    parser.add_argument('-v', '--verbose',
+                        help='Debug',
+                        action='store_true',
+                        default=False)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--after", type=str, default=None)
     parser.add_argument("--before", type=str, default=None)
@@ -91,8 +95,14 @@ def main():
             started = None
             finished = None
             result = []
+            d = {'device': device,
+                 'guid': guid,
+                 }
+            if args.verbose or args.debug:
+                logger.info("Examining %(device)s" % d)
             for guid_row in guid_rows:
-                logger.debug("   guid row for %s", ",".join([str(x) for x in guid_row]))
+                if args.verbose or args.debug:
+                    logger.info("   guid row for %s", ",".join([str(x) for x in guid_row]))
                 if started is None:
                     started = guid_row[0]
                 else:
@@ -100,15 +110,14 @@ def main():
                 match = re.match(r'.*ResolveAs(?P<result>.+)$', guid_row[2])
                 if match:
                     result.append(match.group('result'))
+
             took = finished-started
-            if args.all_results or "Success" not in result or took > timedelta(seconds=args.seconds):
-                d = {'device': device,
-                     'took': took,
-                     'started': started,
-                     'finished': finished,
-                     'results': ",".join(result),
-                     'guid': guid,
-                     }
+            d['took'] = took
+            d['started'] = started
+            d['finished'] = finished
+            d['results'] = ",".join(result)
+
+            if args.verbose or args.all_results or "Success" not in result or took > timedelta(seconds=args.seconds):
                 logger.info("%(device)s: Download %(guid)s took: %(took)s (started %(started)s, finished %(finished)s), results: %(results)s" % d)
 
     exit(0)
