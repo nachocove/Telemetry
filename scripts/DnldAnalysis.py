@@ -77,6 +77,7 @@ def main():
     rows = select(logger, cursor, q)
     if rows:
         for row in rows:
+            items = []
             guid = row[0]
             device = row[1]
             logger.debug("Looking for %s", ",".join([str(x) for x in row]))
@@ -98,11 +99,13 @@ def main():
             d = {'device': device,
                  'guid': guid,
                  }
-            if args.verbose or args.debug:
+            if args.debug:
                 logger.info("Examining %(device)s" % d)
             for guid_row in guid_rows:
-                if args.verbose or args.debug:
-                    logger.info("   guid row for %s", ",".join([str(x) for x in guid_row]))
+                item = "    %s" % ",".join([str(x) for x in guid_row])
+                items.append(item)
+                if args.debug:
+                    logger.info(item)
                 if started is None:
                     started = guid_row[0]
                 else:
@@ -118,7 +121,8 @@ def main():
             d['results'] = ",".join(result)
 
             if args.verbose or args.all_results or "Success" not in result or took > timedelta(seconds=args.seconds):
-                logger.info("%(device)s: Download %(guid)s took: %(took)s (started %(started)s, finished %(finished)s), results: %(results)s" % d)
+                d['items'] = "\n".join(items) if args.verbose else ""
+                logger.info("%(device)s: Download %(guid)s took: %(took)s (started %(started)s, finished %(finished)s), results: %(results)s\n%(items)s" % d)
 
     exit(0)
 
