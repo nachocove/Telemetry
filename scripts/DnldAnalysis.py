@@ -18,7 +18,7 @@ def json_config(file_name):
 
 sql1_where_options = ["message like 'Starting DnldEmailBodyCmd%%McPending%%'", ]
 sql1 = "select distinct split_part(message, '/', 2),device_id,message from %(project)s_nm_log where %(where)s order by timestamped;"
-sql2 = "select timestamped,device_id,message from %(project)s_nm_log where %s order by timestamped;"
+sql2 = "select timestamped,device_id,message from %(project)s_nm_log where %(where)s order by timestamped;"
 sql2_where_options = ["device_id='%(device)s'"]
 sql2_message_or_options = ["message like 'McPending%%/%(guid)s/EmailBodyDownload%%'",
                            ]
