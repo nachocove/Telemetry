@@ -36,7 +36,7 @@ def main():
 
     args = parser.parse_args()
     if not args.after:
-        args.print_help()
+        parser.print_help()
         sys.exit(1)
 
     config = args.config
