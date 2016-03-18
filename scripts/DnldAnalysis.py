@@ -5,7 +5,7 @@ import logging
 import re
 import sys
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from AWS.redshift_handler import create_db_conn, select
 
@@ -42,6 +42,10 @@ def main():
                         default=False)
     default_download_seconds = 4
     parser.add_argument("-s", "--seconds", help="allowable seconds to declare a successful download (default %s)" % default_download_seconds, default=default_download_seconds, type=int)
+    parser.add_argument('-e', '--error-only',
+                        help='Errors Only',
+                        action='store_true',
+                        default=False)
 
     args = parser.parse_args()
     if not args.after:
@@ -116,13 +120,16 @@ def main():
                 if match:
                     result.append(match.group('result'))
 
+            if not finished:
+                finished = datetime.max
+
             took = finished-started
             d['took'] = took
             d['started'] = started
             d['finished'] = finished
             d['results'] = ",".join(result)
 
-            if args.verbose or args.all_results or "Success" not in result or took > timedelta(seconds=args.seconds):
+            if args.verbose or args.all_results or "Success" not in result or (took > timedelta(seconds=args.seconds) and not args.error_only):
                 d['items'] = "\n".join(items) if args.verbose else ""
                 logger.info("%(device)s: Download %(guid)s took: %(took)s (started %(started)s, finished %(finished)s), results: %(results)s\n%(items)s" % d)
     else:
