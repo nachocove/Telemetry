@@ -40,8 +40,8 @@ def main():
     parser.add_argument("--before", type=str, default=None)
     parser.add_argument("--all-results", action='store_true',
                         default=False)
-    default_download_seconds = 3
-    parser.add_argument("--seconds", help="allowable seconds to declare a successful download (default %s)" % default_download_seconds, default=default_download_seconds, type=int)
+    default_download_seconds = 4
+    parser.add_argument("-s", "--seconds", help="allowable seconds to declare a successful download (default %s)" % default_download_seconds, default=default_download_seconds, type=int)
 
     args = parser.parse_args()
     if not args.after:
