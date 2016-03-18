@@ -101,7 +101,7 @@ def main():
 
             if dups:
                 key = "%s,%s" % (device,guid)
-                dups[fd] = "%s: Original FD: %s" % ",".join([str(x) for x in orig_row])
+                dups[fd] = "Original FD: %s" % ",".join([str(x) for x in orig_row])
                 logger.info("Key %s open multiple times: %s", key, dups.keys())
                 if args.verbose:
                     for dup in dups:
