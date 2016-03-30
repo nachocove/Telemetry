@@ -335,9 +335,9 @@ function refreshEvents() {
         var event = events[i];
         var row;
         var current_timestamp = new Date(event.timestamp).getTime()/1000;
-        if (last_timestamp != null) {
+        if (event.module != "pinger-backend" && last_timestamp != null) {
             if (current_timestamp - last_timestamp > 20) {
-                row = getDummyRow("WARN", "EXCESSIVE_TIME", "SECONDS SINCE LAST EVENT: " + (current_timestamp - last_timestamp) + "<br/>");
+                row = getDummyRow("WARN", "EXCESSIVE_TIME", "SECONDS SINCE LAST CLIENT EVENT: " + (current_timestamp - last_timestamp) + "<br/>");
                 table.appendChild(row);
             }
         }
