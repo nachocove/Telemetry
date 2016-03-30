@@ -122,6 +122,33 @@ function getRowWithCommonFields (id, event, num_rows) {
     return tr;
 }
 
+function getDummyRow (type, module, message) {
+    var tr = document.createElement('tr');
+    tr.className = type.toLowerCase();
+    tr.id = 0;
+    // date
+    var c = getCell("", 1);
+    tr.appendChild(c);
+    // time
+    c = getCell("", 1);
+    tr.appendChild(c);
+    // TYPE
+    c = getCell(type, 1);
+    tr.appendChild(c);
+    // module
+    c = getCell(module);
+    tr.appendChild(c);
+    // tid
+    c = getCell("", 1);
+    tr.appendChild(c);
+    // field
+    c = getCell("message", 1);
+    tr.appendChild(c);
+    // message
+    c = getCell(message, 1);
+    tr.appendChild(c);
+    return tr;
+}
 function getPre(html) {
     return '<pre>' + html + '</pre>';
 }
@@ -302,9 +329,20 @@ function refreshEvents() {
     if (0 < events.length) {
         table.appendChild(createTitleBar(table));
     }
+
+    var last_timestamp = null;
     for (var i = 0; i < events.length; i++) {
         var event = events[i];
         var row;
+        var current_timestamp = new Date(event.timestamp).getTime()/1000;
+        if (last_timestamp != null) {
+            if (current_timestamp - last_timestamp > 20) {
+                row = getDummyRow("WARN", "EXCESSIVE_TIME" "SECONDS SINCE LAST EVENT: " + (current_timestamp - last_timestamp) + "<br/>");
+                table.appendChild(row);
+            }
+        }
+        last_timestamp = current_timestamp;
+
         switch (event.event_type) {
             case 'IMAP_REQUEST':
             case 'IMAP_RESPONSE': {
