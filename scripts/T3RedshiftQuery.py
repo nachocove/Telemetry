@@ -5,7 +5,7 @@ import logging
 
 import sys
 
-from AWS.db_reports import parse_dates, select
+from AWS.db_reports import select
 from AWS.redshift_handler import create_db_conn
 
 
