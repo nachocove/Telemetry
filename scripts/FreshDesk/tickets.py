@@ -39,7 +39,8 @@ class FreshDesk(object):
         pass
 
     def validate_email(self, email):
-        if re.match(r'[^@]+@[^@]+\.[^@]+', email):
+        # regex copied from http://emailregex.com/
+        if re.match(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)", email):
             return True
         else:
             return False
