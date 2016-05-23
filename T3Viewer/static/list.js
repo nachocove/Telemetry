@@ -397,6 +397,7 @@ function refreshEvents() {
                     if (keys.length == 8) {
                         row = getRowWithCommonFields(i, event, 1);
                         addFieldToRow(row, 'message', event.message);
+                        row.className += " pinger";
                         table.appendChild(row);
                     } else {
                         var isFirst = true;
@@ -407,15 +408,18 @@ function refreshEvents() {
                             if (key.notIn(dontShowKeys)) {
                                 if (isFirst) {
                                     row = getRowWithCommonFields(i, event, keys.length-dontShowKeys.length);
+                                    row.className += " pinger";
                                     isFirst = false;
                                 } else {
                                     table.appendChild(row);
                                     row = getRow(event);
+                                    row.className += " pinger";
                                 }
                                 addFieldToRow(row, keys[j], json[keys[j]]);
                             } else {
                             }
                         }
+                        table.appendChild(row);
                     }
                 }
                 break;
