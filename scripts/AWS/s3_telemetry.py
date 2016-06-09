@@ -6,11 +6,12 @@ import zlib
 from boto.s3.connection import S3Connection
 from misc.utc_datetime import UtcDateTime
 
-def create_s3_conn(aws_access_key_id, aws_secret_access_key, host='s3-us-west-2.amazonaws.com', port=443, debug=False):
+def create_s3_conn(aws_access_key_id, aws_secret_access_key, security_token=None, host='s3-us-west-2.amazonaws.com', port=443, debug=False):
     return S3Connection(host=host,
                         port=port,
                         aws_secret_access_key=aws_secret_access_key,
                         aws_access_key_id=aws_access_key_id,
+                        security_token=security_token,
                         is_secure=True,
                         debug=2 if debug else 0)
 
@@ -71,3 +72,22 @@ def get_prefixes(prefix, event_prefix, after, before):
     #prefixes.append("%s%s--%s" % (prefix, event_prefix, (after.datetime - timedelta(hours=1)).strftime('%Y-%m-%dT%H')))
     #prefixes.append("%s%s--%s" % (prefix, event_prefix, after.datetime.strftime('%Y-%m-%dT%H:%M')))
     return ["%s%s--" % (prefix, event_prefix)]
+
+
+def delete_s3_events(conn, bucket_name, prefixes, after, before, logger=None):
+    assert isinstance(conn, S3Connection)
+    bucket = conn.get_bucket(bucket_name)
+    for prefix in prefixes:
+        last_item = None
+        logger.debug("Looking for key prefix %s/%s", bucket_name, prefix)
+        while True:
+            keys = bucket.get_all_keys(prefix=prefix, maxkeys=1000, marker=last_item)
+            if not keys:
+                break
+            for key in keys:
+                logger.debug("deleting key %s" % key.key)
+            result = bucket.delete_keys(keys)
+            if result.errors:
+                logger.error("Could not delete keys:\n%s", "\n".join(["%s: %s" % (x.message, x.key) for x in result.errors]))
+                return False
+    return True
