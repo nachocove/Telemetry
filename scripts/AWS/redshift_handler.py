@@ -30,7 +30,10 @@ def select(logger, cursor, sql_st):
 
 
 def delete_logs(logger, project, config, event_class, start, end, table_prefix):
-    startForRS = start.datetime.strftime('%Y-%m-%d %H:%M:%S')
+    if start:
+        startForRS = start.datetime.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        startForRS = None
     endForRS = end.datetime.strftime('%Y-%m-%d %H:%M:%S')
     delete_stats = {}
     if table_prefix:
@@ -42,7 +45,11 @@ def delete_logs(logger, project, config, event_class, start, end, table_prefix):
         conn = create_db_conn(logger, config["db_config"])
         conn.autocommit = False
         cursor = conn.cursor()
-        logger.info("Deleting logs from %s to %s", startForRS, endForRS)
+        if startForRS:
+            logger.info("Deleting logs from %s to %s", startForRS, endForRS)
+        else:
+            logger.info("Deleting logs to %s", endForRS)
+
         event_classes = T3_EVENT_CLASS_FILE_PREFIXES[event_class]
         if not isinstance(event_classes, list):
             event_classes = [event_class]
@@ -56,7 +63,11 @@ def delete_logs(logger, project, config, event_class, start, end, table_prefix):
                     preCount = row[0]
 
                 sql_statement = "delete from %s" % table_name
-                sql_statement += " where timestamped >= '%s' and timestamped <= '%s'" % (startForRS, endForRS)
+                if startForRS:
+                    sql_statement += " where timestamped >= '%s' and timestamped <= '%s'" % (startForRS, endForRS)
+                else:
+                    sql_statement += " where timestamped <= '%s'" % endForRS
+
 
                 logger.info(sql_statement)
                 cursor.execute(sql_statement)

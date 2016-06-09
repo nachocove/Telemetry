@@ -50,7 +50,8 @@ class DBDeleteLogsForm(forms.Form):
     from_date = forms.DateTimeField(initial=datetime.now(), required=False)
     to_date = forms.DateTimeField(initial=datetime.now(), required=False)
     event_class = forms.ChoiceField(choices=[(x, x.capitalize()) for x in sorted(T3_EVENT_CLASS_FILE_PREFIXES)])
-    table_prefix = forms.CharField(widget=forms.TextInput, required=True)
+    table_prefix = forms.CharField(widget=forms.TextInput, required=False)
+    base_table = forms.BooleanField(required=False, help_text="Use the base project table, instead of a prefix.")
 
     def clean_event_class(self):
         event_class = self.cleaned_data.get('event_class', '')
@@ -94,6 +95,8 @@ class DBDeleteLogsForm(forms.Form):
             raise forms.ValidationError("FromDate(%s) cannot be > ToDate(%s)" % (from_date, to_date))
         elif (to_date - from_date).days > 31:
             raise forms.ValidationError("FromDate(%s)-ToDate(%s) cannot be > 31 days" % (from_date, to_date))
+        if not cleaned_data.get('table_prefix', None) and not cleaned_data.get('base_table', False):
+            raise forms.ValidationError("Must select either 'Base Table' or give a table prefix")
 
 
 class DBLoadForm(forms.Form):
@@ -371,8 +374,7 @@ def db_delete_logs(request):
     else:
         summary["event_classes"] = event_class
         summary["table_name"] = table_prefix + "_" + project + "_nm_" + T3_EVENT_CLASS_FILE_PREFIXES[event_class]
-    delete_stats = delete_logs(logger, project, t3_redshift_config, event_class, table_prefix, from_datetime,
-                               to_datetime)
+    delete_stats = delete_logs(logger, project, t3_redshift_config, event_class, from_datetime, to_datetime, table_prefix)
     report_data = {'summary': summary, 'delete_stats': delete_stats,
                    "general_config": t3_redshift_config["general_config"], 'message': ''}
     return render_to_response('delete_report.html', report_data,
