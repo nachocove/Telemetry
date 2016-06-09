@@ -98,8 +98,9 @@ def main():
     for bucket in [ "%s-%s-t3-%s" % (options.aws_bucket_prefix, options.aws_project, x) for x in bucket_suffixes]:
         logger.info("Processing bucket %s", bucket)
         try:
-            if delete_s3_events(s3conn, bucket, prefixes, options.start, options.end, logger=logger):
-                logger.info("Success: %s", bucket)
+            ret = delete_s3_events(s3conn, bucket, prefixes, options.start, options.end, logger=logger)
+            if ret >= 0:
+                logger.info("Success: %s (%d keys deleted)", bucket, ret)
             else:
                 logger.error("ERROR: %s", bucket)
                 sys.exit(0)

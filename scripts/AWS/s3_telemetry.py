@@ -77,17 +77,24 @@ def get_prefixes(prefix, event_prefix, after, before):
 def delete_s3_events(conn, bucket_name, prefixes, after, before, logger=None):
     assert isinstance(conn, S3Connection)
     bucket = conn.get_bucket(bucket_name)
+    deleted = 0
     for prefix in prefixes:
         last_item = None
         logger.debug("Looking for key prefix %s/%s", bucket_name, prefix)
         while True:
-            keys = bucket.get_all_keys(prefix=prefix, maxkeys=1000, marker=last_item)
-            if not keys:
+            try:
+                keys = bucket.get_all_keys(prefix=prefix, maxkeys=1000, marker=last_item)
+                if not keys:
+                    break
+                for key in keys:
+                    logger.debug("deleting key %s" % key.key)
+                result = bucket.delete_keys(keys)
+                if result.errors:
+                    logger.error("Could not delete keys:\n%s", "\n".join(["%s: %s" % (x.message, x.key) for x in result.errors]))
+                    return -1
+                else:
+                    deleted += len(keys)
+            except Exception as e:
+                logger.error("Could not process prefix %s/%s", bucket_name, prefix)
                 break
-            for key in keys:
-                logger.debug("deleting key %s" % key.key)
-            result = bucket.delete_keys(keys)
-            if result.errors:
-                logger.error("Could not delete keys:\n%s", "\n".join(["%s: %s" % (x.message, x.key) for x in result.errors]))
-                return False
-    return True
+    return deleted
