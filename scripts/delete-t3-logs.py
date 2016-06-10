@@ -31,7 +31,7 @@ class DateTimeAction(argparse.Action):
             except Exception:
                 raise argparse.ArgumentError(self, "not a valid Date-time argument: %s" % value)
 
-bucket_suffixes = ["counter", "device-info", "distribution", "log", "protocol", "samples", "statistics2", "support", "time-series", "trouble-tickets"]
+bucket_suffixes = ["counter", "device-info", "distribution", "log", "protocol", "samples", "statistics2", "support", "time-series", "trouble-tickets", "ui"]
 
 def main():
     parser = argparse.ArgumentParser()
@@ -53,6 +53,7 @@ def main():
     parser.add_argument("--aws-security-token", help="AWS Securty Token")
     parser.add_argument("--aws-bucket-prefix", help="AWS bucket name prefix")
     parser.add_argument("--aws-project", help="AWS project prefix")
+    parser.add_argument("--type", help="Type of records to delete. Must be one of '%s'" % "'".join(bucket_suffixes), default=None)
     parser.add_argument('--after',
                         help='Time window starting time in ISO-8601 UTC or "last" for the last saved time',
                         action=DateTimeAction,
@@ -80,6 +81,10 @@ def main():
         parser.print_help()
         exit(0)
 
+    if options.type and options.type not in bucket_suffixes:
+        parser.print_help()
+        exit(0)
+
     if options.debug:
         logger.setLevel(logging.DEBUG)
     elif options.verbose:
@@ -95,7 +100,8 @@ def main():
     delta = options.end.datetime - options.start.datetime
     prefixes = [(options.start.datetime + timedelta(days=x)).strftime("%Y%m%d") for x in range(0, delta.days)]
 
-    for bucket in [ "%s-%s-t3-%s" % (options.aws_bucket_prefix, options.aws_project, x) for x in bucket_suffixes]:
+    buckets = bucket_suffixes if not options.type else [options.type]
+    for bucket in [ "%s-%s-t3-%s" % (options.aws_bucket_prefix, options.aws_project, x) for x in buckets]:
         logger.info("Processing bucket %s", bucket)
         try:
             ret = delete_s3_events(s3conn, bucket, prefixes, options.start, options.end, logger=logger)
