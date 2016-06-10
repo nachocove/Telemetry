@@ -7,9 +7,7 @@ import sys
 
 from datetime import timedelta
 
-from AWS.config import AwsConfig
 from AWS.s3_telemetry import create_s3_conn, delete_s3_events
-from misc.config import Config
 from misc.utc_datetime import UtcDateTime
 
 
@@ -31,7 +29,10 @@ class DateTimeAction(argparse.Action):
             except Exception:
                 raise argparse.ArgumentError(self, "not a valid Date-time argument: %s" % value)
 
-bucket_suffixes = ["counter", "device-info", "distribution", "log", "protocol", "samples", "statistics2", "support", "time-series", "trouble-tickets", "ui"]
+
+bucket_suffixes = ["counter", "device-info", "distribution", "log", "protocol", "samples", "statistics2", "support",
+                   "time-series", "trouble-tickets", "ui"]
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -53,7 +54,8 @@ def main():
     parser.add_argument("--aws-security-token", help="AWS Securty Token")
     parser.add_argument("--aws-bucket-prefix", help="AWS bucket name prefix")
     parser.add_argument("--aws-project", help="AWS project prefix")
-    parser.add_argument("--type", help="Type of records to delete. Must be one of '%s'" % "'".join(bucket_suffixes), default=None)
+    parser.add_argument("--type", help="Type of records to delete. Must be one of '%s'" % "'".join(bucket_suffixes),
+                        default=None)
     parser.add_argument('--after',
                         help='Time window starting time in ISO-8601 UTC or "last" for the last saved time',
                         action=DateTimeAction,
@@ -93,7 +95,8 @@ def main():
         logger.setLevel(logging.WARNING)
 
     key_id = options.aws_access_key_id if options.aws_access_key_id else os.environ.get("AWS_ACCESS_KEY_ID", "")
-    secret_key = options.aws_secret_access_key if options.aws_secret_access_key else os.environ.get("AWS_SECRET_ACCESS_KEY")
+    secret_key = options.aws_secret_access_key if options.aws_secret_access_key else os.environ.get(
+        "AWS_SECRET_ACCESS_KEY")
     security_token = options.aws_security_token if options.aws_security_token else os.environ.get("AWS_SECURITY_TOKEN")
     s3conn = create_s3_conn(key_id, secret_key, security_token, debug=options.debug_boto)
 
@@ -101,7 +104,7 @@ def main():
     prefixes = [(options.start.datetime + timedelta(days=x)).strftime("%Y%m%d") for x in range(0, delta.days)]
 
     buckets = bucket_suffixes if not options.type else [options.type]
-    for bucket in [ "%s-%s-t3-%s" % (options.aws_bucket_prefix, options.aws_project, x) for x in buckets]:
+    for bucket in ["%s-%s-t3-%s" % (options.aws_bucket_prefix, options.aws_project, x) for x in buckets]:
         logger.info("Processing bucket %s", bucket)
         try:
             ret = delete_s3_events(s3conn, bucket, prefixes, options.start, options.end, logger=logger)
