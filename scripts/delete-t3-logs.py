@@ -51,9 +51,9 @@ def main():
                         default=False)
     parser.add_argument("--aws-access-key-id", help="AWS Access Key Id")
     parser.add_argument("--aws-secret-access-key", help="AWS Secret key")
-    parser.add_argument("--aws-security-token", help="AWS Securty Token")
+    parser.add_argument("--aws-security-token", help="AWS Security Token")
     parser.add_argument("--aws-bucket-prefix", help="AWS bucket name prefix")
-    parser.add_argument("--aws-project", help="AWS project prefix")
+    parser.add_argument("--aws-bucket", help="AWS bucket name prefix")
     parser.add_argument("--type", help="Type of records to delete. Must be one of '%s'" % "'".join(bucket_suffixes),
                         default=None)
     parser.add_argument('--after',
@@ -79,7 +79,7 @@ def main():
         streamhandler.setFormatter(logging.Formatter(logging_format))
         logger.addHandler(streamhandler)
 
-    if not options.start or not options.end or not options.aws_bucket_prefix or not options.aws_project:
+    if not options.start or not options.end or (not options.aws_bucket_prefix and not options.aws_bucket) or (options.aws_bucket_prefix and options.aws_bucket):
         parser.print_help()
         exit(0)
 
@@ -103,8 +103,13 @@ def main():
     delta = options.end.datetime - options.start.datetime
     prefixes = [(options.start.datetime + timedelta(days=x)).strftime("%Y%m%d") for x in range(0, delta.days)]
 
-    buckets = bucket_suffixes if not options.type else [options.type]
-    for bucket in ["%s-%s-t3-%s" % (options.aws_bucket_prefix, options.aws_project, x) for x in buckets]:
+    if options.aws_bucket_prefix:
+        bucket_names = bucket_suffixes if not options.type else [options.type]
+        buckets = ["%s-t3-%s" % (options.aws_bucket_prefix, x) for x in bucket_names]
+    else:
+        buckets = [options.aws_bucket]
+
+    for bucket in buckets:
         logger.info("Processing bucket %s", bucket)
         try:
             ret = delete_s3_events(s3conn, bucket, prefixes, options.start, options.end, logger=logger)
@@ -112,7 +117,6 @@ def main():
                 logger.info("Success: %s (%d keys deleted)", bucket, ret)
             else:
                 logger.error("ERROR: %s", bucket)
-                sys.exit(0)
         except Exception as e:
             logger.error("ERROR: %s %s", bucket, e)
 
