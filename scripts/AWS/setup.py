@@ -66,7 +66,10 @@ def main():
         config_file = Config(options.config)
         config.AwsConfig(config_file).read(options)
 
-    if not options.aws_access_key_id or not options.aws_secret_access_key:
+    key_id = options.aws_access_key_id if options.aws_access_key_id else os.environ.get("AWS_ACCESS_KEY_ID", None)
+    secret_key = options.aws_secret_access_key if options.aws_secret_access_key else os.environ.get(
+        "AWS_SECRET_ACCESS_KEY", None)
+    if not key_id or not secret_key:
         print "ERROR: No access-key or secret key. Need either a config or aws_access_key_id and aws_secret_access_key."
         sys.exit(1)
 
