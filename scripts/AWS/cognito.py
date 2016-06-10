@@ -102,8 +102,13 @@ logger = logging.getLogger('cognito-setup')
 class Boto3CliFunc(CliFunc):
     def run(self, args, **kwargs):
         super(Boto3CliFunc, self).run(args, **kwargs)
-        self.session = boto3.session.Session(aws_access_key_id=args.aws_access_key_id,
-                                             aws_secret_access_key=args.aws_secret_access_key,
+        key_id = args.aws_access_key_id if args.aws_access_key_id else os.environ.get("AWS_ACCESS_KEY_ID", None)
+        secret_key = args.aws_secret_access_key if args.aws_secret_access_key else os.environ.get(
+            "AWS_SECRET_ACCESS_KEY", None)
+        security_token = os.environ.get("AWS_SECURITY_TOKEN", None)
+        self.session = boto3.session.Session(aws_access_key_id=key_id,
+                                             aws_secret_access_key=secret_key,
+                                             aws_session_token=security_token,
                                              region_name=args.region)
         if args.boto_debug:
             self.session._session.set_debug_logger()
@@ -147,10 +152,10 @@ class DeletePools(Boto3CliFunc):
         return True
 
     @classmethod
-    def delete_s3_objects(cls, bucket, prefix):
+    def delete_s3_objects(cls, bucket, prefix, versioning_enabled=False):
         delete_list = {'Quiet': True,
                        'Objects': []}
-        if bucket.BucketVersioning().status == 'Enabled':
+        if versioning_enabled:
             versions = bucket.object_versions.filter(Prefix=prefix)
             for version in versions:
                 delete_list['Objects'].append({'Key': version.object_key, 'VersionId': version.id})
@@ -166,6 +171,7 @@ class DeletePools(Boto3CliFunc):
         conn = session.client('cognito-identity', region_name='us-east-1')
         s3 = session.resource('s3', region_name='us-east-1')
         bucket = s3.Bucket(s3_bucket)
+        versioning = s3.BucketVersioning(s3_bucket).status == "Enabled"
         next_token = None
         while True:
             list_kwargs = {'IdentityPoolId': pool_id, 'MaxResults': 60}
@@ -178,7 +184,7 @@ class DeletePools(Boto3CliFunc):
             for cognito_id in identity_list:
                 prefix = "/".join([bucket_prefix, cognito_id['IdentityId'], ''])
                 logger.info("DELETE_S3_FILES: cognito-id: %s, s3://%s/%s", cognito_id, s3_bucket, prefix)
-                cls.delete_s3_objects(bucket, bucket_prefix)
+                cls.delete_s3_objects(bucket, bucket_prefix, versioning)
             if not next_token:
                 break
 
@@ -218,11 +224,19 @@ class DeletePools(Boto3CliFunc):
                 continue
             policy_name = role['RoleName']+'Policy'
             logger.info('DELETE_ROLE_POLICY: %s: PolicyName=%s', role['RoleName'], policy_name)
-            response = iam.delete_role_policy(RoleName=role['RoleName'], PolicyName=policy_name)
-            cls.check_response(response)
+            try:
+                response = iam.delete_role_policy(RoleName=role['RoleName'], PolicyName=policy_name)
+                cls.check_response(response)
+            except Exception as e:
+                logger.error("DELETE_ROLE_POLICY failed: %s", e)
+
             logger.info('DELETE_ROLES: %(RoleName)s: id=%(RoleId)s, Path=%(Path)s, Arn=%(Arn)s', role)
-            response = iam.delete_role(RoleName=role['RoleName'])
-            cls.check_response(response)
+            try:
+                response = iam.delete_role(RoleName=role['RoleName'])
+                cls.check_response(response)
+            except Exception as e:
+                logger.error("DELETE_ROLES failed: %s", e)
+
             count += 1
         logger.info("DELETE_ROLES: %d roles deleted", count)
 
@@ -869,7 +883,10 @@ def main():
         config_file = Config(args.config)
         AwsConfig(config_file).read(args)
 
-    if not args.aws_access_key_id or not args.aws_secret_access_key:
+    key_id = args.aws_access_key_id if args.aws_access_key_id else os.environ.get("AWS_ACCESS_KEY_ID", None)
+    secret_key = args.aws_secret_access_key if args.aws_secret_access_key else os.environ.get(
+        "AWS_SECRET_ACCESS_KEY", None)
+    if not key_id or not secret_key:
         logger.error("No access-key or secret key. Need either a config or aws_access_key_id and aws_secret_access_key.")
         sys.exit(1)
 
