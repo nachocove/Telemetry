@@ -7,8 +7,8 @@
     "aws_config": {
         "region_name": "us-west-2",
         "zones": ["us-west-2a"],
-        "aws_access_key_id" : "AKIAJ2QWUH6FHXPPZUQA",
-        "aws_secret_access_key" : "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"
+        "aws_access_key_id" : "",
+        "aws_secret_access_key" : ""
     },
     "s3_config": {
         "device_info" : {
@@ -62,9 +62,9 @@
     },
     "db_config": {
         "dbname": "t3db",
-        "user":"nachocove",
-        "pwd":"Nuk0naR0cks!",
-        "host":"t3-dw-instance.ccqihpfuufs8.us-west-2.redshift.amazonaws.com",
+        "user":"",
+        "pwd":"",
+        "host":"redshift.amazonaws.com",
         "port":"5439"
     },
     "db_sql": {
@@ -85,9 +85,9 @@
         "port":587,
         "start_tls": true,
         "tls": true,
-        "from_address":"janv@nachocove.com",
+        "from_address":"",
         "username" : "",
         "password" : "",
-        "recipients":"azimo@nachocove.com"
+        "recipients":""
     }
 }
