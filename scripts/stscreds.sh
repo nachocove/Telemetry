@@ -6,9 +6,9 @@ if [ -z "$1" ] ; then
 fi
 
 TOKEN=$1
-USER=azimo
-PROFILE=azim
-ACCOUNT_ID=263277746520
+USER=
+PROFILE=
+ACCOUNT_ID=
 
 
 jsonResponse=`aws --profile $PROFILE sts get-session-token --serial-number arn:aws:iam::$ACCOUNT_ID:mfa/$USER --token $TOKEN`
