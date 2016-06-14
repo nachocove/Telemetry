@@ -159,19 +159,26 @@ class DeletePools(Boto3CliFunc):
             versions = bucket.object_versions.filter(Prefix=prefix)
             for version in versions:
                 delete_list['Objects'].append({'Key': version.object_key, 'VersionId': version.id})
-        objects = bucket.objects.filter(Prefix=prefix)
-        for object in objects:
-            delete_list['Objects'].append({'Key': object.key})
-        if delete_list['Objects']:
-            response = bucket.delete_objects(Delete=delete_list)
-            cls.check_response(response)
+        try:
+            objects = bucket.objects.filter(Prefix=prefix)
+            for object in objects:
+                delete_list['Objects'].append({'Key': object.key})
+        except:
+            pass
+
+            if delete_list['Objects']:
+                response = bucket.delete_objects(Delete=delete_list)
+                cls.check_response(response)
 
     @classmethod
     def delete_s3_user_resources(cls, session, pool_id, s3_bucket, bucket_prefix):
         conn = session.client('cognito-identity', region_name='us-east-1')
         s3 = session.resource('s3', region_name='us-east-1')
         bucket = s3.Bucket(s3_bucket)
-        versioning = s3.BucketVersioning(s3_bucket).status == "Enabled"
+        try:
+            versioning = s3.BucketVersioning(s3_bucket).status == "Enabled"
+        except:
+            versioning = False
         next_token = None
         while True:
             list_kwargs = {'IdentityPoolId': pool_id, 'MaxResults': 60}
