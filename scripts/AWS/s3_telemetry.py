@@ -80,14 +80,14 @@ def delete_s3_events(conn, bucket_name, prefixes, after, before, logger=None):
     deleted = 0
     for prefix in prefixes:
         last_item = None
-        logger.debug("Looking for key prefix %s/%s", bucket_name, prefix)
+        logger.info("Looking for key prefix %s/%s", bucket_name, prefix)
         while True:
             try:
                 keys = bucket.get_all_keys(prefix=prefix, maxkeys=1000, marker=last_item)
                 if not keys:
                     break
                 for key in keys:
-                    logger.debug("deleting key %s" % key.key)
+                    logger.debug("deleting key s3://%s/%s" % (bucket_name, key.key))
                 result = bucket.delete_keys(keys)
                 if result.errors:
                     logger.error("Could not delete keys:\n%s", "\n".join(["%s: %s" % (x.message, x.key) for x in result.errors]))
